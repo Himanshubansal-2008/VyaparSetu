@@ -61,6 +61,9 @@ Planned functionality:
 The platform will provide functionality to help businesses manage stock and make surplus products available to other enterprises.
 
 Planned functionality:
+- Low stock threshold alerts and automated status labeling (In Stock, Low Stock, Out of Stock).
+- Real-time inventory synchronization between mobile client and PostgreSQL store.
+- Batch stock adjustments and manual quantity updates for sellers.
 - Inventory and stock quantity management.
 - Surplus product listings.
 - Discounted listings for excess inventory.
