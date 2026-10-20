@@ -64,6 +64,8 @@ Planned functionality:
 - Low stock threshold alerts and automated status labeling (In Stock, Low Stock, Out of Stock).
 - Real-time inventory synchronization between mobile client and PostgreSQL store.
 - Batch stock adjustments and manual quantity updates for sellers.
+- Soft deactivation for out-of-season or depleted products with reactivation capability.
+- Multi-criteria inventory filtering (search by name, stock status, and product category).
 - Inventory and stock quantity management.
 - Surplus product listings.
 - Discounted listings for excess inventory.
