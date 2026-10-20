@@ -27,4 +27,26 @@ model User {
   role         UserRole @default(BUYER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  business Business?
 }
+
+
+model Business {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String?
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  phone       String?
+  email       String?
+
+  ownerId     String   @unique
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
