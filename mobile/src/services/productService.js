@@ -1,4 +1,10 @@
 
+/**
+ * @fileoverview Inventory & Product API Service
+ * Manages seller product CRUD operations, stock level updates,
+ * and soft deactivation endpoints for the inventory management module.
+ */
+
 const API_BASE_URL = "http://localhost:5050/api";
 
 export const getCategories = async () => {
