@@ -171,6 +171,10 @@ const getProductsFromApi = async (params = {}, options = {}) => {
   };
 };
 
+/**
+ * Fetches all inventory products for seller dashboard and listing screens.
+ * @returns {Promise<Array>} Array of product records
+ */
 export const getProducts = async (params, options = {}) => {
   const response = await getProductsFromApi(params || {}, options);
 
