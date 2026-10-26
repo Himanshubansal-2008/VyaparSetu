@@ -270,6 +270,11 @@ export const getProductById = async (id, options = {}) => {
  * @param {Object} [options]
  * @returns {Promise<Object>} Created product
  */
+/**
+ * Creates a new inventory product with category, pricing, and initial stock.
+ * @param {Object} productData - Product payload including name, price, stock, categoryId
+ * @returns {Promise<Object>} Created product data
+ */
 export const createProduct = async (productData, options = {}) => {
   if (!productData || typeof productData !== 'object') {
     throw new ApiError('Product data is required', 400);
