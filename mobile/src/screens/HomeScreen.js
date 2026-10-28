@@ -11,11 +11,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
+import CategoryList from '../components/CategoryList';
+import { categories } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
 export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   const quickSearches = [
     'Cotton Kurtis',
@@ -43,6 +46,13 @@ export default function HomeScreen() {
         }}
         onNotificationPress={() => console.log('Notifications opened')}
         onCartPress={() => console.log('Cart opened')}
+      />
+
+      {/* 2. Product Categories — horizontal scroll strip */}
+      <CategoryList
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onSelectCategory={(cat) => setSelectedCategory(cat.id)}
       />
 
       <ScrollView
