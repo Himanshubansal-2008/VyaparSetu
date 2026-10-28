@@ -351,6 +351,12 @@ export const createProduct = async (productData, options = {}) => {
  * @param {Object} [options]
  * @returns {Promise<Object>} Updated product
  */
+/**
+ * Updates an existing product's details and inventory properties.
+ * @param {string} productId - Unique product identifier
+ * @param {Object} productData - Updated product fields
+ * @returns {Promise<Object>} Updated product response
+ */
 export const updateProduct = async (id, updateData, options = {}) => {
   if (!id || typeof id !== 'string' || !isUUID(id)) {
     throw new ApiError('Valid product UUID is required for update', 400);
