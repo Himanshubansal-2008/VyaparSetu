@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,10 +7,12 @@ import {
   StatusBar,
   Platform,
   FlatList,
+  ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
-import { products } from '../data/products';
+import { products, categories } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -18,6 +20,8 @@ export default function ProductListingScreen({
   onNotificationPress,
   onCartPress,
 }) {
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar
@@ -45,6 +49,42 @@ export default function ProductListingScreen({
             <Text style={styles.pageSubtitle}>
               Discover products from businesses across India.
             </Text>
+
+            {/* Category Filter Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.categoryScrollWrapper}
+              contentContainerStyle={styles.categoryScroll}
+            >
+              {categories.map((category) => {
+                const isSelected = selectedCategory === category.id;
+                const label = category.id === 'all' ? 'All' : category.name;
+
+                return (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[
+                      styles.chip,
+                      isSelected ? styles.chipSelected : styles.chipUnselected,
+                    ]}
+                    onPress={() => setSelectedCategory(category.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        isSelected
+                          ? styles.chipTextSelected
+                          : styles.chipTextUnselected,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         }
       />
@@ -79,5 +119,40 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     fontWeight: '400',
+  },
+  categoryScrollWrapper: {
+    marginTop: spacing.md,
+    marginHorizontal: -(spacing.sm + 2),
+  },
+  categoryScroll: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+  },
+  chip: {
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.xs + 3,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.sm,
+  },
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  chipUnselected: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  chipTextSelected: {
+    color: colors.textInverse,
+    fontWeight: '700',
+  },
+  chipTextUnselected: {
+    color: colors.textSecondary,
   },
 });
