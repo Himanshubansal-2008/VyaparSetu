@@ -12,9 +12,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import CategoryList from '../components/CategoryList';
+import FeaturedProducts from '../components/FeaturedProducts';
 import ProductCard from '../components/ProductCard';
 import {
   categories,
+  getFeaturedProducts,
   getProductsByCategory,
   searchProducts,
 } from '../data/products';
@@ -31,6 +33,8 @@ export default function HomeScreen() {
     }
     return getProductsByCategory(selectedCategory);
   }, [searchQuery, selectedCategory]);
+
+  const featuredProducts = useMemo(() => getFeaturedProducts(), []);
 
   const quickSearches = [
     'Cotton Kurtis',
@@ -67,7 +71,13 @@ export default function HomeScreen() {
         onSelectCategory={(cat) => setSelectedCategory(cat.id)}
       />
 
-      {/* 3. Product Grid — filtered by category or search */}
+      {/* 3. Featured Products — horizontal carousel */}
+      <FeaturedProducts
+        products={featuredProducts}
+        onProductPress={(p) => console.log('Featured tapped:', p.name)}
+      />
+
+      {/* 4. Product Grid — filtered by category or search */}
       <FlatList
         data={filteredProducts}
         renderItem={({ item }) => (
