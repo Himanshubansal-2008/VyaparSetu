@@ -11,7 +11,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
-export default function ProductCard({ product, onPress }) {
+export default function ProductCard({
+  product,
+  name = product?.name,
+  price = product?.price,
+  originalPrice = product?.originalPrice,
+  category = product?.categoryName || product?.category,
+  sellerName = product?.sellerName,
+  location = product?.location,
+  image = product?.image,
+  unit = product?.unit || 'piece',
+  moq = product?.moq,
+  rating = product?.rating,
+  totalReviews = product?.totalReviews,
+  isSurplus = product?.isSurplus,
+  onPress,
+  style,
+}) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -32,23 +48,30 @@ export default function ProductCard({ product, onPress }) {
     }).start();
   };
 
-  const discountPercent = Math.round(
-    ((product.originalPrice - product.price) / product.originalPrice) * 100
-  );
+  const discountPercent =
+    originalPrice && price && originalPrice > price
+      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+      : 0;
 
   return (
     <Animated.View
-      style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}
+      style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }, style]}
     >
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.92}
-        onPress={() => onPress?.(product)}
+        onPress={() => onPress?.(product || { name, price, category, sellerName })}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
         <View style={styles.imageContainer}>
-          <Image source={{ uri: product.image }} style={styles.image} />
+          {image ? (
+            <Image source={{ uri: image }} style={styles.image} />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="cube-outline" size={36} color={colors.textMuted} />
+            </View>
+          )}
 
           {discountPercent > 0 && (
             <View style={styles.discountBadge}>
@@ -56,7 +79,7 @@ export default function ProductCard({ product, onPress }) {
             </View>
           )}
 
-          {product.isSurplus && (
+          {isSurplus && (
             <View style={styles.surplusBadge}>
               <Ionicons name="flash" size={10} color={colors.textInverse} />
               <Text style={styles.surplusText}>Surplus</Text>
@@ -65,58 +88,72 @@ export default function ProductCard({ product, onPress }) {
         </View>
 
         <View style={styles.details}>
-          <Text style={styles.category} numberOfLines={1}>
-            {product.categoryName}
-          </Text>
+          {category ? (
+            <Text style={styles.category} numberOfLines={1}>
+              {category}
+            </Text>
+          ) : null}
 
           <Text style={styles.name} numberOfLines={2}>
-            {product.name}
+            {name || 'Unnamed Product'}
           </Text>
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>₹{product.price}</Text>
-            <Text style={styles.unit}>/{product.unit}</Text>
-            {product.originalPrice > product.price && (
-              <Text style={styles.originalPrice}>
-                ₹{product.originalPrice}
-              </Text>
-            )}
+            <Text style={styles.price}>₹{price ?? 0}</Text>
+            {unit ? <Text style={styles.unit}>/{unit}</Text> : null}
+            {originalPrice && originalPrice > price ? (
+              <Text style={styles.originalPrice}>₹{originalPrice}</Text>
+            ) : null}
           </View>
 
-          <Text style={styles.moq}>
-            MOQ: {product.moq} {product.unit}
-            {product.moq > 1 ? 's' : ''}
-          </Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.ratingChip}>
-              <Ionicons name="star" size={11} color={colors.accent} />
-              <Text style={styles.ratingText}>{product.rating}</Text>
-              <Text style={styles.reviewCount}>({product.totalReviews})</Text>
-            </View>
-
-            <View style={styles.locationChip}>
-              <Ionicons
-                name="location-outline"
-                size={11}
-                color={colors.textMuted}
-              />
-              <Text style={styles.locationText} numberOfLines={1}>
-                {product.location}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.sellerRow}>
-            <Ionicons
-              name="storefront-outline"
-              size={12}
-              color={colors.success}
-            />
-            <Text style={styles.sellerName} numberOfLines={1}>
-              {product.sellerName}
+          {moq ? (
+            <Text style={styles.moq}>
+              MOQ: {moq} {unit}
+              {moq > 1 ? 's' : ''}
             </Text>
-          </View>
+          ) : null}
+
+          {(rating || location) && (
+            <View style={styles.metaRow}>
+              {rating ? (
+                <View style={styles.ratingChip}>
+                  <Ionicons name="star" size={11} color={colors.accent} />
+                  <Text style={styles.ratingText}>{rating}</Text>
+                  {totalReviews !== undefined && (
+                    <Text style={styles.reviewCount}>({totalReviews})</Text>
+                  )}
+                </View>
+              ) : (
+                <View />
+              )}
+
+              {location ? (
+                <View style={styles.locationChip}>
+                  <Ionicons
+                    name="location-outline"
+                    size={11}
+                    color={colors.textMuted}
+                  />
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {location}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {sellerName ? (
+            <View style={styles.sellerRow}>
+              <Ionicons
+                name="storefront-outline"
+                size={12}
+                color={colors.success}
+              />
+              <Text style={styles.sellerName} numberOfLines={1}>
+                {sellerName}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -141,11 +178,20 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 130,
     backgroundColor: colors.surfaceSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   image: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
   },
   discountBadge: {
     position: 'absolute',

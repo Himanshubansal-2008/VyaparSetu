@@ -6,9 +6,11 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
-  ScrollView,
+  FlatList,
 } from 'react-native';
 import Header from '../components/Header';
+import ProductCard from '../components/ProductCard';
+import { products } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -29,26 +31,23 @@ export default function ProductListingScreen({
         onCartPress={onCartPress}
       />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
+      {/* Product Grid List */}
+      <FlatList
+        data={products}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        renderItem={({ item }) => <ProductCard product={item} />}
+        contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Page Title & Subtitle */}
-        <View style={styles.headerSection}>
-          <Text style={styles.pageTitle}>Explore Products</Text>
-          <Text style={styles.pageSubtitle}>
-            Discover products from businesses across India.
-          </Text>
-        </View>
-
-        {/* Content Layout Container (Ready for product grid/filters in upcoming commits) */}
-        <View style={styles.mainContent}>
-          <View style={styles.placeholderContainer}>
-            <View style={styles.placeholderLine} />
+        ListHeaderComponent={
+          <View style={styles.headerSection}>
+            <Text style={styles.pageTitle}>Explore Products</Text>
+            <Text style={styles.pageSubtitle}>
+              Discover products from businesses across India.
+            </Text>
           </View>
-        </View>
-      </ScrollView>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -59,15 +58,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: spacing.lg,
+  listContainer: {
+    paddingHorizontal: spacing.sm + 2,
     paddingBottom: spacing.xxxl,
   },
   headerSection: {
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm + 2,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   pageTitle: {
     fontSize: 24,
@@ -81,16 +79,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     fontWeight: '400',
-  },
-  mainContent: {
-    flex: 1,
-  },
-  placeholderContainer: {
-    marginTop: spacing.sm,
-  },
-  placeholderLine: {
-    height: 1,
-    backgroundColor: colors.border,
-    width: '100%',
   },
 });
