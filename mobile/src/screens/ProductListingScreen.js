@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import { products, categories } from '../data/products';
@@ -21,6 +22,17 @@ export default function ProductListingScreen({
   onCartPress,
 }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const filteredProducts = useMemo(() => {
+    if (selectedCategory === 'all') {
+      return products;
+    }
+    return products.filter(
+      (product) =>
+        product.categoryId === selectedCategory ||
+        product.category === selectedCategory
+    );
+  }, [selectedCategory]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -37,7 +49,7 @@ export default function ProductListingScreen({
 
       {/* Product Grid List */}
       <FlatList
-        data={products}
+        data={filteredProducts}
         keyExtractor={(item) => item.id}
         numColumns={2}
         renderItem={({ item }) => <ProductCard product={item} />}
@@ -85,6 +97,26 @@ export default function ProductListingScreen({
                 );
               })}
             </ScrollView>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconBox}>
+              <Ionicons name="cube-outline" size={44} color={colors.textMuted} />
+            </View>
+            <Text style={styles.emptyTitle}>
+              No products found in this category.
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              Try exploring other categories or view all products.
+            </Text>
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={() => setSelectedCategory('all')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resetButtonText}>View All Products</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -154,5 +186,44 @@ const styles = StyleSheet.create({
   },
   chipTextUnselected: {
     color: colors.textSecondary,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxxl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  resetButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+  },
+  resetButtonText: {
+    color: colors.textInverse,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
