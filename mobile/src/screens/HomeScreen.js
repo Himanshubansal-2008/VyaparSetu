@@ -48,6 +48,9 @@ export default function HomeScreen({
 
   const handleSelectCategory = (cat) => {
     const catId = typeof cat === 'string' ? cat : cat?.id || 'all';
+    if (searchQuery) {
+      handleSearchChange('');
+    }
     if (propOnSelectCategory) {
       propOnSelectCategory(catId);
     } else {
@@ -63,16 +66,25 @@ export default function HomeScreen({
     }
   };
 
-  // Filter products by name based on search query (case-insensitive, trimmed)
+  // Filter products based on search query or selected category
   const filteredProducts = useMemo(() => {
     const trimmedQuery = searchQuery.trim().toLowerCase();
-    if (!trimmedQuery) {
+    if (trimmedQuery) {
+      return products.filter((product) =>
+        product.name?.toLowerCase().includes(trimmedQuery)
+      );
+    }
+
+    if (selectedCategory === 'all') {
       return products;
     }
-    return products.filter((product) =>
-      product.name?.toLowerCase().includes(trimmedQuery)
+
+    return products.filter(
+      (product) =>
+        product.categoryId === selectedCategory ||
+        product.category === selectedCategory
     );
-  }, [searchQuery]);
+  }, [searchQuery, selectedCategory]);
 
   const featuredProducts = useMemo(() => getFeaturedProducts(), []);
 
@@ -175,7 +187,9 @@ export default function HomeScreen({
                 <Text style={styles.sectionTitle}>
                   {searchQuery.trim().length > 0
                     ? 'Search Results'
-                    : 'All Products'}
+                    : selectedCategory === 'all'
+                      ? 'All Products'
+                      : categories.find((c) => c.id === selectedCategory)?.name || 'All Products'}
                 </Text>
                 <Text style={styles.productCount}>
                   {filteredProducts.length} item
@@ -234,13 +248,17 @@ export default function HomeScreen({
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No products found</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery.trim().length > 0
+                ? 'No products found'
+                : 'No products available in this category'}
+            </Text>
             <Text style={styles.emptySubtitle}>
               {searchQuery.trim().length > 0
                 ? `No products match "${searchQuery.trim()}"`
-                : 'Try a different search term'}
+                : 'Try exploring other categories or view all products.'}
             </Text>
-            {searchQuery.trim().length > 0 && (
+            {searchQuery.trim().length > 0 ? (
               <TouchableOpacity
                 style={styles.clearSearchButton}
                 onPress={() => handleSearchChange('')}
@@ -250,7 +268,17 @@ export default function HomeScreen({
               >
                 <Text style={styles.clearSearchButtonText}>Clear Search</Text>
               </TouchableOpacity>
-            )}
+            ) : selectedCategory !== 'all' ? (
+              <TouchableOpacity
+                style={styles.clearSearchButton}
+                onPress={() => handleSelectCategory('all')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View All Products"
+              >
+                <Text style={styles.clearSearchButtonText}>View All Products</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         }
       />
