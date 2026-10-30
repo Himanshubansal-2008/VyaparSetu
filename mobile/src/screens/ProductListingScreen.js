@@ -18,10 +18,31 @@ import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
 export default function ProductListingScreen({
+  navigation,
+  route,
+  onBackPress,
   onNotificationPress,
   onCartPress,
 }) {
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const initialCategory =
+    route?.params?.selectedCategory ||
+    route?.params?.categoryId ||
+    'all';
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+
+  React.useEffect(() => {
+    if (route?.params?.selectedCategory) {
+      setSelectedCategory(route?.params.selectedCategory);
+    }
+  }, [route?.params?.selectedCategory]);
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+    } else if (navigation?.goBack) {
+      navigation.goBack();
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     if (selectedCategory === 'all') {
@@ -43,6 +64,10 @@ export default function ProductListingScreen({
 
       {/* Shared Header Component */}
       <Header
+        showBack={Boolean(
+          onBackPress || navigation?.canGoBack?.() || navigation?.goBack
+        )}
+        onBackPress={handleBack}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
       />
@@ -52,7 +77,12 @@ export default function ProductListingScreen({
         data={filteredProducts}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        renderItem={({ item }) => <ProductCard product={item} />}
+        renderItem={({ item }) => (
+          <ProductCard
+            product={item}
+            onPress={(p) => console.log('Product tapped:', p.name)}
+          />
+        )}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={

@@ -25,6 +25,7 @@ export default function ProductCard({
   rating = product?.rating,
   totalReviews = product?.totalReviews,
   isSurplus = product?.isSurplus,
+  isFeatured = product?.isFeatured,
   onPress,
   style,
 }) {
@@ -83,6 +84,13 @@ export default function ProductCard({
             <View style={styles.surplusBadge}>
               <Ionicons name="flash" size={10} color={colors.textInverse} />
               <Text style={styles.surplusText}>Surplus</Text>
+            </View>
+          )}
+
+          {isFeatured && !isSurplus && (
+            <View style={styles.featuredBadge}>
+              <Ionicons name="star" size={10} color={colors.accent} />
+              <Text style={styles.featuredText}>Featured</Text>
             </View>
           )}
         </View>
@@ -223,6 +231,23 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontSize: 10,
     fontWeight: '700',
+  },
+  featuredBadge: {
+    position: 'absolute',
+    top: spacing.xs + 2,
+    right: spacing.xs + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 2,
+  },
+  featuredText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.accent,
   },
   details: {
     padding: spacing.sm + 2,

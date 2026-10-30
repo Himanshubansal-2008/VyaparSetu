@@ -23,9 +23,21 @@ import {
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
-export default function HomeScreen() {
+export default function HomeScreen({
+  navigation,
+  route,
+  onNavigateToProductListing,
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const handleNavigateToProductListing = (params = {}) => {
+    if (onNavigateToProductListing) {
+      onNavigateToProductListing(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('ProductListing', params);
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     if (searchQuery.trim().length > 0) {
@@ -75,6 +87,7 @@ export default function HomeScreen() {
       <FeaturedProducts
         products={featuredProducts}
         onProductPress={(p) => console.log('Featured tapped:', p.name)}
+        onViewAllPress={() => handleNavigateToProductListing()}
       />
 
       {/* 4. Product Grid — filtered by category or search */}
@@ -130,19 +143,67 @@ export default function HomeScreen() {
             )}
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {searchQuery.trim().length > 0
-                  ? 'Search Results'
-                  : selectedCategory === 'all'
-                    ? 'All Products'
-                    : categories.find((c) => c.id === selectedCategory)?.name}
-              </Text>
-              <Text style={styles.productCount}>
-                {filteredProducts.length} item
-                {filteredProducts.length !== 1 ? 's' : ''}
-              </Text>
+              <View>
+                <Text style={styles.sectionTitle}>
+                  {searchQuery.trim().length > 0
+                    ? 'Search Results'
+                    : selectedCategory === 'all'
+                      ? 'All Products'
+                      : categories.find((c) => c.id === selectedCategory)?.name}
+                </Text>
+                <Text style={styles.productCount}>
+                  {filteredProducts.length} item
+                  {filteredProducts.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() =>
+                  handleNavigateToProductListing({
+                    selectedCategory:
+                      selectedCategory !== 'all' ? selectedCategory : 'all',
+                  })
+                }
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View All Products"
+              >
+                <Text style={styles.viewAllButtonText}>View All</Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={14}
+                  color={colors.primaryLight}
+                />
+              </TouchableOpacity>
             </View>
           </View>
+        }
+        ListFooterComponent={
+          filteredProducts.length > 0 ? (
+            <View style={styles.footerActionContainer}>
+              <TouchableOpacity
+                style={styles.viewAllProductsButton}
+                onPress={() =>
+                  handleNavigateToProductListing({
+                    selectedCategory:
+                      selectedCategory !== 'all' ? selectedCategory : 'all',
+                  })
+                }
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="View All Products"
+              >
+                <Text style={styles.viewAllProductsText}>View All Products</Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={colors.textInverse}
+                  style={styles.viewAllIcon}
+                />
+              </TouchableOpacity>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -244,6 +305,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.textMuted,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    gap: 4,
+  },
+  viewAllButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primaryLight,
+  },
+  footerActionContainer: {
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewAllProductsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.lg,
+    width: '100%',
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  viewAllProductsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textInverse,
+    marginRight: spacing.xs,
+  },
+  viewAllIcon: {
+    marginLeft: spacing.xs,
   },
   emptyState: {
     alignItems: 'center',

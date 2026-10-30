@@ -20,12 +20,29 @@ export default function Header({
   onCartPress,
   unreadNotifications = 2,
   cartItemCount = 0,
+  showBack = false,
+  onBackPress,
 }) {
   return (
     <View style={styles.container}>
       {/* Top Branding & Action Bar */}
       <View style={styles.topRow}>
         <View style={styles.brandContainer}>
+          {showBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBackPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name="arrow-back"
+                size={22}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          )}
           <View style={styles.logoBadge}>
             <MaterialCommunityIcons
               name="handshake"
@@ -132,6 +149,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  backButton: {
+    padding: spacing.xs,
+    marginRight: spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoBadge: {
     width: 42,
