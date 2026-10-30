@@ -30,12 +30,30 @@ export default function HomeScreen({
   onNavigateToProductListing,
   searchQuery: propSearchQuery,
   onSearchChange: propOnSearchChange,
+  selectedCategory: propSelectedCategory,
+  onSelectCategory: propOnSelectCategory,
 }) {
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
     propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
   const handleSearchChange = propOnSearchChange || setInternalSearchQuery;
-  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  // Selected category state with 'all' as default option
+  const [internalSelectedCategory, setInternalSelectedCategory] =
+    useState('all');
+  const selectedCategory =
+    propSelectedCategory !== undefined
+      ? propSelectedCategory
+      : internalSelectedCategory;
+
+  const handleSelectCategory = (cat) => {
+    const catId = typeof cat === 'string' ? cat : cat?.id || 'all';
+    if (propOnSelectCategory) {
+      propOnSelectCategory(catId);
+    } else {
+      setInternalSelectedCategory(catId);
+    }
+  };
 
   const handleNavigateToProductListing = (params = {}) => {
     if (onNavigateToProductListing) {
@@ -90,7 +108,7 @@ export default function HomeScreen({
       <CategoryList
         categories={categories}
         selectedCategory={selectedCategory}
-        onSelectCategory={(cat) => setSelectedCategory(cat.id)}
+        onSelectCategory={handleSelectCategory}
       />
 
       {/* 3. Featured Products — horizontal carousel */}

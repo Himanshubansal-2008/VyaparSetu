@@ -5,16 +5,17 @@ import {
   TouchableOpacity,
   Animated,
   View,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
 /**
- * CategoryCard — a single category pill rendered inside a horizontal FlatList.
+ * CategoryCard — a single category pill rendered inside a horizontal list.
  *
  * Props:
- *   category   – { id, name, icon }  (from mock data)
+ *   category   – { id, name, icon, image }  (from mock data)
  *   isSelected – boolean
  *   onPress    – (category) => void
  */
@@ -47,6 +48,9 @@ export default function CategoryCard({ category, isSelected, onPress }) {
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={category.name}
+        accessibilityState={{ selected: isSelected }}
       >
         <View
           style={[
@@ -54,11 +58,18 @@ export default function CategoryCard({ category, isSelected, onPress }) {
             isSelected && styles.iconContainerSelected,
           ]}
         >
-          <Ionicons
-            name={category.icon}
-            size={20}
-            color={isSelected ? colors.textInverse : colors.primary}
-          />
+          {category.image ? (
+            <Image
+              source={{ uri: category.image }}
+              style={styles.categoryImage}
+            />
+          ) : (
+            <Ionicons
+              name={category.icon || 'grid-outline'}
+              size={20}
+              color={isSelected ? colors.textInverse : colors.primary}
+            />
+          )}
         </View>
         <Text
           style={[styles.label, isSelected && styles.labelSelected]}
@@ -101,6 +112,11 @@ const styles = StyleSheet.create({
   },
   iconContainerSelected: {
     backgroundColor: colors.primary,
+  },
+  categoryImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   label: {
     fontSize: 11.5,

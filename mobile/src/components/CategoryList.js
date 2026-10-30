@@ -1,51 +1,38 @@
 import React, { useRef } from 'react';
-import { StyleSheet, View, Text, FlatList } from 'react-native';
+import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import CategoryCard from './CategoryCard';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 
-
 export default function CategoryList({
-  categories,
-  selectedCategory,
+  categories = [],
+  selectedCategory = 'all',
   onSelectCategory,
 }) {
-  const flatListRef = useRef(null);
+  const scrollViewRef = useRef(null);
 
   const handlePress = (category) => {
-    onSelectCategory(category);
-
-    const index = categories.findIndex((c) => c.id === category.id);
-    if (index >= 0 && flatListRef.current) {
-      flatListRef.current.scrollToIndex({
-        index,
-        animated: true,
-        viewPosition: 0.35, // roughly centre-left
-      });
-    }
+    onSelectCategory?.(category);
   };
-
-  const renderItem = ({ item }) => (
-    <CategoryCard
-      category={item}
-      isSelected={selectedCategory === item.id}
-      onPress={handlePress}
-    />
-  );
 
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Categories</Text>
-      <FlatList
-        ref={flatListRef}
-        data={categories}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+      <ScrollView
+        ref={scrollViewRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        onScrollToIndexFailed={() => {}}
-      />
+      >
+        {categories.map((category) => (
+          <CategoryCard
+            key={category.id}
+            category={category}
+            isSelected={selectedCategory === category.id}
+            onPress={handlePress}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }
