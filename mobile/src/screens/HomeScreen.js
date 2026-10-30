@@ -48,14 +48,16 @@ export default function HomeScreen({
 
   const handleSelectCategory = (cat) => {
     const catId = typeof cat === 'string' ? cat : cat?.id || 'all';
-    if (searchQuery) {
-      handleSearchChange('');
-    }
     if (propOnSelectCategory) {
       propOnSelectCategory(catId);
     } else {
       setInternalSelectedCategory(catId);
     }
+  };
+
+  const handleClearFilters = () => {
+    handleSearchChange('');
+    handleSelectCategory('all');
   };
 
   const handleNavigateToProductListing = (params = {}) => {
@@ -66,25 +68,27 @@ export default function HomeScreen({
     }
   };
 
-  // Filter products based on search query or selected category
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const hasSearch = trimmedQuery.length > 0;
+  const hasCategory = selectedCategory !== 'all';
+  const categoryName =
+    categories.find((c) => c.id === selectedCategory)?.name || 'All Products';
+
+  // Filter products matching BOTH search query and selected category
   const filteredProducts = useMemo(() => {
-    const trimmedQuery = searchQuery.trim().toLowerCase();
-    if (trimmedQuery) {
-      return products.filter((product) =>
-        product.name?.toLowerCase().includes(trimmedQuery)
-      );
-    }
-
-    if (selectedCategory === 'all') {
-      return products;
-    }
-
-    return products.filter(
-      (product) =>
+    return products.filter((product) => {
+      const matchesCategory =
+        !hasCategory ||
         product.categoryId === selectedCategory ||
-        product.category === selectedCategory
-    );
-  }, [searchQuery, selectedCategory]);
+        product.category === selectedCategory;
+
+      const matchesSearch =
+        !hasSearch ||
+        product.name?.toLowerCase().includes(trimmedQuery);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [hasCategory, selectedCategory, hasSearch, trimmedQuery]);
 
   const featuredProducts = useMemo(() => getFeaturedProducts(), []);
 
@@ -145,17 +149,18 @@ export default function HomeScreen({
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={styles.contentContainer}>
-            {searchQuery.trim().length > 0 ? (
+            {hasSearch ? (
               <View style={styles.searchActiveCard}>
                 <View style={styles.searchResultHeader}>
                   <Ionicons name="search" size={18} color={colors.primary} />
                   <Text style={styles.searchResultTitle}>
-                    Searching for: "{searchQuery.trim()}"
+                    Searching for: "{trimmedQuery}"
                   </Text>
                 </View>
                 <Text style={styles.searchResultSub}>
                   {filteredProducts.length} product
                   {filteredProducts.length !== 1 ? 's' : ''} found
+                  {hasCategory ? ` in ${categoryName}` : ''}
                 </Text>
               </View>
             ) : (
@@ -185,11 +190,13 @@ export default function HomeScreen({
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionTitle}>
-                  {searchQuery.trim().length > 0
-                    ? 'Search Results'
-                    : selectedCategory === 'all'
-                      ? 'All Products'
-                      : categories.find((c) => c.id === selectedCategory)?.name || 'All Products'}
+                  {hasSearch && hasCategory
+                    ? `${categoryName} Results`
+                    : hasSearch
+                      ? 'Search Results'
+                      : !hasCategory
+                        ? 'All Products'
+                        : categoryName}
                 </Text>
                 <Text style={styles.productCount}>
                   {filteredProducts.length} item
@@ -249,16 +256,45 @@ export default function HomeScreen({
           <View style={styles.emptyState}>
             <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>
-              {searchQuery.trim().length > 0
-                ? 'No products found'
-                : 'No products available in this category'}
+              {hasSearch && hasCategory
+                ? 'No products found in this category'
+                : hasSearch
+                  ? 'No products found'
+                  : 'No products available in this category'}
             </Text>
             <Text style={styles.emptySubtitle}>
-              {searchQuery.trim().length > 0
-                ? `No products match "${searchQuery.trim()}"`
-                : 'Try exploring other categories or view all products.'}
+              {hasSearch && hasCategory
+                ? `No products in ${categoryName} match "${trimmedQuery}". Try another search or clear your filters.`
+                : hasSearch
+                  ? `No products match "${trimmedQuery}". Try a different search term.`
+                  : 'Try exploring other categories or view all products.'}
             </Text>
-            {searchQuery.trim().length > 0 ? (
+            {hasSearch && hasCategory ? (
+              <View style={styles.emptyActionRow}>
+                <TouchableOpacity
+                  style={[styles.clearSearchButton, { marginTop: 0 }]}
+                  onPress={() => handleSearchChange('')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear Search"
+                >
+                  <Text style={styles.clearSearchButtonText}>Clear Search</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.clearSearchButton,
+                    styles.clearFiltersButton,
+                    { marginTop: 0 },
+                  ]}
+                  onPress={handleClearFilters}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear Filters"
+                >
+                  <Text style={styles.clearFiltersButtonText}>Clear Filters</Text>
+                </TouchableOpacity>
+              </View>
+            ) : hasSearch ? (
               <TouchableOpacity
                 style={styles.clearSearchButton}
                 onPress={() => handleSearchChange('')}
@@ -268,7 +304,7 @@ export default function HomeScreen({
               >
                 <Text style={styles.clearSearchButtonText}>Clear Search</Text>
               </TouchableOpacity>
-            ) : selectedCategory !== 'all' ? (
+            ) : hasCategory ? (
               <TouchableOpacity
                 style={styles.clearSearchButton}
                 onPress={() => handleSelectCategory('all')}
@@ -446,6 +482,24 @@ const styles = StyleSheet.create({
   },
   clearSearchButtonText: {
     color: colors.textInverse,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    flexWrap: 'wrap',
+  },
+  clearFiltersButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  clearFiltersButtonText: {
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '700',
   },
