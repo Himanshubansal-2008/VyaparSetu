@@ -29,6 +29,12 @@ export const getBusinesses = async () => {
   return result.data;
 };
 
+/**
+ * Updates stock quantity for an inventory item.
+ * @param {string} productId - Unique product identifier
+ * @param {number} stock - Non-negative integer quantity
+ * @returns {Promise<Object>} Updated inventory record
+ */
 export const updateProductStock = async (productId, stock) => {
   const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
     method: "PUT",
