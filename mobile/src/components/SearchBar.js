@@ -12,7 +12,9 @@ import { spacing, borderRadius } from '../theme/spacing';
 
 export default function SearchBar({
   value = '',
+  searchQuery,
   onChangeText,
+  onSearchChange,
   onClear,
   onSubmitEditing,
   placeholder = 'Search products by name...',
@@ -21,11 +23,14 @@ export default function SearchBar({
   style,
   autoFocus = false,
 }) {
+  const currentValue = searchQuery !== undefined ? searchQuery : value;
+  const handleChangeText = onChangeText || onSearchChange;
+
   const handleClear = () => {
     if (onClear) {
       onClear();
-    } else if (onChangeText) {
-      onChangeText('');
+    } else if (handleChangeText) {
+      handleChangeText('');
     }
   };
 
@@ -39,8 +44,8 @@ export default function SearchBar({
           style={styles.searchIcon}
         />
         <TextInput
-          value={value}
-          onChangeText={onChangeText}
+          value={currentValue}
+          onChangeText={handleChangeText}
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
           style={styles.input}
@@ -51,7 +56,7 @@ export default function SearchBar({
           onSubmitEditing={onSubmitEditing}
           clearButtonMode="never"
         />
-        {value?.length > 0 && (
+        {currentValue?.length > 0 && (
           <TouchableOpacity
             onPress={handleClear}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

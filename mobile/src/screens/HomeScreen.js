@@ -15,6 +15,7 @@ import CategoryList from '../components/CategoryList';
 import FeaturedProducts from '../components/FeaturedProducts';
 import ProductCard from '../components/ProductCard';
 import {
+  products,
   categories,
   getFeaturedProducts,
   getProductsByCategory,
@@ -27,8 +28,13 @@ export default function HomeScreen({
   navigation,
   route,
   onNavigateToProductListing,
+  searchQuery: propSearchQuery,
+  onSearchChange: propOnSearchChange,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
+  const searchQuery =
+    propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
+  const handleSearchChange = propOnSearchChange || setInternalSearchQuery;
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   const handleNavigateToProductListing = (params = {}) => {
@@ -39,12 +45,9 @@ export default function HomeScreen({
     }
   };
 
-  const filteredProducts = useMemo(() => {
-    if (searchQuery.trim().length > 0) {
-      return searchProducts(searchQuery);
-    }
-    return getProductsByCategory(selectedCategory);
-  }, [searchQuery, selectedCategory]);
+  // Connected to hardcoded products array.
+  // Actual search filtering logic will be implemented in a subsequent commit per scope.
+  const displayProducts = products;
 
   const featuredProducts = useMemo(() => getFeaturedProducts(), []);
 
@@ -66,8 +69,8 @@ export default function HomeScreen({
       {/* 1. Header + Search Bar */}
       <Header
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onClearSearch={() => setSearchQuery('')}
+        onSearchChange={handleSearchChange}
+        onClearSearch={() => handleSearchChange('')}
         onSubmitSearch={() => {
           // Trigger search action
           console.log('Searching for:', searchQuery);
@@ -90,9 +93,9 @@ export default function HomeScreen({
         onViewAllPress={() => handleNavigateToProductListing()}
       />
 
-      {/* 4. Product Grid — filtered by category or search */}
+      {/* 4. Product Grid — connected to product data */}
       <FlatList
-        data={filteredProducts}
+        data={displayProducts}
         renderItem={({ item }) => (
           <ProductCard
             product={item}
@@ -114,8 +117,8 @@ export default function HomeScreen({
                   </Text>
                 </View>
                 <Text style={styles.searchResultSub}>
-                  {filteredProducts.length} product
-                  {filteredProducts.length !== 1 ? 's' : ''} found
+                  {displayProducts.length} product
+                  {displayProducts.length !== 1 ? 's' : ''} available
                 </Text>
               </View>
             ) : (
@@ -126,7 +129,7 @@ export default function HomeScreen({
                     <TouchableOpacity
                       key={index}
                       style={styles.tagChip}
-                      onPress={() => setSearchQuery(item)}
+                      onPress={() => handleSearchChange(item)}
                       activeOpacity={0.7}
                     >
                       <Ionicons
@@ -146,14 +149,14 @@ export default function HomeScreen({
               <View>
                 <Text style={styles.sectionTitle}>
                   {searchQuery.trim().length > 0
-                    ? 'Search Results'
+                    ? `Searching: "${searchQuery}"`
                     : selectedCategory === 'all'
                       ? 'All Products'
-                      : categories.find((c) => c.id === selectedCategory)?.name}
+                      : categories.find((c) => c.id === selectedCategory)?.name || 'All Products'}
                 </Text>
                 <Text style={styles.productCount}>
-                  {filteredProducts.length} item
-                  {filteredProducts.length !== 1 ? 's' : ''}
+                  {displayProducts.length} item
+                  {displayProducts.length !== 1 ? 's' : ''}
                 </Text>
               </View>
 
@@ -180,7 +183,7 @@ export default function HomeScreen({
           </View>
         }
         ListFooterComponent={
-          filteredProducts.length > 0 ? (
+          displayProducts.length > 0 ? (
             <View style={styles.footerActionContainer}>
               <TouchableOpacity
                 style={styles.viewAllProductsButton}
