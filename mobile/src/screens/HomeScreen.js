@@ -45,9 +45,16 @@ export default function HomeScreen({
     }
   };
 
-  // Connected to hardcoded products array.
-  // Actual search filtering logic will be implemented in a subsequent commit per scope.
-  const displayProducts = products;
+  // Filter products by name based on search query (case-insensitive, trimmed)
+  const filteredProducts = useMemo(() => {
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    if (!trimmedQuery) {
+      return products;
+    }
+    return products.filter((product) =>
+      product.name?.toLowerCase().includes(trimmedQuery)
+    );
+  }, [searchQuery]);
 
   const featuredProducts = useMemo(() => getFeaturedProducts(), []);
 
@@ -93,9 +100,9 @@ export default function HomeScreen({
         onViewAllPress={() => handleNavigateToProductListing()}
       />
 
-      {/* 4. Product Grid — connected to product data */}
+      {/* 4. Product Grid — filtered by search query */}
       <FlatList
-        data={displayProducts}
+        data={filteredProducts}
         renderItem={({ item }) => (
           <ProductCard
             product={item}
@@ -113,12 +120,12 @@ export default function HomeScreen({
                 <View style={styles.searchResultHeader}>
                   <Ionicons name="search" size={18} color={colors.primary} />
                   <Text style={styles.searchResultTitle}>
-                    Searching for: "{searchQuery}"
+                    Searching for: "{searchQuery.trim()}"
                   </Text>
                 </View>
                 <Text style={styles.searchResultSub}>
-                  {displayProducts.length} product
-                  {displayProducts.length !== 1 ? 's' : ''} available
+                  {filteredProducts.length} product
+                  {filteredProducts.length !== 1 ? 's' : ''} found
                 </Text>
               </View>
             ) : (
@@ -149,14 +156,12 @@ export default function HomeScreen({
               <View>
                 <Text style={styles.sectionTitle}>
                   {searchQuery.trim().length > 0
-                    ? `Searching: "${searchQuery}"`
-                    : selectedCategory === 'all'
-                      ? 'All Products'
-                      : categories.find((c) => c.id === selectedCategory)?.name || 'All Products'}
+                    ? 'Search Results'
+                    : 'All Products'}
                 </Text>
                 <Text style={styles.productCount}>
-                  {displayProducts.length} item
-                  {displayProducts.length !== 1 ? 's' : ''}
+                  {filteredProducts.length} item
+                  {filteredProducts.length !== 1 ? 's' : ''}
                 </Text>
               </View>
 
@@ -183,7 +188,7 @@ export default function HomeScreen({
           </View>
         }
         ListFooterComponent={
-          displayProducts.length > 0 ? (
+          filteredProducts.length > 0 ? (
             <View style={styles.footerActionContainer}>
               <TouchableOpacity
                 style={styles.viewAllProductsButton}
@@ -213,8 +218,21 @@ export default function HomeScreen({
             <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No products found</Text>
             <Text style={styles.emptySubtitle}>
-              Try a different category or search term
+              {searchQuery.trim().length > 0
+                ? `No products match "${searchQuery.trim()}"`
+                : 'Try a different search term'}
             </Text>
+            {searchQuery.trim().length > 0 && (
+              <TouchableOpacity
+                style={styles.clearSearchButton}
+                onPress={() => handleSearchChange('')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Clear Search"
+              >
+                <Text style={styles.clearSearchButtonText}>Clear Search</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
       />
@@ -372,5 +390,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  clearSearchButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+  },
+  clearSearchButtonText: {
+    color: colors.textInverse,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
