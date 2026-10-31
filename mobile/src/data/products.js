@@ -268,11 +268,6 @@ export const products = [
     isFeatured: false,
     isSurplus: true,
     surplusDeadline: "2026-11-30",
-    bulkPricing: [
-      { minQuantity: 25, maxQuantity: 49, pricePerUnit: 55 },
-      { minQuantity: 50, maxQuantity: 99, pricePerUnit: 45 },
-      { minQuantity: 100, maxQuantity: null, pricePerUnit: 38 },
-    ],
     tags: ["jute", "eco-friendly", "clearance"],
     specifications: {
       "Material": "Laminated Golden Jute",

@@ -171,6 +171,21 @@ export default function ProductDetailsScreen({
     return details;
   }, [product, categoryName, brandValue, manufacturerValue]);
 
+  // Extract and validate bulk pricing tiers from product data
+  const bulkTiers = useMemo(() => {
+    if (!Array.isArray(product?.bulkPricing) || product.bulkPricing.length === 0) {
+      return [];
+    }
+    return product.bulkPricing.filter(
+      (tier) =>
+        tier &&
+        tier.minQuantity !== undefined &&
+        tier.minQuantity !== null &&
+        tier.pricePerUnit !== undefined &&
+        tier.pricePerUnit !== null
+    );
+  }, [product]);
+
   // Dynamically extract specifications from product data
   const productSpecs = useMemo(() => {
     // 1. If product has explicit specifications object or array
@@ -319,7 +334,7 @@ export default function ProductDetailsScreen({
           )}
         </View>
 
-        {/* C & D. Product Information, Description & Specifications */}
+        {/* C & D. Product Information, Bulk Pricing, Description & Specifications */}
         <View style={styles.contentContainer}>
           {/* Main Info Card: Category, ID, Name, Brand, Price */}
           <View style={styles.infoCard}>
@@ -393,6 +408,133 @@ export default function ProductDetailsScreen({
                 {product?.unit ? ` (per ${product.unit})` : ''}
               </Text>
             </View>
+          </View>
+
+          {/* Bulk Pricing Section */}
+          <View style={styles.bulkPricingCard}>
+            <View style={styles.bulkHeaderRow}>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="layers-outline"
+                  size={18}
+                  color={colors.primary}
+                  style={styles.sectionHeaderIcon}
+                />
+                <Text style={styles.sectionTitle}>Bulk Pricing</Text>
+              </View>
+              {bulkTiers.length > 0 && (
+                <View style={styles.helperBadge}>
+                  <Ionicons name="sparkles" size={11} color={colors.accent} />
+                  <Text style={styles.helperBadgeText}>Buy more, save more</Text>
+                </View>
+              )}
+            </View>
+
+            {bulkTiers.length > 0 ? (
+              <View style={styles.bulkTable}>
+                {/* Table Header */}
+                <View style={styles.bulkTableHeader}>
+                  <Text style={styles.bulkHeaderColLeft}>Quantity Range</Text>
+                  <Text style={styles.bulkHeaderColRight}>Price per Unit</Text>
+                </View>
+
+                {/* Tier Rows */}
+                {bulkTiers.map((tier, index) => {
+                  const isLast = index === bulkTiers.length - 1;
+                  const isAlt = index % 2 === 1;
+                  const isBestTier = isLast && bulkTiers.length > 1;
+
+                  // Format quantity range
+                  let quantityLabel = '';
+                  if (tier.maxQuantity !== null && tier.maxQuantity !== undefined) {
+                    quantityLabel = `${tier.minQuantity} - ${tier.maxQuantity}`;
+                  } else {
+                    quantityLabel = `${tier.minQuantity}+`;
+                  }
+
+                  const unitText = product?.unit
+                    ? ` ${product.unit}${tier.maxQuantity !== 1 ? 's' : ''}`
+                    : ' units';
+                  const formattedTierPrice =
+                    typeof tier.pricePerUnit === 'number'
+                      ? tier.pricePerUnit.toLocaleString('en-IN')
+                      : String(tier.pricePerUnit);
+
+                  // Savings compared to regular base price
+                  const hasSavings =
+                    product?.price && tier.pricePerUnit < product.price;
+                  const savingsPercent = hasSavings
+                    ? Math.round(
+                        ((product.price - tier.pricePerUnit) / product.price) *
+                          100
+                      )
+                    : 0;
+
+                  return (
+                    <View
+                      key={`bulk-tier-${index}`}
+                      style={[
+                        styles.bulkTableRow,
+                        isAlt && styles.bulkTableRowAlt,
+                        isLast && styles.bulkTableRowLast,
+                      ]}
+                    >
+                      <View style={styles.bulkColLeft}>
+                        <View style={styles.qtyBadge}>
+                          <Text style={styles.qtyText}>
+                            {quantityLabel}
+                            <Text style={styles.qtyUnit}>{unitText}</Text>
+                          </Text>
+                        </View>
+                        {isBestTier && savingsPercent > 0 && (
+                          <View style={styles.bestValueBadge}>
+                            <Text style={styles.bestValueText}>
+                              Best Value · Save {savingsPercent}%
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.bulkColRight}>
+                        <View style={styles.bulkPriceRow}>
+                          <Text style={styles.bulkPriceSymbol}>₹</Text>
+                          <Text style={styles.bulkPriceValue}>
+                            {formattedTierPrice}
+                          </Text>
+                          {product?.unit && (
+                            <Text style={styles.bulkPriceUnit}>
+                              /{product.unit}
+                            </Text>
+                          )}
+                        </View>
+                        {savingsPercent > 0 && !isBestTier && (
+                          <Text style={styles.savingsSubtext}>
+                            Save {savingsPercent}%
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyBulkContainer}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={20}
+                  color={colors.textMuted}
+                  style={styles.emptyBulkIcon}
+                />
+                <View style={styles.emptyBulkTextWrapper}>
+                  <Text style={styles.emptyBulkTitle}>
+                    Bulk pricing not available
+                  </Text>
+                  <Text style={styles.emptyBulkSubtext}>
+                    This item is sold at the standard wholesale unit price.
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Product Overview / Key Information Card */}
@@ -478,7 +620,6 @@ export default function ProductDetailsScreen({
 
           {/*
             Layout ready for upcoming sections:
-            - Bulk Pricing tiers
             - Minimum Order Quantity (MOQ) & Stock Availability
             - Seller & Business Information
           */}
@@ -781,6 +922,178 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  bulkPricingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  bulkHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  helperBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    gap: spacing.xs,
+  },
+  helperBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primaryDark,
+  },
+  bulkTable: {
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  bulkTableHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  bulkHeaderColLeft: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bulkHeaderColRight: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bulkTableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  bulkTableRowAlt: {
+    backgroundColor: colors.surfaceSubtle,
+  },
+  bulkTableRowLast: {
+    borderBottomWidth: 0,
+  },
+  bulkColLeft: {
+    flex: 1.2,
+  },
+  qtyBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  qtyText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  qtyUnit: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  bestValueBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.successLight,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginTop: 3,
+  },
+  bestValueText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  bulkColRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  bulkPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  bulkPriceSymbol: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  bulkPriceValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  bulkPriceUnit: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: 1,
+  },
+  savingsSubtext: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.success,
+    marginTop: 2,
+  },
+  emptyBulkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  emptyBulkIcon: {
+    marginRight: spacing.xs,
+  },
+  emptyBulkTextWrapper: {
+    flex: 1,
+  },
+  emptyBulkTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  emptyBulkSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   overviewCard: {
     backgroundColor: colors.surface,
