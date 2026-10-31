@@ -120,6 +120,20 @@ export default function ProductDetailsScreen({
 
   const categoryName = product?.categoryName || product?.category || 'General';
 
+  // Pluralized / readable unit label
+  const unitPlural = useMemo(() => {
+    if (!product?.unit) return 'units';
+    const u = product.unit.toLowerCase();
+    if (u === 'piece') return 'pieces';
+    if (u === 'pair') return 'pairs';
+    if (u === 'pack') return 'packs';
+    if (u === 'set') return 'sets';
+    if (u === 'meter') return 'meters';
+    if (u === 'box') return 'boxes';
+    if (u === 'kg') return 'kg';
+    return product.unit;
+  }, [product?.unit]);
+
   // Format price safely using Indian Rupee format
   const formattedPrice =
     product?.price !== undefined && product?.price !== null
@@ -146,6 +160,65 @@ export default function ProductDetailsScreen({
     ? 'Manufacturer'
     : 'Manufacturer / Seller';
 
+  // Resolve stock quantity (using stock property or availableQuantity fallback)
+  const stockValue = useMemo(() => {
+    if (product?.stock !== undefined && product?.stock !== null) {
+      return Number(product.stock);
+    }
+    if (
+      product?.availableQuantity !== undefined &&
+      product?.availableQuantity !== null
+    ) {
+      return Number(product.availableQuantity);
+    }
+    return null;
+  }, [product?.stock, product?.availableQuantity]);
+
+  // Calculate dynamic availability status:
+  // - In Stock: stock > 20
+  // - Low Stock: 1 <= stock <= 20
+  // - Out of Stock: stock === 0
+  const stockStatus = useMemo(() => {
+    if (stockValue === null || isNaN(stockValue)) {
+      return {
+        status: 'unknown',
+        label: 'Check Availability',
+        color: colors.textSecondary,
+        bgColor: colors.surfaceSubtle,
+        borderColor: colors.border,
+        icon: 'help-circle-outline',
+      };
+    }
+    if (stockValue > 20) {
+      return {
+        status: 'in-stock',
+        label: 'In Stock',
+        color: colors.success,
+        bgColor: colors.successLight,
+        borderColor: colors.success,
+        icon: 'checkmark-circle',
+      };
+    }
+    if (stockValue >= 1 && stockValue <= 20) {
+      return {
+        status: 'low-stock',
+        label: 'Low Stock',
+        color: colors.warning,
+        bgColor: colors.warningLight,
+        borderColor: colors.warning,
+        icon: 'alert-circle',
+      };
+    }
+    return {
+      status: 'out-of-stock',
+      label: 'Out of Stock',
+      color: colors.error,
+      bgColor: colors.errorLight,
+      borderColor: colors.error,
+      icon: 'close-circle',
+    };
+  }, [stockValue]);
+
   // Build key details list dynamically from available basic product properties
   const keyDetails = useMemo(() => {
     const details = [];
@@ -159,6 +232,18 @@ export default function ProductDetailsScreen({
     if (product?.unit) {
       details.push({ label: 'Sold By', value: `Per ${product.unit}` });
     }
+    if (product?.moq !== undefined && product?.moq !== null) {
+      details.push({
+        label: 'Min. Order Qty (MOQ)',
+        value: `${product.moq} ${unitPlural}`,
+      });
+    }
+    if (stockValue !== null && !isNaN(stockValue)) {
+      details.push({
+        label: 'Stock Availability',
+        value: `${stockStatus.label} (${stockValue.toLocaleString('en-IN')} ${unitPlural})`,
+      });
+    }
     if (brandValue) {
       details.push({ label: 'Brand', value: brandValue });
     }
@@ -169,7 +254,15 @@ export default function ProductDetailsScreen({
     }
 
     return details;
-  }, [product, categoryName, brandValue, manufacturerValue]);
+  }, [
+    product,
+    categoryName,
+    brandValue,
+    manufacturerValue,
+    unitPlural,
+    stockValue,
+    stockStatus,
+  ]);
 
   // Extract and validate bulk pricing tiers from product data
   const bulkTiers = useMemo(() => {
@@ -334,7 +427,7 @@ export default function ProductDetailsScreen({
           )}
         </View>
 
-        {/* C & D. Product Information, Bulk Pricing, Description & Specifications */}
+        {/* C & D. Product Information, Bulk Pricing, MOQ, Stock, Description & Specifications */}
         <View style={styles.contentContainer}>
           {/* Main Info Card: Category, ID, Name, Brand, Price */}
           <View style={styles.infoCard}>
@@ -537,6 +630,96 @@ export default function ProductDetailsScreen({
             )}
           </View>
 
+          {/* Minimum Order Quantity (MOQ) Section */}
+          <View style={styles.orderMetricCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons
+                name="cart-outline"
+                size={18}
+                color={colors.primary}
+                style={styles.sectionHeaderIcon}
+              />
+              <Text style={styles.sectionTitle}>Minimum Order Quantity</Text>
+            </View>
+            <View style={styles.metricContent}>
+              {product?.moq !== undefined && product?.moq !== null ? (
+                <View style={styles.moqValueRow}>
+                  <Text style={styles.moqNumber}>{product.moq}</Text>
+                  <Text style={styles.moqUnitText}>{unitPlural}</Text>
+                </View>
+              ) : (
+                <Text style={styles.metricFallback}>
+                  No minimum order required
+                </Text>
+              )}
+              <Text style={styles.moqHelperText}>
+                Minimum quantity required per order
+              </Text>
+            </View>
+          </View>
+
+          {/* Stock Availability Section */}
+          <View style={styles.orderMetricCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons
+                name="cube-outline"
+                size={18}
+                color={colors.primary}
+                style={styles.sectionHeaderIcon}
+              />
+              <Text style={styles.sectionTitle}>Stock Availability</Text>
+            </View>
+            <View style={styles.metricContent}>
+              {/* Dynamic Availability Status Badge */}
+              <View style={styles.stockBadgeRow}>
+                <View
+                  style={[
+                    styles.stockStatusBadge,
+                    {
+                      backgroundColor: stockStatus.bgColor,
+                      borderColor: stockStatus.borderColor,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={stockStatus.icon}
+                    size={14}
+                    color={stockStatus.color}
+                    style={styles.stockStatusIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.stockStatusText,
+                      { color: stockStatus.color },
+                    ]}
+                  >
+                    {stockStatus.label}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Stock Quantity Display */}
+              {stockValue !== null && !isNaN(stockValue) ? (
+                <Text style={styles.stockQuantityText}>
+                  {stockValue > 0 ? (
+                    <>
+                      <Text style={styles.stockQuantityNumber}>
+                        {stockValue.toLocaleString('en-IN')}
+                      </Text>{' '}
+                      {unitPlural} available in stock
+                    </>
+                  ) : (
+                    '0 units available · Currently out of stock'
+                  )}
+                </Text>
+              ) : (
+                <Text style={styles.metricFallback}>
+                  Stock quantity available upon inquiry
+                </Text>
+              )}
+            </View>
+          </View>
+
           {/* Product Overview / Key Information Card */}
           {keyDetails.length > 0 && (
             <View style={styles.overviewCard}>
@@ -620,7 +803,6 @@ export default function ProductDetailsScreen({
 
           {/*
             Layout ready for upcoming sections:
-            - Minimum Order Quantity (MOQ) & Stock Availability
             - Seller & Business Information
           */}
         </View>
@@ -1094,6 +1276,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  orderMetricCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  metricContent: {
+    marginTop: spacing.xs,
+  },
+  moqValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.xs + 2,
+    marginBottom: spacing.xs,
+  },
+  moqNumber: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  moqUnitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  moqHelperText: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  metricFallback: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginBottom: spacing.xs,
+  },
+  stockBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xs + 2,
+  },
+  stockStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    gap: spacing.xs,
+  },
+  stockStatusIcon: {
+    marginRight: 2,
+  },
+  stockStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  stockQuantityText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  stockQuantityNumber: {
+    fontWeight: '700',
+    color: colors.textPrimary,
   },
   overviewCard: {
     backgroundColor: colors.surface,
