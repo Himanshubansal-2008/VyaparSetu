@@ -26,6 +26,11 @@ export const products = [
     location: "Jaipur, Rajasthan",
     image:
       "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600",
+    images: [
+      "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600",
+      "https://images.unsplash.com/photo-1544816155-12df9643f363?w=600",
+      "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?w=600",
+    ],
     rating: 4.7,
     totalReviews: 42,
     isFeatured: true,
@@ -54,6 +59,11 @@ export const products = [
     location: "Delhi, India",
     image:
       "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600",
+    images: [
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600",
+      "https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=600",
+      "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600",
+    ],
     rating: 4.5,
     totalReviews: 31,
     isFeatured: true,
@@ -82,6 +92,10 @@ export const products = [
     location: "Jaipur, Rajasthan",
     image:
       "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=600",
+    images: [
+      "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=600",
+      "https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?w=600",
+    ],
     rating: 4.8,
     totalReviews: 56,
     isFeatured: true,

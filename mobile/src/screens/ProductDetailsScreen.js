@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,12 +15,53 @@ import { products } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
+function ThumbnailItem({
+  uri,
+  index,
+  isSelected,
+  onPress,
+  productName,
+  totalImages,
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.thumbnailWrapper,
+        isSelected
+          ? styles.thumbnailWrapperSelected
+          : styles.thumbnailWrapperUnselected,
+        pressed && styles.thumbnailWrapperPressed,
+      ]}
+      onPress={() => onPress(index)}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${productName} image ${index + 1} of ${totalImages}`}
+      accessibilityState={{ selected: isSelected }}
+    >
+      {uri && !hasError ? (
+        <Image
+          source={{ uri }}
+          style={styles.thumbnailImage}
+          resizeMode="cover"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <View style={styles.thumbnailFallback}>
+          <Ionicons name="image-outline" size={20} color={colors.textMuted} />
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 export default function ProductDetailsScreen({
   navigation,
   route,
   onBackPress,
   product: propProduct,
 }) {
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
 
   // Fallback to sample product from hardcoded data if dynamic navigation is not implemented yet
@@ -33,6 +74,32 @@ export default function ProductDetailsScreen({
     routeProduct ||
     (routeProductId ? products.find((p) => p.id === routeProductId) : null) ||
     sampleProduct;
+
+  // Extract images array from product data
+  const productImages = useMemo(() => {
+    if (Array.isArray(product?.images) && product.images.length > 0) {
+      return product.images;
+    }
+    if (product?.image) {
+      return [product.image];
+    }
+    return [];
+  }, [product]);
+
+  // Reset selected image index and error state when the product changes
+  useEffect(() => {
+    setSelectedImageIndex(0);
+    setImageError(false);
+  }, [product?.id]);
+
+  const currentImage = productImages[selectedImageIndex] || null;
+
+  const handleSelectImage = (index) => {
+    if (index !== selectedImageIndex) {
+      setSelectedImageIndex(index);
+      setImageError(false);
+    }
+  };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -79,26 +146,61 @@ export default function ProductDetailsScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* B. Product Image / Placeholder Container */}
-        <View style={styles.imageContainer}>
-          {product.image && !imageError ? (
-            <Image
-              source={{ uri: product.image }}
-              style={styles.productImage}
-              resizeMode="cover"
-              onError={() => setImageError(true)}
-              accessibilityLabel={product.name}
-            />
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <Ionicons
-                name="image-outline"
-                size={56}
-                color={colors.textMuted}
+        {/* B. Main Product Image & Gallery */}
+        <View style={styles.galleryContainer}>
+          {/* Main Image Container */}
+          <View style={styles.mainImageContainer}>
+            {currentImage && !imageError ? (
+              <Image
+                source={{ uri: currentImage }}
+                style={styles.mainProductImage}
+                resizeMode="contain"
+                onError={() => setImageError(true)}
+                accessibilityLabel={`${product.name} image ${selectedImageIndex + 1}`}
               />
-              <Text style={styles.imagePlaceholderText}>
-                No image available
-              </Text>
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Ionicons
+                  name="image-outline"
+                  size={56}
+                  color={colors.textMuted}
+                />
+                <Text style={styles.imagePlaceholderText}>
+                  No image available
+                </Text>
+              </View>
+            )}
+
+            {/* Image counter indicator when multiple images are available */}
+            {productImages.length > 1 && !imageError && (
+              <View style={styles.imageCounterBadge}>
+                <Text style={styles.imageCounterText}>
+                  {selectedImageIndex + 1}/{productImages.length}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Thumbnail Gallery Strip (rendered only when product has multiple images) */}
+          {productImages.length > 1 && (
+            <View style={styles.thumbnailsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.thumbnailsScrollContent}
+              >
+                {productImages.map((uri, index) => (
+                  <ThumbnailItem
+                    key={`${product.id}-thumb-${index}`}
+                    uri={uri}
+                    index={index}
+                    isSelected={index === selectedImageIndex}
+                    onPress={handleSelectImage}
+                    productName={product.name}
+                    totalImages={productImages.length}
+                  />
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -221,17 +323,21 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: spacing.xxxl,
   },
-  imageContainer: {
+  galleryContainer: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  mainImageContainer: {
     width: '100%',
     height: 300,
     backgroundColor: colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    position: 'relative',
     overflow: 'hidden',
   },
-  productImage: {
+  mainProductImage: {
     width: '100%',
     height: '100%',
   },
@@ -244,6 +350,76 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: colors.textMuted,
+  },
+  imageCounterBadge: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    right: spacing.md,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+  },
+  imageCounterText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textInverse,
+  },
+  thumbnailsContainer: {
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  thumbnailsScrollContent: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm + 2,
+    alignItems: 'center',
+  },
+  thumbnailWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailWrapperUnselected: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    opacity: 0.7,
+  },
+  thumbnailWrapperSelected: {
+    borderWidth: 2,
+    borderColor: colors.primary,
+    opacity: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  thumbnailWrapperPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.96 }],
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailFallback: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
   },
   contentContainer: {
     padding: spacing.lg,
@@ -376,4 +552,3 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
 });
-
