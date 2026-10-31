@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { StyleSheet, View, BackHandler, Platform } from 'react-native';
 import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
+import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 
 export default function AppNavigator() {
   const [currentRoute, setCurrentRoute] = useState({
@@ -85,6 +86,17 @@ export default function AppNavigator() {
       {currentRoute.name === 'ProductListing' && (
         <View style={styles.screen}>
           <ProductListingScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+          />
+        </View>
+      )}
+
+      {/* Product Details Screen */}
+      {currentRoute.name === 'ProductDetails' && (
+        <View style={styles.screen}>
+          <ProductDetailsScreen
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}
