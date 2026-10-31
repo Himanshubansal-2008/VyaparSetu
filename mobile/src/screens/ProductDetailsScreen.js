@@ -110,13 +110,66 @@ export default function ProductDetailsScreen({
   };
 
   const discountPercent =
-    product.originalPrice && product.price && product.originalPrice > product.price
+    product?.originalPrice &&
+    product?.price &&
+    product.originalPrice > product.price
       ? Math.round(
           ((product.originalPrice - product.price) / product.originalPrice) * 100
         )
       : 0;
 
-  const categoryName = product.categoryName || product.category || 'General';
+  const categoryName = product?.categoryName || product?.category || 'General';
+
+  // Format price safely using Indian Rupee format
+  const formattedPrice =
+    product?.price !== undefined && product?.price !== null
+      ? typeof product.price === 'number'
+        ? product.price.toLocaleString('en-IN')
+        : String(product.price)
+      : '0';
+
+  const formattedOriginalPrice =
+    product?.originalPrice !== undefined && product?.originalPrice !== null
+      ? typeof product.originalPrice === 'number'
+        ? product.originalPrice.toLocaleString('en-IN')
+        : String(product.originalPrice)
+      : null;
+
+  // Resolve brand or manufacturer label and value
+  const brandValue = product?.brand || null;
+  const manufacturerValue = product?.manufacturer || null;
+  const brandOrMaker =
+    brandValue || manufacturerValue || product?.sellerName || null;
+  const brandLabel = brandValue
+    ? 'Brand'
+    : manufacturerValue
+    ? 'Manufacturer'
+    : 'Manufacturer / Seller';
+
+  // Build key details list dynamically from available product properties
+  const keyDetails = useMemo(() => {
+    const details = [];
+
+    if (product?.id) {
+      details.push({ label: 'Product ID', value: String(product.id) });
+    }
+    if (categoryName) {
+      details.push({ label: 'Category', value: categoryName });
+    }
+    if (product?.unit) {
+      details.push({ label: 'Sold By', value: `Per ${product.unit}` });
+    }
+    if (brandValue) {
+      details.push({ label: 'Brand', value: brandValue });
+    }
+    if (manufacturerValue) {
+      details.push({ label: 'Manufacturer', value: manufacturerValue });
+    } else if (product?.sellerName && !brandValue) {
+      details.push({ label: 'Manufacturer / Seller', value: product.sellerName });
+    }
+
+    return details;
+  }, [product, categoryName, brandValue, manufacturerValue]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -156,7 +209,9 @@ export default function ProductDetailsScreen({
                 style={styles.mainProductImage}
                 resizeMode="contain"
                 onError={() => setImageError(true)}
-                accessibilityLabel={`${product.name} image ${selectedImageIndex + 1}`}
+                accessibilityLabel={`${product?.name || 'Product'} image ${
+                  selectedImageIndex + 1
+                }`}
               />
             ) : (
               <View style={styles.imagePlaceholder}>
@@ -191,12 +246,12 @@ export default function ProductDetailsScreen({
               >
                 {productImages.map((uri, index) => (
                   <ThumbnailItem
-                    key={`${product.id}-thumb-${index}`}
+                    key={`${product?.id || 'prod'}-thumb-${index}`}
                     uri={uri}
                     index={index}
                     isSelected={index === selectedImageIndex}
                     onPress={handleSelectImage}
-                    productName={product.name}
+                    productName={product?.name || 'Product'}
                     totalImages={productImages.length}
                   />
                 ))}
@@ -207,34 +262,63 @@ export default function ProductDetailsScreen({
 
         {/* C & D. Basic Product Information & Layout */}
         <View style={styles.contentContainer}>
-          {/* Main Info Card */}
+          {/* Main Info Card: Category, ID, Name, Brand, Price */}
           <View style={styles.infoCard}>
-            {/* Category Name Tag */}
-            <View style={styles.categoryBadge}>
-              <Ionicons
-                name="pricetag-outline"
-                size={12}
-                color={colors.primary}
-                style={styles.categoryIcon}
-              />
-              <Text style={styles.categoryText}>{categoryName}</Text>
+            {/* Badges: Category Name & Product ID */}
+            <View style={styles.tagsRow}>
+              <View style={styles.categoryBadge}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={12}
+                  color={colors.info}
+                  style={styles.categoryIcon}
+                />
+                <Text style={styles.categoryText}>{categoryName}</Text>
+              </View>
+
+              {product?.id ? (
+                <View style={styles.idBadge}>
+                  <Ionicons
+                    name="barcode-outline"
+                    size={12}
+                    color={colors.textSecondary}
+                    style={styles.idIcon}
+                  />
+                  <Text style={styles.idText}>ID: {product.id}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Product Name */}
-            <Text style={styles.productName}>{product.name}</Text>
+            <Text style={styles.productName}>
+              {product?.name || 'Unnamed Product'}
+            </Text>
+
+            {/* Brand or Manufacturer Row (if available) */}
+            {brandOrMaker ? (
+              <View style={styles.brandContainer}>
+                <Ionicons
+                  name="business-outline"
+                  size={14}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.brandLabel}>{brandLabel}: </Text>
+                <Text style={styles.brandValue}>{brandOrMaker}</Text>
+              </View>
+            ) : null}
 
             {/* Product Price Row */}
             <View style={styles.priceContainer}>
               <View style={styles.priceRow}>
                 <Text style={styles.priceSymbol}>₹</Text>
-                <Text style={styles.price}>{product.price ?? 0}</Text>
-                {product.unit ? (
-                  <Text style={styles.unit}>/{product.unit}</Text>
+                <Text style={styles.price}>{formattedPrice}</Text>
+                {product?.unit ? (
+                  <Text style={styles.unit}>/ {product.unit}</Text>
                 ) : null}
-                {product.originalPrice &&
-                product.originalPrice > product.price ? (
+                {formattedOriginalPrice &&
+                product?.originalPrice > product?.price ? (
                   <Text style={styles.originalPrice}>
-                    ₹{product.originalPrice}
+                    ₹{formattedOriginalPrice}
                   </Text>
                 ) : null}
                 {discountPercent > 0 && (
@@ -245,21 +329,46 @@ export default function ProductDetailsScreen({
                   </View>
                 )}
               </View>
-              <Text style={styles.priceSubtext}>Wholesale base price</Text>
+              <Text style={styles.priceSubtext}>
+                Wholesale base price
+                {product?.unit ? ` (per ${product.unit})` : ''}
+              </Text>
             </View>
           </View>
 
-          {/* Short Product Description Card */}
+          {/* Product Overview / Key Information Card */}
+          {keyDetails.length > 0 && (
+            <View style={styles.overviewCard}>
+              <Text style={styles.sectionTitle}>Product Information</Text>
+              <View style={styles.detailsGrid}>
+                {keyDetails.map((item, index) => (
+                  <View
+                    key={`detail-${index}`}
+                    style={[
+                      styles.detailRow,
+                      index === keyDetails.length - 1 && styles.detailRowLast,
+                    ]}
+                  >
+                    <Text style={styles.detailLabel}>{item.label}</Text>
+                    <Text style={styles.detailValue}>{item.value}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Complete Product Description Card */}
           <View style={styles.descriptionCard}>
             <Text style={styles.sectionTitle}>Product Description</Text>
             <Text style={styles.descriptionText}>
-              {product.description ||
+              {product?.description ||
                 'No product description provided by seller.'}
             </Text>
           </View>
 
           {/*
             Layout ready for upcoming sections:
+            - Product Specifications
             - Bulk Pricing tiers
             - Minimum Order Quantity (MOQ) & Stock Availability
             - Seller & Business Information
@@ -443,6 +552,13 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  tagsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    marginBottom: spacing.sm,
+  },
   categoryBadge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -451,7 +567,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
-    marginBottom: spacing.sm,
     gap: spacing.xs,
   },
   categoryIcon: {
@@ -464,12 +579,48 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  idBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    gap: spacing.xs,
+  },
+  idIcon: {
+    marginRight: 2,
+  },
+  idText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+  },
   productName: {
     fontSize: 20,
     fontWeight: '800',
     color: colors.textPrimary,
     lineHeight: 28,
+    marginBottom: spacing.xs,
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  brandLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  brandValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
   priceContainer: {
     paddingTop: spacing.sm,
@@ -521,6 +672,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  overviewCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  detailsGrid: {
+    marginTop: spacing.xs,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceSubtle,
+  },
+  detailRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'right',
+    flex: 1.5,
   },
   descriptionCard: {
     backgroundColor: colors.surface,
