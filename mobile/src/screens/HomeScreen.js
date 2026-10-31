@@ -28,6 +28,7 @@ export default function HomeScreen({
   navigation,
   route,
   onNavigateToProductListing,
+  onNavigateToProductDetails,
   searchQuery: propSearchQuery,
   onSearchChange: propOnSearchChange,
   selectedCategory: propSelectedCategory,
@@ -61,10 +62,28 @@ export default function HomeScreen({
   };
 
   const handleNavigateToProductListing = (params = {}) => {
+    const listingParams = {
+      selectedCategory:
+        selectedCategory !== 'all' ? selectedCategory : 'all',
+      searchQuery: searchQuery || '',
+      ...params,
+    };
     if (onNavigateToProductListing) {
-      onNavigateToProductListing(params);
+      onNavigateToProductListing(listingParams);
     } else if (navigation?.navigate) {
-      navigation.navigate('ProductListing', params);
+      navigation.navigate('ProductListing', listingParams);
+    }
+  };
+
+  const handleProductPress = (product) => {
+    const productParams = {
+      productId: product?.id,
+      product,
+    };
+    if (onNavigateToProductDetails) {
+      onNavigateToProductDetails(productParams);
+    } else if (navigation?.navigate) {
+      navigation.navigate('ProductDetails', productParams);
     }
   };
 
@@ -130,7 +149,7 @@ export default function HomeScreen({
       {/* 3. Featured Products — horizontal carousel */}
       <FeaturedProducts
         products={featuredProducts}
-        onProductPress={(p) => console.log('Featured tapped:', p.name)}
+        onProductPress={handleProductPress}
         onViewAllPress={() => handleNavigateToProductListing()}
       />
 
@@ -140,7 +159,7 @@ export default function HomeScreen({
         renderItem={({ item }) => (
           <ProductCard
             product={item}
-            onPress={(p) => console.log('Product tapped:', p.name)}
+            onPress={handleProductPress}
           />
         )}
         keyExtractor={(item) => item.id}

@@ -64,6 +64,38 @@ export default function AppNavigator() {
     [currentRoute]
   );
 
+  // Preserve ProductListingScreen while active or in history when navigating to ProductDetails
+  const listingRoute = useMemo(() => {
+    if (currentRoute.name === 'ProductListing') {
+      return currentRoute;
+    }
+    const foundInHistory = history
+      .slice()
+      .reverse()
+      .find((r) => r.name === 'ProductListing');
+    return foundInHistory || null;
+  }, [currentRoute, history]);
+
+  const handleNavigateToProductDetails = useCallback(
+    (itemOrParams) => {
+      if (
+        itemOrParams &&
+        (itemOrParams.productId !== undefined ||
+          (itemOrParams.product !== undefined && itemOrParams.id === undefined))
+      ) {
+        navigate('ProductDetails', itemOrParams);
+      } else if (itemOrParams) {
+        navigate('ProductDetails', {
+          productId: itemOrParams.id,
+          product: itemOrParams,
+        });
+      } else {
+        navigate('ProductDetails', {});
+      }
+    },
+    [navigate]
+  );
+
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
@@ -79,16 +111,23 @@ export default function AppNavigator() {
           onNavigateToProductListing={(params) =>
             navigate('ProductListing', params)
           }
+          onNavigateToProductDetails={handleNavigateToProductDetails}
         />
       </View>
 
-      {/* Product Listing Screen */}
-      {currentRoute.name === 'ProductListing' && (
-        <View style={styles.screen}>
+      {/* Product Listing Screen is kept mounted while in history to preserve filters and scroll */}
+      {listingRoute && (
+        <View
+          style={[
+            styles.screen,
+            currentRoute.name !== 'ProductListing' && styles.screenHidden,
+          ]}
+        >
           <ProductListingScreen
             navigation={navigation}
-            route={currentRoute}
+            route={listingRoute}
             onBackPress={goBack}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
           />
         </View>
       )}

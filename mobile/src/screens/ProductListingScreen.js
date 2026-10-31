@@ -21,6 +21,7 @@ export default function ProductListingScreen({
   navigation,
   route,
   onBackPress,
+  onNavigateToProductDetails,
   onNotificationPress,
   onCartPress,
 }) {
@@ -29,12 +30,21 @@ export default function ProductListingScreen({
     route?.params?.categoryId ||
     'all';
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [searchQuery, setSearchQuery] = useState(
+    route?.params?.searchQuery || ''
+  );
 
   React.useEffect(() => {
     if (route?.params?.selectedCategory) {
       setSelectedCategory(route?.params.selectedCategory);
     }
   }, [route?.params?.selectedCategory]);
+
+  React.useEffect(() => {
+    if (route?.params?.searchQuery !== undefined) {
+      setSearchQuery(route.params.searchQuery);
+    }
+  }, [route?.params?.searchQuery]);
 
   const handleBack = () => {
     if (onBackPress) {
@@ -44,16 +54,33 @@ export default function ProductListingScreen({
     }
   };
 
-  const filteredProducts = useMemo(() => {
-    if (selectedCategory === 'all') {
-      return products;
+  const handleProductPress = (product) => {
+    const productParams = {
+      productId: product?.id,
+      product,
+    };
+    if (onNavigateToProductDetails) {
+      onNavigateToProductDetails(productParams);
+    } else if (navigation?.navigate) {
+      navigation.navigate('ProductDetails', productParams);
     }
-    return products.filter(
-      (product) =>
+  };
+
+  const filteredProducts = useMemo(() => {
+    const trimmed = searchQuery.trim().toLowerCase();
+    return products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === 'all' ||
         product.categoryId === selectedCategory ||
-        product.category === selectedCategory
-    );
-  }, [selectedCategory]);
+        product.category === selectedCategory;
+
+      const matchesSearch =
+        !trimmed ||
+        product.name?.toLowerCase().includes(trimmed);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [selectedCategory, searchQuery]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -68,6 +95,9 @@ export default function ProductListingScreen({
           onBackPress || navigation?.canGoBack?.() || navigation?.goBack
         )}
         onBackPress={handleBack}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onClearSearch={() => setSearchQuery('')}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
       />
@@ -80,7 +110,7 @@ export default function ProductListingScreen({
         renderItem={({ item }) => (
           <ProductCard
             product={item}
-            onPress={(p) => console.log('Product tapped:', p.name)}
+            onPress={handleProductPress}
           />
         )}
         contentContainerStyle={styles.listContainer}
@@ -135,14 +165,21 @@ export default function ProductListingScreen({
               <Ionicons name="cube-outline" size={44} color={colors.textMuted} />
             </View>
             <Text style={styles.emptyTitle}>
-              No products found in this category.
+              {searchQuery.trim()
+                ? `No products found matching "${searchQuery.trim()}".`
+                : 'No products found in this category.'}
             </Text>
             <Text style={styles.emptySubtitle}>
-              Try exploring other categories or view all products.
+              {searchQuery.trim()
+                ? 'Try searching with a different term or clear filters.'
+                : 'Try exploring other categories or view all products.'}
             </Text>
             <TouchableOpacity
               style={styles.resetButton}
-              onPress={() => setSelectedCategory('all')}
+              onPress={() => {
+                setSelectedCategory('all');
+                setSearchQuery('');
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.resetButtonText}>View All Products</Text>

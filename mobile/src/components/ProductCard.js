@@ -13,6 +13,7 @@ import { spacing, borderRadius } from '../theme/spacing';
 
 export default function ProductCard({
   product,
+  id = product?.id,
   name = product?.name,
   price = product?.price,
   originalPrice = product?.originalPrice,
@@ -61,7 +62,26 @@ export default function ProductCard({
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.92}
-        onPress={() => onPress?.(product || { name, price, category, sellerName })}
+        onPress={() =>
+          onPress?.(
+            product || {
+              id,
+              name,
+              price,
+              originalPrice,
+              category,
+              sellerName,
+              location,
+              image,
+              unit,
+              moq,
+              rating,
+              totalReviews,
+              isSurplus,
+              isFeatured,
+            }
+          )
+        }
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >

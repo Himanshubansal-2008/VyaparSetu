@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   Platform,
   Pressable,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { products } from '../data/products';
@@ -61,19 +62,36 @@ export default function ProductDetailsScreen({
   onBackPress,
   product: propProduct,
 }) {
+  const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
 
-  // Fallback to sample product from hardcoded data if dynamic navigation is not implemented yet
-  const sampleProduct = products[0];
-  const routeProduct = route?.params?.product;
-  const routeProductId = route?.params?.productId || route?.params?.id;
+  const routeProductId =
+    route?.params?.productId ||
+    route?.params?.id ||
+    route?.params?.product?.id;
 
-  const product =
-    propProduct ||
-    routeProduct ||
-    (routeProductId ? products.find((p) => p.id === routeProductId) : null) ||
-    sampleProduct;
+  // Retrieve matching product dynamically from catalog
+  const product = useMemo(() => {
+    if (propProduct) return propProduct;
+
+    if (routeProductId) {
+      const found = products.find(
+        (p) => String(p.id) === String(routeProductId)
+      );
+      if (found) {
+        return route?.params?.product
+          ? { ...found, ...route.params.product }
+          : found;
+      }
+    }
+
+    if (route?.params?.product && route.params.product.name) {
+      return route.params.product;
+    }
+
+    return null;
+  }, [propProduct, routeProductId, route?.params?.product]);
 
   // Extract images array from product data
   const productImages = useMemo(() => {
@@ -86,10 +104,11 @@ export default function ProductDetailsScreen({
     return [];
   }, [product]);
 
-  // Reset selected image index and error state when the product changes
+  // Reset selected image index, error state, and scroll position when the product changes
   useEffect(() => {
     setSelectedImageIndex(0);
     setImageError(false);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   }, [product?.id]);
 
   const currentImage = productImages[selectedImageIndex] || null;
@@ -338,6 +357,62 @@ export default function ProductDetailsScreen({
     return extracted;
   }, [product]);
 
+  if (!product) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+
+        {/* A. Header */}
+        <View style={styles.header}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && styles.backButtonPressed,
+            ]}
+            onPress={handleBack}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Product Details</Text>
+          <View style={styles.headerRightSpacer} />
+        </View>
+
+        {/* Empty / Not Found State */}
+        <View style={styles.notFoundContainer}>
+          <View style={styles.notFoundIconBox}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={52}
+              color={colors.textMuted}
+            />
+          </View>
+          <Text style={styles.notFoundTitle}>Product Not Found</Text>
+          <Text style={styles.notFoundSubtitle}>
+            The selected product could not be found or may no longer be available.
+          </Text>
+          <TouchableOpacity
+            style={styles.notFoundButton}
+            onPress={handleBack}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Return to previous screen"
+          >
+            <Ionicons
+              name="arrow-back"
+              size={16}
+              color={colors.textInverse}
+              style={styles.notFoundButtonIcon}
+            />
+            <Text style={styles.notFoundButtonText}>Back to Products</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
@@ -362,6 +437,7 @@ export default function ProductDetailsScreen({
 
       {/* Scrollable Content Container */}
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -1490,5 +1566,52 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1.3,
     textAlign: 'right',
+  },
+  notFoundContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
+  notFoundIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  notFoundTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  notFoundSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.xl,
+  },
+  notFoundButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  notFoundButtonIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  notFoundButtonText: {
+    color: colors.textInverse,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
