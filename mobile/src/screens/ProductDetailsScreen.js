@@ -146,7 +146,7 @@ export default function ProductDetailsScreen({
     ? 'Manufacturer'
     : 'Manufacturer / Seller';
 
-  // Build key details list dynamically from available product properties
+  // Build key details list dynamically from available basic product properties
   const keyDetails = useMemo(() => {
     const details = [];
 
@@ -170,6 +170,65 @@ export default function ProductDetailsScreen({
 
     return details;
   }, [product, categoryName, brandValue, manufacturerValue]);
+
+  // Dynamically extract specifications from product data
+  const productSpecs = useMemo(() => {
+    // 1. If product has explicit specifications object or array
+    if (product?.specifications) {
+      if (Array.isArray(product.specifications)) {
+        return product.specifications
+          .filter(
+            (item) =>
+              item &&
+              item.label &&
+              item.value !== null &&
+              item.value !== undefined &&
+              String(item.value).trim() !== ''
+          )
+          .map((item) => ({
+            label: String(item.label),
+            value: String(item.value),
+          }));
+      }
+      if (typeof product.specifications === 'object') {
+        return Object.entries(product.specifications)
+          .filter(
+            ([_, val]) =>
+              val !== null &&
+              val !== undefined &&
+              String(val).trim() !== ''
+          )
+          .map(([key, val]) => ({
+            label: key,
+            value: String(val),
+          }));
+      }
+    }
+
+    // 2. Otherwise, dynamically extract from known candidate specification fields
+    const candidateFields = [
+      { key: 'material', label: 'Material' },
+      { key: 'color', label: 'Color' },
+      { key: 'size', label: 'Size' },
+      { key: 'weight', label: 'Weight' },
+      { key: 'dimensions', label: 'Dimensions' },
+      { key: 'packagingType', label: 'Packaging Type' },
+      { key: 'modelNumber', label: 'Model Number' },
+      { key: 'countryOfOrigin', label: 'Country of Origin' },
+      { key: 'brand', label: 'Brand' },
+      { key: 'manufacturer', label: 'Manufacturer' },
+    ];
+
+    const extracted = [];
+    candidateFields.forEach(({ key, label }) => {
+      const val = product?.[key];
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
+        extracted.push({ label, value: String(val) });
+      }
+    });
+
+    return extracted;
+  }, [product]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -260,7 +319,7 @@ export default function ProductDetailsScreen({
           )}
         </View>
 
-        {/* C & D. Basic Product Information & Layout */}
+        {/* C & D. Product Information, Description & Specifications */}
         <View style={styles.contentContainer}>
           {/* Main Info Card: Category, ID, Name, Brand, Price */}
           <View style={styles.infoCard}>
@@ -339,7 +398,15 @@ export default function ProductDetailsScreen({
           {/* Product Overview / Key Information Card */}
           {keyDetails.length > 0 && (
             <View style={styles.overviewCard}>
-              <Text style={styles.sectionTitle}>Product Information</Text>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color={colors.primary}
+                  style={styles.sectionHeaderIcon}
+                />
+                <Text style={styles.sectionTitle}>Product Information</Text>
+              </View>
               <View style={styles.detailsGrid}>
                 {keyDetails.map((item, index) => (
                   <View
@@ -357,18 +424,60 @@ export default function ProductDetailsScreen({
             </View>
           )}
 
-          {/* Complete Product Description Card */}
+          {/* Product Description Section */}
           <View style={styles.descriptionCard}>
-            <Text style={styles.sectionTitle}>Product Description</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={colors.primary}
+                style={styles.sectionHeaderIcon}
+              />
+              <Text style={styles.sectionTitle}>Product Description</Text>
+            </View>
             <Text style={styles.descriptionText}>
-              {product?.description ||
+              {product?.description?.trim() ||
                 'No product description provided by seller.'}
             </Text>
           </View>
 
+          {/* Product Specifications Section */}
+          {productSpecs.length > 0 && (
+            <View style={styles.specificationsCard}>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="list-outline"
+                  size={18}
+                  color={colors.primary}
+                  style={styles.sectionHeaderIcon}
+                />
+                <Text style={styles.sectionTitle}>Product Specifications</Text>
+              </View>
+
+              <View style={styles.specsTable}>
+                {productSpecs.map((item, index) => {
+                  const isLast = index === productSpecs.length - 1;
+                  const isAlt = index % 2 === 1;
+                  return (
+                    <View
+                      key={`spec-${item.label}-${index}`}
+                      style={[
+                        styles.specRow,
+                        isAlt && styles.specRowAlt,
+                        isLast && styles.specRowLast,
+                      ]}
+                    >
+                      <Text style={styles.specLabel}>{item.label}</Text>
+                      <Text style={styles.specValue}>{item.value}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           {/*
             Layout ready for upcoming sections:
-            - Product Specifications
             - Bulk Pricing tiers
             - Minimum Order Quantity (MOQ) & Stock Availability
             - Seller & Business Information
@@ -691,6 +800,20 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    gap: spacing.xs + 2,
+  },
+  sectionHeaderIcon: {
+    marginRight: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
   detailsGrid: {
     marginTop: spacing.xs,
   },
@@ -737,15 +860,62 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
   descriptionText: {
     fontSize: 14,
     lineHeight: 22,
     color: colors.textSecondary,
+  },
+  specificationsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  specsTable: {
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  specRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  specRowAlt: {
+    backgroundColor: colors.surfaceSubtle,
+  },
+  specRowLast: {
+    borderBottomWidth: 0,
+  },
+  specLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  specValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    flex: 1.3,
+    textAlign: 'right',
   },
 });

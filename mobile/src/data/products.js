@@ -43,6 +43,14 @@ export const products = [
       { minQuantity: 100, maxQuantity: null, pricePerUnit: 140 },
     ],
     tags: ["cotton", "handmade", "reusable"],
+    specifications: {
+      "Material": "100% Khadi Cotton",
+      "Color": "Natural Ecru / Off-white",
+      "Dimensions": "38 cm x 42 cm",
+      "Weight": "180 g",
+      "Packaging Type": "Bulk bundle in corrugated master box",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-002",
@@ -78,6 +86,14 @@ export const products = [
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 550 },
     ],
     tags: ["electronics", "wireless", "audio"],
+    specifications: {
+      "Model Number": "TS-BT500",
+      "Color": "Matte Black",
+      "Connectivity": "Bluetooth 5.3",
+      "Weight": "42 g",
+      "Packaging Type": "Retail display box pack",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-003",
@@ -112,6 +128,14 @@ export const products = [
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 370 },
     ],
     tags: ["pottery", "handmade", "decor"],
+    specifications: {
+      "Material": "Quartz stone powder & natural resin",
+      "Color": "Cobalt Blue & Turquoise",
+      "Dimensions": "25 cm (H) x 12 cm (Dia)",
+      "Weight": "850 g",
+      "Packaging Type": "Corrugated carton with bubble cushion",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-004",
@@ -142,6 +166,13 @@ export const products = [
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 110 },
     ],
     tags: ["organic", "spices", "food"],
+    specifications: {
+      "Grade": "Agmark Grade-A (5% Curcumin)",
+      "Form": "Fine Ground Powder",
+      "Shelf Life": "12 Months",
+      "Packaging Type": "Airtight vacuum food-grade HDPE pouch",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-005",
@@ -170,6 +201,14 @@ export const products = [
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 195 },
     ],
     tags: ["planters", "ceramic", "home"],
+    specifications: {
+      "Material": "Glazed Terracotta Ceramic",
+      "Color": "Pastel Sage & Ivory",
+      "Dimensions": "15 cm x 15 cm x 14 cm",
+      "Weight": "620 g",
+      "Packaging Type": "Set of 2 in partitioned box",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-006",
@@ -198,6 +237,14 @@ export const products = [
       { minQuantity: 300, maxQuantity: null, pricePerUnit: 130 },
     ],
     tags: ["cotton", "fabric", "textile"],
+    specifications: {
+      "Material": "60s Count Combed Cotton",
+      "Color": "Indigo Block Print",
+      "Dimensions": "Width: 44 inches (112 cm)",
+      "Weight": "110 GSM",
+      "Packaging Type": "Folded bolt roll in poly wrap",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-007",
@@ -227,6 +274,13 @@ export const products = [
       { minQuantity: 100, maxQuantity: null, pricePerUnit: 38 },
     ],
     tags: ["jute", "eco-friendly", "clearance"],
+    specifications: {
+      "Material": "Laminated Golden Jute",
+      "Color": "Natural Golden Brown",
+      "Dimensions": "20 cm x 25 cm x 10 cm",
+      "Packaging Type": "Bundles of 25 pcs in export carton",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-008",
@@ -255,6 +309,14 @@ export const products = [
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 310 },
     ],
     tags: ["LED", "lighting", "office"],
+    specifications: {
+      "Model Number": "DL-12W-ECO",
+      "Color": "Arctic White",
+      "Dimensions": "16 cm x 16 cm x 38 cm",
+      "Weight": "480 g",
+      "Packaging Type": "Color gift box with foam inset",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-009",
@@ -284,6 +346,13 @@ export const products = [
       { minQuantity: 500, maxQuantity: null, pricePerUnit: 19 },
     ],
     tags: ["snacks", "food", "wholesale"],
+    specifications: {
+      "Flavor": "Hing Jeera Spiced",
+      "Weight": "50 g per pack",
+      "Packaging Type": "Nitrogen-flushed metallized pouch",
+      "Shelf Life": "6 Months",
+      "Country of Origin": "India",
+    },
   },
   {
     id: "prod-010",
@@ -312,6 +381,14 @@ export const products = [
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 90 },
     ],
     tags: ["wood", "handmade", "gifts"],
+    specifications: {
+      "Material": "Seasoned Mango Wood",
+      "Color": "Multi-color hand-lacquered",
+      "Dimensions": "10 cm x 10 cm x 0.8 cm",
+      "Weight": "280 g (set of 6)",
+      "Packaging Type": "Kraft gift box with wooden holder",
+      "Country of Origin": "India",
+    },
   },
 ];
 
