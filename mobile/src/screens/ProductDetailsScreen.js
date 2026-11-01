@@ -143,14 +143,29 @@ export default function ProductDetailsScreen({
   // Pluralized / readable unit label
   const unitPlural = useMemo(() => {
     if (!product?.unit) return 'units';
-    const u = product.unit.toLowerCase();
-    if (u === 'piece') return 'pieces';
-    if (u === 'pair') return 'pairs';
-    if (u === 'pack') return 'packs';
-    if (u === 'set') return 'sets';
-    if (u === 'meter') return 'meters';
-    if (u === 'box') return 'boxes';
-    if (u === 'kg') return 'kg';
+    const u = String(product.unit).trim().toLowerCase();
+    if (u === 'piece' || u === 'pieces') return 'pieces';
+    if (u === 'pair' || u === 'pairs') return 'pairs';
+    if (u === 'pack' || u === 'packs') return 'packs';
+    if (u === 'set' || u === 'sets') return 'sets';
+    if (u === 'meter' || u === 'metre' || u === 'meters' || u === 'metres')
+      return 'meters';
+    if (u === 'box' || u === 'boxes') return 'boxes';
+    if (u === 'kg' || u === 'kgs') return 'kg';
+    return product.unit;
+  }, [product?.unit]);
+
+  // Singular unit label for price per unit display
+  const unitSingular = useMemo(() => {
+    if (!product?.unit) return 'unit';
+    const u = String(product.unit).trim().toLowerCase();
+    if (u === 'pieces') return 'piece';
+    if (u === 'pairs') return 'pair';
+    if (u === 'packs') return 'pack';
+    if (u === 'sets') return 'set';
+    if (u === 'meters' || u === 'metres') return 'meter';
+    if (u === 'boxes') return 'box';
+    if (u === 'kgs') return 'kg';
     return product.unit;
   }, [product?.unit]);
 
@@ -299,29 +314,30 @@ export default function ProductDetailsScreen({
     );
   }, [product]);
 
-  // Minimum Order Quantity bound
+  // Minimum Order Quantity bound (defaults to 1 if missing, invalid, or non-positive)
   const minQty = useMemo(() => {
     if (
       product?.moq !== undefined &&
       product?.moq !== null &&
-      !isNaN(product.moq)
+      !isNaN(product.moq) &&
+      Number(product.moq) > 0
     ) {
-      return Math.max(1, Number(product.moq));
+      return Math.max(1, Math.floor(Number(product.moq)));
     }
     return 1;
   }, [product?.moq]);
 
-  // Maximum quantity bound (based on stock availability)
+  // Maximum quantity bound (based on available stock)
   const maxQty = useMemo(() => {
     if (stockValue !== null && !isNaN(stockValue)) {
-      return Math.max(0, Number(stockValue));
+      return Math.max(0, Math.floor(Number(stockValue)));
     }
     return Infinity;
   }, [stockValue]);
 
   const isOutOfStock = stockValue === 0;
 
-  // Initial quantity: 0 if out of stock, otherwise MOQ
+  // Initial quantity: 0 if out of stock, otherwise MOQ (clamped to maxQty if available)
   const defaultQuantity = useMemo(() => {
     if (isOutOfStock) return 0;
     if (maxQty < minQty) return maxQty;
@@ -411,12 +427,13 @@ export default function ProductDetailsScreen({
     if (isOutOfStock) return;
     setInputError(null);
     setQuantity((prev) => {
-      const next = prev + 1;
+      const current = prev < minQty ? minQty : prev;
+      const next = current + 1;
       if (next > maxQty) {
         setInputError(
           `Maximum available stock is ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
         );
-        return prev;
+        return current;
       }
       setQuantityInputText(String(next));
       return next;
@@ -427,11 +444,12 @@ export default function ProductDetailsScreen({
     if (isOutOfStock) return;
     setInputError(null);
     setQuantity((prev) => {
-      const next = prev - 1;
-      if (next < minQty) {
+      if (prev <= minQty) {
         setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-        return prev;
+        setQuantityInputText(String(minQty));
+        return minQty;
       }
+      const next = prev - 1;
       setQuantityInputText(String(next));
       return next;
     });
@@ -439,6 +457,7 @@ export default function ProductDetailsScreen({
 
   const handleQuantityInputChange = (text) => {
     if (isOutOfStock) return;
+    // Strip all non-digit characters to ensure valid positive integers only
     const sanitized = text.replace(/[^0-9]/g, '');
     setQuantityInputText(sanitized);
 
@@ -482,6 +501,10 @@ export default function ProductDetailsScreen({
     } else if (val > maxQty) {
       setQuantity(maxQty);
       setQuantityInputText(String(maxQty));
+      setInputError(null);
+    } else {
+      setQuantity(val);
+      setQuantityInputText(String(val));
       setInputError(null);
     }
   };
@@ -1054,13 +1077,11 @@ export default function ProductDetailsScreen({
                 />
                 <Text style={styles.sectionTitle}>Select Quantity</Text>
               </View>
-              {product?.unit && (
-                <View style={styles.unitBadge}>
-                  <Text style={styles.unitBadgeText}>
-                    Per {product.unit}
-                  </Text>
-                </View>
-              )}
+              <View style={styles.unitBadge}>
+                <Text style={styles.unitBadgeText}>
+                  Per {unitSingular}
+                </Text>
+              </View>
             </View>
 
             {isOutOfStock ? (
@@ -1084,49 +1105,67 @@ export default function ProductDetailsScreen({
                   <TouchableOpacity
                     style={[
                       styles.stepperButton,
-                      quantity <= minQty && styles.stepperButtonDisabled,
+                      (isOutOfStock || quantity <= minQty) && styles.stepperButtonDisabled,
                     ]}
                     onPress={handleDecrement}
-                    disabled={quantity <= minQty}
+                    disabled={isOutOfStock || quantity <= minQty}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Decrease quantity"
+                    accessibilityState={{ disabled: isOutOfStock || quantity <= minQty }}
                   >
                     <Ionicons
                       name="remove"
                       size={20}
-                      color={quantity <= minQty ? colors.textMuted : colors.primary}
+                      color={
+                        isOutOfStock || quantity <= minQty
+                          ? colors.textMuted
+                          : colors.primary
+                      }
                     />
                   </TouchableOpacity>
 
-                  <View style={styles.inputWrapper}>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      inputError && styles.inputWrapperError,
+                    ]}
+                  >
                     <TextInput
                       style={styles.quantityInput}
                       value={quantityInputText}
                       onChangeText={handleQuantityInputChange}
                       onBlur={handleQuantityInputBlur}
+                      onSubmitEditing={handleQuantityInputBlur}
+                      returnKeyType="done"
                       keyboardType="number-pad"
                       selectTextOnFocus
                       accessibilityRole="spinbutton"
                       accessibilityLabel="Order quantity"
+                      accessibilityValue={{ min: minQty, max: maxQty, now: quantity }}
                     />
                   </View>
 
                   <TouchableOpacity
                     style={[
                       styles.stepperButton,
-                      quantity >= maxQty && styles.stepperButtonDisabled,
+                      (isOutOfStock || quantity >= maxQty) && styles.stepperButtonDisabled,
                     ]}
                     onPress={handleIncrement}
-                    disabled={quantity >= maxQty}
+                    disabled={isOutOfStock || quantity >= maxQty}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Increase quantity"
+                    accessibilityState={{ disabled: isOutOfStock || quantity >= maxQty }}
                   >
                     <Ionicons
                       name="add"
                       size={20}
-                      color={quantity >= maxQty ? colors.textMuted : colors.primary}
+                      color={
+                        isOutOfStock || quantity >= maxQty
+                          ? colors.textMuted
+                          : colors.primary
+                      }
                     />
                   </TouchableOpacity>
 
@@ -1154,7 +1193,8 @@ export default function ProductDetailsScreen({
                   </Text>
                   <Text style={styles.limitDot}>·</Text>
                   <Text style={styles.limitText}>
-                    Max Stock: <Text style={styles.limitBold}>
+                    Available Stock:{' '}
+                    <Text style={styles.limitBold}>
                       {stockValue !== null && !isNaN(stockValue)
                         ? `${stockValue.toLocaleString('en-IN')} ${unitPlural}`
                         : 'Available'}
@@ -1979,8 +2019,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepperButtonDisabled: {
-    opacity: 0.4,
-    backgroundColor: colors.background,
+    opacity: 0.35,
+    backgroundColor: colors.surfaceSubtle,
+    borderColor: colors.borderDark,
   },
   inputWrapper: {
     flex: 1,
@@ -1990,6 +2031,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.surface,
     justifyContent: 'center',
+  },
+  inputWrapperError: {
+    borderColor: colors.warning,
   },
   quantityInput: {
     fontSize: 20,
