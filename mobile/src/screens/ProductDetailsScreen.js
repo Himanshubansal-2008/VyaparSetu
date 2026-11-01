@@ -432,13 +432,13 @@ export default function ProductDetailsScreen({
     setInputError(null);
     setQuantity((prev) => {
       const current = prev < minQty ? minQty : prev;
-      const next = current + 1;
-      if (next > maxQty) {
+      if (current >= maxQty) {
         setInputError(
-          `Maximum available stock is ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
+          `Cannot exceed available stock of ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
         );
         return current;
       }
+      const next = current + 1;
       setQuantityInputText(String(next));
       return next;
     });
@@ -461,28 +461,47 @@ export default function ProductDetailsScreen({
 
   const handleQuantityInputChange = (text) => {
     if (isOutOfStock) return;
-    // Strip all non-digit characters to ensure valid positive integers only
-    const sanitized = text.replace(/[^0-9]/g, '');
-    setQuantityInputText(sanitized);
 
-    if (sanitized === '') {
+    if (text === '') {
+      setQuantityInputText('');
       setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
       setQuantity(0);
       return;
     }
 
-    const val = parseInt(sanitized, 10);
-    if (isNaN(val)) return;
+    // Check if input contains non-digit characters (decimals, negatives, symbols, letters)
+    const hasNonDigits = /[^0-9]/.test(text);
+    if (hasNonDigits) {
+      setQuantityInputText(text);
+      setInputError('Please enter a valid positive whole number');
+      const parsedFloat = parseFloat(text);
+      const val = !isNaN(parsedFloat)
+        ? Math.floor(parsedFloat)
+        : parseInt(text.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(val) && val > 0) {
+        setQuantity(Math.min(Math.max(val, minQty), maxQty));
+      } else {
+        setQuantity(minQty);
+      }
+      return;
+    }
+
+    setQuantityInputText(text);
+    const val = parseInt(text, 10);
+    if (isNaN(val) || val <= 0) {
+      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+      setQuantity(0);
+      return;
+    }
 
     if (val < minQty) {
       setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
       setQuantity(val);
     } else if (val > maxQty) {
       setInputError(
-        `Maximum available stock is ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
+        `Cannot exceed available stock of ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
       );
       setQuantity(maxQty);
-      setQuantityInputText(String(maxQty));
     } else {
       setInputError(null);
       setQuantity(val);
@@ -1097,9 +1116,9 @@ export default function ProductDetailsScreen({
                   color={colors.error}
                 />
                 <View style={styles.outOfStockTextWrapper}>
-                  <Text style={styles.outOfStockTitle}>Currently Out of Stock</Text>
+                  <Text style={styles.outOfStockTitle}>Out of Stock</Text>
                   <Text style={styles.outOfStockSubtext}>
-                    Quantity selection and ordering are temporarily unavailable for this product.
+                    This item is currently out of stock. Quantity selection is disabled.
                   </Text>
                 </View>
               </View>
