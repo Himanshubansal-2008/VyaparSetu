@@ -3,6 +3,7 @@ import {
   StyleSheet,
   View,
   Text,
+  TextInput,
   Image,
   ScrollView,
   SafeAreaView,
@@ -297,6 +298,201 @@ export default function ProductDetailsScreen({
         tier.pricePerUnit !== null
     );
   }, [product]);
+
+  // Minimum Order Quantity bound
+  const minQty = useMemo(() => {
+    if (
+      product?.moq !== undefined &&
+      product?.moq !== null &&
+      !isNaN(product.moq)
+    ) {
+      return Math.max(1, Number(product.moq));
+    }
+    return 1;
+  }, [product?.moq]);
+
+  // Maximum quantity bound (based on stock availability)
+  const maxQty = useMemo(() => {
+    if (stockValue !== null && !isNaN(stockValue)) {
+      return Math.max(0, Number(stockValue));
+    }
+    return Infinity;
+  }, [stockValue]);
+
+  const isOutOfStock = stockValue === 0;
+
+  // Initial quantity: 0 if out of stock, otherwise MOQ
+  const defaultQuantity = useMemo(() => {
+    if (isOutOfStock) return 0;
+    if (maxQty < minQty) return maxQty;
+    return minQty;
+  }, [isOutOfStock, minQty, maxQty]);
+
+  const [quantity, setQuantity] = useState(defaultQuantity);
+  const [quantityInputText, setQuantityInputText] = useState(
+    String(defaultQuantity)
+  );
+  const [inputError, setInputError] = useState(null);
+
+  // Sync state whenever selected product or default quantity changes
+  useEffect(() => {
+    setQuantity(defaultQuantity);
+    setQuantityInputText(String(defaultQuantity));
+    setInputError(null);
+  }, [product?.id, defaultQuantity]);
+
+  // Identify applicable pricing tier based on entered quantity
+  const activeTierIndex = useMemo(() => {
+    if (!bulkTiers || bulkTiers.length === 0 || quantity <= 0) return -1;
+    return bulkTiers.findIndex((tier) => {
+      const minMatch =
+        tier.minQuantity !== undefined && quantity >= tier.minQuantity;
+      const maxMatch =
+        tier.maxQuantity === null ||
+        tier.maxQuantity === undefined ||
+        quantity <= tier.maxQuantity;
+      return minMatch && maxMatch;
+    });
+  }, [bulkTiers, quantity]);
+
+  const activeTier = activeTierIndex >= 0 ? bulkTiers[activeTierIndex] : null;
+
+  // Calculate applicable per-unit price:
+  // - If quantity qualifies for a bulk tier, use the tier's pricePerUnit.
+  // - If it does not qualify or no bulk pricing exists, use regular product price.
+  const applicableUnitPrice = useMemo(() => {
+    if (
+      activeTier &&
+      activeTier.pricePerUnit !== undefined &&
+      activeTier.pricePerUnit !== null
+    ) {
+      return activeTier.pricePerUnit;
+    }
+    return product?.price || 0;
+  }, [activeTier, product?.price]);
+
+  const formattedApplicableUnitPrice = useMemo(() => {
+    return typeof applicableUnitPrice === 'number'
+      ? applicableUnitPrice.toLocaleString('en-IN')
+      : String(applicableUnitPrice);
+  }, [applicableUnitPrice]);
+
+  // Estimated total: Quantity × Applicable Unit Price
+  const estimatedTotal = useMemo(() => {
+    if (quantity <= 0) return 0;
+    return quantity * applicableUnitPrice;
+  }, [quantity, applicableUnitPrice]);
+
+  const formattedEstimatedTotal = useMemo(() => {
+    return estimatedTotal.toLocaleString('en-IN');
+  }, [estimatedTotal]);
+
+  // Savings compared to regular base price
+  const savings = useMemo(() => {
+    if (quantity <= 0 || !product?.price) {
+      return { amount: 0, formattedAmount: '0', percent: 0, hasSavings: false };
+    }
+    const regularTotal = quantity * product.price;
+    const actualTotal = quantity * applicableUnitPrice;
+    const amount = regularTotal - actualTotal;
+    if (amount > 0) {
+      const percent = Math.round((amount / regularTotal) * 100);
+      return {
+        amount,
+        formattedAmount: amount.toLocaleString('en-IN'),
+        percent,
+        hasSavings: true,
+      };
+    }
+    return { amount: 0, formattedAmount: '0', percent: 0, hasSavings: false };
+  }, [quantity, product?.price, applicableUnitPrice]);
+
+  const handleIncrement = () => {
+    if (isOutOfStock) return;
+    setInputError(null);
+    setQuantity((prev) => {
+      const next = prev + 1;
+      if (next > maxQty) {
+        setInputError(
+          `Maximum available stock is ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
+        );
+        return prev;
+      }
+      setQuantityInputText(String(next));
+      return next;
+    });
+  };
+
+  const handleDecrement = () => {
+    if (isOutOfStock) return;
+    setInputError(null);
+    setQuantity((prev) => {
+      const next = prev - 1;
+      if (next < minQty) {
+        setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+        return prev;
+      }
+      setQuantityInputText(String(next));
+      return next;
+    });
+  };
+
+  const handleQuantityInputChange = (text) => {
+    if (isOutOfStock) return;
+    const sanitized = text.replace(/[^0-9]/g, '');
+    setQuantityInputText(sanitized);
+
+    if (sanitized === '') {
+      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+      return;
+    }
+
+    const val = parseInt(sanitized, 10);
+    if (isNaN(val)) return;
+
+    if (val < minQty) {
+      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+      setQuantity(val);
+    } else if (val > maxQty) {
+      setInputError(
+        `Maximum available stock is ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
+      );
+      setQuantity(maxQty);
+      setQuantityInputText(String(maxQty));
+    } else {
+      setInputError(null);
+      setQuantity(val);
+    }
+  };
+
+  const handleQuantityInputBlur = () => {
+    if (isOutOfStock) return;
+    if (quantityInputText === '') {
+      setQuantity(minQty);
+      setQuantityInputText(String(minQty));
+      setInputError(null);
+      return;
+    }
+
+    const val = parseInt(quantityInputText, 10);
+    if (isNaN(val) || val < minQty) {
+      setQuantity(minQty);
+      setQuantityInputText(String(minQty));
+      setInputError(null);
+    } else if (val > maxQty) {
+      setQuantity(maxQty);
+      setQuantityInputText(String(maxQty));
+      setInputError(null);
+    }
+  };
+
+  const handleSelectTier = (tierMin) => {
+    if (isOutOfStock) return;
+    const targetQty = Math.min(Math.max(tierMin, minQty), maxQty);
+    setQuantity(targetQty);
+    setQuantityInputText(String(targetQty));
+    setInputError(null);
+  };
 
   // Dynamically extract specifications from product data
   const productSpecs = useMemo(() => {
@@ -612,6 +808,7 @@ export default function ProductDetailsScreen({
                   const isLast = index === bulkTiers.length - 1;
                   const isAlt = index % 2 === 1;
                   const isBestTier = isLast && bulkTiers.length > 1;
+                  const isActive = index === activeTierIndex;
 
                   // Format quantity range
                   let quantityLabel = '';
@@ -640,22 +837,54 @@ export default function ProductDetailsScreen({
                     : 0;
 
                   return (
-                    <View
+                    <TouchableOpacity
                       key={`bulk-tier-${index}`}
                       style={[
                         styles.bulkTableRow,
                         isAlt && styles.bulkTableRowAlt,
                         isLast && styles.bulkTableRowLast,
+                        isActive && styles.bulkTableRowActive,
                       ]}
+                      onPress={() => handleSelectTier(tier.minQuantity)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select tier ${quantityLabel} at ₹${formattedTierPrice} per ${product?.unit || 'unit'}${isActive ? ', currently active' : ''}`}
                     >
                       <View style={styles.bulkColLeft}>
-                        <View style={styles.qtyBadge}>
-                          <Text style={styles.qtyText}>
+                        <View
+                          style={[
+                            styles.qtyBadge,
+                            isActive && styles.qtyBadgeActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.qtyText,
+                              isActive && styles.qtyTextActive,
+                            ]}
+                          >
                             {quantityLabel}
-                            <Text style={styles.qtyUnit}>{unitText}</Text>
+                            <Text
+                              style={[
+                                styles.qtyUnit,
+                                isActive && styles.qtyUnitActive,
+                              ]}
+                            >
+                              {unitText}
+                            </Text>
                           </Text>
                         </View>
-                        {isBestTier && savingsPercent > 0 && (
+                        {isActive && (
+                          <View style={styles.activeTierBadge}>
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={12}
+                              color={colors.primary}
+                            />
+                            <Text style={styles.activeTierText}>Current Tier</Text>
+                          </View>
+                        )}
+                        {!isActive && isBestTier && savingsPercent > 0 && (
                           <View style={styles.bestValueBadge}>
                             <Text style={styles.bestValueText}>
                               Best Value · Save {savingsPercent}%
@@ -666,12 +895,29 @@ export default function ProductDetailsScreen({
 
                       <View style={styles.bulkColRight}>
                         <View style={styles.bulkPriceRow}>
-                          <Text style={styles.bulkPriceSymbol}>₹</Text>
-                          <Text style={styles.bulkPriceValue}>
+                          <Text
+                            style={[
+                              styles.bulkPriceSymbol,
+                              isActive && styles.bulkPriceSymbolActive,
+                            ]}
+                          >
+                            ₹
+                          </Text>
+                          <Text
+                            style={[
+                              styles.bulkPriceValue,
+                              isActive && styles.bulkPriceValueActive,
+                            ]}
+                          >
                             {formattedTierPrice}
                           </Text>
                           {product?.unit && (
-                            <Text style={styles.bulkPriceUnit}>
+                            <Text
+                              style={[
+                                styles.bulkPriceUnit,
+                                isActive && styles.bulkPriceUnitActive,
+                              ]}
+                            >
                               /{product.unit}
                             </Text>
                           )}
@@ -682,7 +928,7 @@ export default function ProductDetailsScreen({
                           </Text>
                         )}
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -794,6 +1040,186 @@ export default function ProductDetailsScreen({
                 </Text>
               )}
             </View>
+          </View>
+
+          {/* Select Quantity & Estimated Price Section */}
+          <View style={styles.quantityCard}>
+            <View style={styles.quantityHeaderRow}>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="calculator-outline"
+                  size={18}
+                  color={colors.primary}
+                  style={styles.sectionHeaderIcon}
+                />
+                <Text style={styles.sectionTitle}>Select Quantity</Text>
+              </View>
+              {product?.unit && (
+                <View style={styles.unitBadge}>
+                  <Text style={styles.unitBadgeText}>
+                    Per {product.unit}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {isOutOfStock ? (
+              <View style={styles.outOfStockBanner}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={20}
+                  color={colors.error}
+                />
+                <View style={styles.outOfStockTextWrapper}>
+                  <Text style={styles.outOfStockTitle}>Currently Out of Stock</Text>
+                  <Text style={styles.outOfStockSubtext}>
+                    Quantity selection and ordering are temporarily unavailable for this product.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.quantityControlsWrapper}>
+                {/* Stepper & Input Row */}
+                <View style={styles.stepperContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.stepperButton,
+                      quantity <= minQty && styles.stepperButtonDisabled,
+                    ]}
+                    onPress={handleDecrement}
+                    disabled={quantity <= minQty}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Decrease quantity"
+                  >
+                    <Ionicons
+                      name="remove"
+                      size={20}
+                      color={quantity <= minQty ? colors.textMuted : colors.primary}
+                    />
+                  </TouchableOpacity>
+
+                  <View style={styles.inputWrapper}>
+                    <TextInput
+                      style={styles.quantityInput}
+                      value={quantityInputText}
+                      onChangeText={handleQuantityInputChange}
+                      onBlur={handleQuantityInputBlur}
+                      keyboardType="number-pad"
+                      selectTextOnFocus
+                      accessibilityRole="spinbutton"
+                      accessibilityLabel="Order quantity"
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.stepperButton,
+                      quantity >= maxQty && styles.stepperButtonDisabled,
+                    ]}
+                    onPress={handleIncrement}
+                    disabled={quantity >= maxQty}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Increase quantity"
+                  >
+                    <Ionicons
+                      name="add"
+                      size={20}
+                      color={quantity >= maxQty ? colors.textMuted : colors.primary}
+                    />
+                  </TouchableOpacity>
+
+                  <View style={styles.unitLabelBox}>
+                    <Text style={styles.unitLabelText}>{unitPlural}</Text>
+                  </View>
+                </View>
+
+                {/* Validation message if input is invalid / out of bounds */}
+                {inputError && (
+                  <View style={styles.validationRow}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={colors.warning}
+                    />
+                    <Text style={styles.validationText}>{inputError}</Text>
+                  </View>
+                )}
+
+                {/* Constraints limits helper row */}
+                <View style={styles.limitsRow}>
+                  <Text style={styles.limitText}>
+                    MOQ: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
+                  </Text>
+                  <Text style={styles.limitDot}>·</Text>
+                  <Text style={styles.limitText}>
+                    Max Stock: <Text style={styles.limitBold}>
+                      {stockValue !== null && !isNaN(stockValue)
+                        ? `${stockValue.toLocaleString('en-IN')} ${unitPlural}`
+                        : 'Available'}
+                    </Text>
+                  </Text>
+                </View>
+
+                {/* Price Calculation Summary Container */}
+                <View style={styles.calculationContainer}>
+                  {/* Applicable Unit Price Row */}
+                  <View style={styles.calculationRow}>
+                    <View>
+                      <Text style={styles.calcLabel}>Applicable Unit Price</Text>
+                      <Text style={styles.calcTierApplied}>
+                        {activeTier
+                          ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
+                          : 'Standard Wholesale Price'}
+                      </Text>
+                    </View>
+                    <View style={styles.calcPriceRow}>
+                      <Text style={styles.calcCurrency}>₹</Text>
+                      <Text style={styles.calcUnitPriceValue}>
+                        {formattedApplicableUnitPrice}
+                      </Text>
+                      {product?.unit && (
+                        <Text style={styles.calcUnit}>/{product.unit}</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.calcDivider} />
+
+                  {/* Estimated Total Price Row */}
+                  <View style={styles.calculationRow}>
+                    <View>
+                      <Text style={styles.calcTotalLabel}>Estimated Total</Text>
+                      <Text style={styles.calcTotalFormula}>
+                        {quantity} {unitPlural} × ₹{formattedApplicableUnitPrice}
+                      </Text>
+                    </View>
+                    <View style={styles.calcPriceRow}>
+                      <Text style={styles.calcTotalCurrency}>₹</Text>
+                      <Text style={styles.calcTotalValue}>
+                        {formattedEstimatedTotal}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Savings Callout (if bulk tier gives savings) */}
+                  {savings.hasSavings && (
+                    <View style={styles.savingsCallout}>
+                      <Ionicons
+                        name="pricetag"
+                        size={15}
+                        color={colors.success}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={styles.savingsCalloutText}>
+                        You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> ({savings.percent}%) with bulk pricing!
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Product Overview / Key Information Card */}
@@ -1353,6 +1779,48 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  bulkTableRowActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+  },
+  qtyBadgeActive: {
+    backgroundColor: colors.surface,
+  },
+  qtyTextActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  qtyUnitActive: {
+    color: colors.primary,
+  },
+  bulkPriceSymbolActive: {
+    color: colors.primary,
+  },
+  bulkPriceValueActive: {
+    color: colors.primary,
+  },
+  bulkPriceUnitActive: {
+    color: colors.primary,
+  },
+  activeTierBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  activeTierText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
+  },
   orderMetricCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -1430,6 +1898,239 @@ const styles = StyleSheet.create({
   stockQuantityNumber: {
     fontWeight: '700',
     color: colors.textPrimary,
+  },
+  quantityCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  quantityHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  unitBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  unitBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  outOfStockBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.errorLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    gap: spacing.sm + 2,
+  },
+  outOfStockTextWrapper: {
+    flex: 1,
+  },
+  outOfStockTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.error,
+    marginBottom: 2,
+  },
+  outOfStockSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  quantityControlsWrapper: {
+    gap: spacing.sm + 2,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  stepperButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperButtonDisabled: {
+    opacity: 0.4,
+    backgroundColor: colors.background,
+  },
+  inputWrapper: {
+    flex: 1,
+    height: 44,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+  },
+  quantityInput: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    paddingVertical: 0,
+  },
+  unitLabelBox: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 64,
+  },
+  unitLabelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  validationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.xs,
+  },
+  validationText: {
+    fontSize: 12,
+    color: colors.warning,
+    fontWeight: '600',
+  },
+  limitsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    gap: spacing.xs + 2,
+  },
+  limitText: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  limitBold: {
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  limitDot: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  calculationContainer: {
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: spacing.xs,
+  },
+  calculationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calcLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  calcTierApplied: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  calcPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  calcCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  calcUnitPriceValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  calcUnit: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  calcDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.sm,
+  },
+  calcTotalLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  calcTotalFormula: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  calcTotalCurrency: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  calcTotalValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  savingsCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.successLight,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginTop: spacing.sm,
+  },
+  savingsCalloutText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
+    flex: 1,
+  },
+  savingsCalloutBold: {
+    fontWeight: '800',
+    color: '#065F46',
   },
   overviewCard: {
     backgroundColor: colors.surface,
