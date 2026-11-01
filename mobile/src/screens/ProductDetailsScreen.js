@@ -335,7 +335,8 @@ export default function ProductDetailsScreen({
     return Infinity;
   }, [stockValue]);
 
-  const isOutOfStock = stockValue === 0;
+  const isOutOfStock =
+    stockValue !== null && !isNaN(stockValue) && stockValue <= 0;
 
   // Initial quantity: 0 if out of stock, otherwise MOQ (clamped to maxQty if available)
   const defaultQuantity = useMemo(() => {
@@ -357,9 +358,19 @@ export default function ProductDetailsScreen({
     setInputError(null);
   }, [product?.id, defaultQuantity]);
 
+  // Check if current quantity and input state represent a valid purchasable quantity
+  const isValidQuantity = useMemo(() => {
+    if (isOutOfStock) return false;
+    if (inputError) return false;
+    if (typeof quantity !== 'number' || isNaN(quantity) || quantity <= 0)
+      return false;
+    if (quantity < minQty || quantity > maxQty) return false;
+    return true;
+  }, [isOutOfStock, inputError, quantity, minQty, maxQty]);
+
   // Identify applicable pricing tier based on entered quantity
   const activeTierIndex = useMemo(() => {
-    if (!bulkTiers || bulkTiers.length === 0 || quantity <= 0) return -1;
+    if (!bulkTiers || bulkTiers.length === 0 || !isValidQuantity) return -1;
     return bulkTiers.findIndex((tier) => {
       const min =
         tier.minQuantity !== undefined && tier.minQuantity !== null
@@ -372,7 +383,7 @@ export default function ProductDetailsScreen({
           : quantity <= Number(tier.maxQuantity);
       return minMatch && maxMatch;
     });
-  }, [bulkTiers, quantity]);
+  }, [bulkTiers, quantity, isValidQuantity]);
 
   const activeTier = activeTierIndex >= 0 ? bulkTiers[activeTierIndex] : null;
 
@@ -396,19 +407,19 @@ export default function ProductDetailsScreen({
     return applicableUnitPrice.toLocaleString('en-IN');
   }, [applicableUnitPrice]);
 
-  // Estimated total: Quantity × Applicable Unit Price
+  // Estimated total: Quantity × Applicable Unit Price (only for valid quantities)
   const estimatedTotal = useMemo(() => {
-    if (quantity <= 0) return 0;
+    if (!isValidQuantity || quantity <= 0) return 0;
     return quantity * applicableUnitPrice;
-  }, [quantity, applicableUnitPrice]);
+  }, [isValidQuantity, quantity, applicableUnitPrice]);
 
   const formattedEstimatedTotal = useMemo(() => {
-    return estimatedTotal.toLocaleString('en-IN');
+    return estimatedTotal > 0 ? estimatedTotal.toLocaleString('en-IN') : '0';
   }, [estimatedTotal]);
 
   // Savings: (Regular Price - Applicable Unit Price) × Selected Quantity
   const savings = useMemo(() => {
-    if (quantity <= 0 || !product?.price) {
+    if (!isValidQuantity || quantity <= 0 || !product?.price) {
       return { amount: 0, formattedAmount: '0', percent: 0, hasSavings: false };
     }
     const regularPrice = Number(product.price);
@@ -416,7 +427,8 @@ export default function ProductDetailsScreen({
     const amount = unitSavings * quantity;
     if (amount > 0) {
       const regularTotal = regularPrice * quantity;
-      const percent = regularTotal > 0 ? Math.round((amount / regularTotal) * 100) : 0;
+      const percent =
+        regularTotal > 0 ? Math.round((amount / regularTotal) * 100) : 0;
       return {
         amount,
         formattedAmount: amount.toLocaleString('en-IN'),
@@ -425,7 +437,7 @@ export default function ProductDetailsScreen({
       };
     }
     return { amount: 0, formattedAmount: '0', percent: 0, hasSavings: false };
-  }, [quantity, product?.price, applicableUnitPrice]);
+  }, [isValidQuantity, quantity, product?.price, applicableUnitPrice]);
 
   const handleIncrement = () => {
     if (isOutOfStock) return;
@@ -1253,17 +1265,30 @@ export default function ProductDetailsScreen({
 
                   {/* Estimated Total Price Row */}
                   <View style={styles.calculationRow}>
-                    <View>
+                    <View style={styles.calcFormulaWrapper}>
                       <Text style={styles.calcTotalLabel}>Estimated Total</Text>
-                      <Text style={styles.calcTotalFormula}>
-                        {quantity} {unitPlural} × ₹{formattedApplicableUnitPrice}
+                      <Text
+                        style={[
+                          styles.calcTotalFormula,
+                          !isValidQuantity && inputError && styles.calcTotalFormulaError,
+                        ]}
+                      >
+                        {isValidQuantity
+                          ? `${quantity} ${unitPlural} × ₹${formattedApplicableUnitPrice}`
+                          : inputError || `Enter a valid quantity (min. ${minQty} ${unitPlural})`}
                       </Text>
                     </View>
                     <View style={styles.calcPriceRow}>
-                      <Text style={styles.calcTotalCurrency}>₹</Text>
-                      <Text style={styles.calcTotalValue}>
-                        {formattedEstimatedTotal}
-                      </Text>
+                      {isValidQuantity ? (
+                        <>
+                          <Text style={styles.calcTotalCurrency}>₹</Text>
+                          <Text style={styles.calcTotalValue}>
+                            {formattedEstimatedTotal}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.calcTotalPlaceholder}>—</Text>
+                      )}
                     </View>
                   </View>
 
@@ -1277,7 +1302,7 @@ export default function ProductDetailsScreen({
                         style={{ marginRight: 6 }}
                       />
                       <Text style={styles.savingsCalloutText}>
-                        You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> ({savings.percent}%) with bulk pricing!
+                        You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> on this purchase ({savings.percent}% off)!
                       </Text>
                     </View>
                   )}
@@ -2159,6 +2184,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginVertical: spacing.sm,
   },
+  calcFormulaWrapper: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   calcTotalLabel: {
     fontSize: 14,
     fontWeight: '700',
@@ -2169,6 +2198,10 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
+  calcTotalFormulaError: {
+    color: colors.warning,
+    fontWeight: '600',
+  },
   calcTotalCurrency: {
     fontSize: 16,
     fontWeight: '800',
@@ -2178,6 +2211,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: colors.primary,
+  },
+  calcTotalPlaceholder: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.textMuted,
   },
   savingsCallout: {
     flexDirection: 'row',
