@@ -361,12 +361,15 @@ export default function ProductDetailsScreen({
   const activeTierIndex = useMemo(() => {
     if (!bulkTiers || bulkTiers.length === 0 || quantity <= 0) return -1;
     return bulkTiers.findIndex((tier) => {
-      const minMatch =
-        tier.minQuantity !== undefined && quantity >= tier.minQuantity;
+      const min =
+        tier.minQuantity !== undefined && tier.minQuantity !== null
+          ? Number(tier.minQuantity)
+          : 0;
+      const minMatch = quantity >= min;
       const maxMatch =
-        tier.maxQuantity === null ||
-        tier.maxQuantity === undefined ||
-        quantity <= tier.maxQuantity;
+        tier.maxQuantity === null || tier.maxQuantity === undefined
+          ? true
+          : quantity <= Number(tier.maxQuantity);
       return minMatch && maxMatch;
     });
   }, [bulkTiers, quantity]);
@@ -382,15 +385,15 @@ export default function ProductDetailsScreen({
       activeTier.pricePerUnit !== undefined &&
       activeTier.pricePerUnit !== null
     ) {
-      return activeTier.pricePerUnit;
+      return Number(activeTier.pricePerUnit);
     }
-    return product?.price || 0;
+    return product?.price !== undefined && product?.price !== null
+      ? Number(product.price)
+      : 0;
   }, [activeTier, product?.price]);
 
   const formattedApplicableUnitPrice = useMemo(() => {
-    return typeof applicableUnitPrice === 'number'
-      ? applicableUnitPrice.toLocaleString('en-IN')
-      : String(applicableUnitPrice);
+    return applicableUnitPrice.toLocaleString('en-IN');
   }, [applicableUnitPrice]);
 
   // Estimated total: Quantity × Applicable Unit Price
@@ -403,16 +406,17 @@ export default function ProductDetailsScreen({
     return estimatedTotal.toLocaleString('en-IN');
   }, [estimatedTotal]);
 
-  // Savings compared to regular base price
+  // Savings: (Regular Price - Applicable Unit Price) × Selected Quantity
   const savings = useMemo(() => {
     if (quantity <= 0 || !product?.price) {
       return { amount: 0, formattedAmount: '0', percent: 0, hasSavings: false };
     }
-    const regularTotal = quantity * product.price;
-    const actualTotal = quantity * applicableUnitPrice;
-    const amount = regularTotal - actualTotal;
+    const regularPrice = Number(product.price);
+    const unitSavings = regularPrice - applicableUnitPrice;
+    const amount = unitSavings * quantity;
     if (amount > 0) {
-      const percent = Math.round((amount / regularTotal) * 100);
+      const regularTotal = regularPrice * quantity;
+      const percent = regularTotal > 0 ? Math.round((amount / regularTotal) * 100) : 0;
       return {
         amount,
         formattedAmount: amount.toLocaleString('en-IN'),
@@ -463,6 +467,7 @@ export default function ProductDetailsScreen({
 
     if (sanitized === '') {
       setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+      setQuantity(0);
       return;
     }
 
