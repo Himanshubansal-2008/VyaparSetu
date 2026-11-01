@@ -436,6 +436,11 @@ export const updateProduct = async (id, updateData, options = {}) => {
  * Soft deactivates a product in PostgreSQL.
  * Endpoint: PATCH /api/products/:id/deactivate
  */
+/**
+ * Soft deactivates an inventory product to hide it from public listings.
+ * @param {string} productId - Product identifier
+ * @returns {Promise<Object>} Deactivated product response
+ */
 export const deactivateProduct = async (id, options = {}) => {
   if (!id || typeof id !== 'string' || !isUUID(id)) {
     throw new ApiError('Valid product UUID is required for deactivation', 400);
