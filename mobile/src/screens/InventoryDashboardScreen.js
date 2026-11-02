@@ -1,4 +1,10 @@
 
+/**
+ * @fileoverview Inventory Dashboard Screen
+ * Displays aggregate inventory metrics: total products, in-stock count,
+ * low stock alerts, and out-of-stock warnings with quick action navigation.
+ */
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
