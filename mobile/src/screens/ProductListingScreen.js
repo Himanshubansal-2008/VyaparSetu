@@ -161,6 +161,24 @@ export default function ProductListingScreen({
                 );
               })}
             </ScrollView>
+
+            {/* Results count & active filter summary */}
+            <View style={styles.metaRow}>
+              <Text style={styles.resultsCount}>
+                {filteredProducts.length} product
+                {filteredProducts.length !== 1 ? 's' : ''} available
+              </Text>
+              {selectedCategory !== 'all' && (
+                <TouchableOpacity
+                  style={styles.resetCategoryChip}
+                  onPress={() => setSelectedCategory('all')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.resetCategoryText}>Clear Category</Text>
+                  <Ionicons name="close" size={13} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         }
         ListEmptyComponent={
@@ -206,29 +224,29 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
   headerSection: {
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: spacing.xs + 2,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
   },
   pageTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: colors.textPrimary,
     letterSpacing: -0.5,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
   pageSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
     fontWeight: '400',
   },
   categoryScrollWrapper: {
     marginTop: spacing.md,
-    marginHorizontal: -(spacing.sm + 2),
+    marginHorizontal: -(spacing.xs + 2),
   },
   categoryScroll: {
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: spacing.xs + 2,
     paddingVertical: spacing.xs,
   },
   chip: {
@@ -239,12 +257,12 @@ const styles = StyleSheet.create({
   },
   chipSelected: {
     backgroundColor: colors.primary,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.primary,
   },
   chipUnselected: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   chipText: {
@@ -258,20 +276,50 @@ const styles = StyleSheet.create({
   chipTextUnselected: {
     color: colors.textSecondary,
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  resultsCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  resetCategoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs - 1,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 3,
+  },
+  resetCategoryText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xxxl,
+    paddingVertical: spacing.xxxl * 1.5,
     paddingHorizontal: spacing.lg,
   },
   emptyIconBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: colors.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   emptyTitle: {
     fontSize: 16,
@@ -288,9 +336,20 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm + 2,
     borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   resetButtonText: {
     color: colors.textInverse,

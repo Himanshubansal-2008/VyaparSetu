@@ -26,12 +26,14 @@ export default function FeaturedProducts({
           <Text style={styles.sectionTitle}>Featured Products</Text>
         </View>
         <TouchableOpacity
+          style={styles.viewAllButton}
           activeOpacity={0.7}
           onPress={onViewAllPress}
           accessibilityRole="button"
           accessibilityLabel="View all featured products"
         >
           <Text style={styles.viewAll}>View All</Text>
+          <Ionicons name="arrow-forward" size={13} color={colors.primaryLight} />
         </TouchableOpacity>
       </View>
 
@@ -76,6 +78,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.textPrimary,
   },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: spacing.xs,
+  },
   viewAll: {
     fontSize: 13,
     fontWeight: '600',
@@ -84,6 +92,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
+    paddingBottom: spacing.xs,
   },
   cardWrapper: {
     width: CARD_WIDTH,

@@ -353,18 +353,21 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   contentContainer: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.xs + 2,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
   },
   quickSearchSection: {
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   quickSearchLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: colors.textSecondary,
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   tagsWrapper: {
     flexDirection: 'row',
@@ -375,11 +378,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: spacing.xs + 3,
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   tagIcon: {
     marginRight: spacing.xs,
@@ -392,10 +406,21 @@ const styles = StyleSheet.create({
   searchActiveCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+    padding: spacing.md + 2,
     borderWidth: 1,
     borderColor: colors.border,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   searchResultHeader: {
     flexDirection: 'row',
@@ -424,21 +449,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: colors.textPrimary,
   },
   productCount: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.textMuted,
+    marginTop: 1,
   },
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    gap: 4,
+    paddingHorizontal: spacing.xs,
+    gap: 3,
   },
   viewAllButtonText: {
     fontSize: 13,
@@ -446,8 +472,8 @@ const styles = StyleSheet.create({
     color: colors.primaryLight,
   },
   footerActionContainer: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xs + 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -456,7 +482,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.md + 2,
     paddingHorizontal: spacing.xl,
     borderRadius: borderRadius.lg,
     width: '100%',

@@ -6,6 +6,7 @@ import {
   Animated,
   View,
   Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -82,19 +83,30 @@ export default function CategoryCard({ category, isSelected, onPress }) {
   );
 }
 
-const CARD_WIDTH = 88;
+const CARD_WIDTH = 92;
 
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: spacing.xs + 2,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     marginRight: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   cardSelected: {
     backgroundColor: colors.primaryLight + '12', // 7% opacity tint
@@ -102,9 +114,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   iconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
@@ -114,15 +126,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   categoryImage: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
   },
   label: {
     fontSize: 11.5,
     fontWeight: '600',
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 15,
   },
   labelSelected: {
     color: colors.primary,

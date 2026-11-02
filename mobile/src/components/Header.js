@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm + 2,
   },
   brandContainer: {
     flexDirection: 'row',
@@ -151,24 +151,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   backButton: {
-    padding: spacing.xs,
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSubtle,
     marginRight: spacing.sm,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   logoBadge: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.md,
+    marginRight: spacing.sm + 2,
     ...Platform.select({
       ios: {
         shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.25,
         shadowRadius: 4,
       },
       android: {
@@ -181,16 +186,16 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
   },
   titlePrimary: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '800',
     color: colors.primary,
     letterSpacing: -0.5,
   },
   titleAccent: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '800',
     color: colors.accent,
     letterSpacing: -0.5,
@@ -198,7 +203,7 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 1,
+    marginTop: 2,
   },
   statusDot: {
     width: 6,
@@ -210,7 +215,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 11,
     color: colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
     letterSpacing: 0.2,
   },
   actionsContainer: {
@@ -219,8 +224,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   actionButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: borderRadius.full,
     backgroundColor: colors.surfaceSubtle,
     alignItems: 'center',
@@ -230,8 +235,8 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 1,
+    right: 1,
     backgroundColor: colors.error,
     minWidth: 16,
     height: 16,
@@ -239,6 +244,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
   },
   cartBadge: {
     backgroundColor: colors.accent,

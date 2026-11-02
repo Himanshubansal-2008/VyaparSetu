@@ -72,7 +72,7 @@ export default function SearchBar({
         )}
       </View>
 
-      {showFilter && (
+      {showFilter && Boolean(onFilterPress) && (
         <TouchableOpacity
           style={styles.filterButton}
           onPress={onFilterPress}
@@ -101,16 +101,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
-    height: 48,
+    height: 46,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.textPrimary,
     paddingVertical: 0,
   },
@@ -127,8 +127,8 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
   filterButton: {
-    width: 48,
-    height: 48,
+    width: 46,
+    height: 46,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -138,12 +138,12 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },

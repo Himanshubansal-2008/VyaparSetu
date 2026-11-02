@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   Animated,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -207,10 +208,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   imageContainer: {
     width: '100%',
-    height: 130,
+    height: 132,
     backgroundColor: colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
@@ -291,12 +303,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
     lineHeight: 18,
-    marginBottom: spacing.xs + 2,
+    minHeight: 36,
+    marginBottom: spacing.xs,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
   price: {
     fontSize: 16,
@@ -306,10 +319,10 @@ const styles = StyleSheet.create({
   unit: {
     fontSize: 11,
     color: colors.textSecondary,
-    marginLeft: 1,
+    marginLeft: 2,
   },
   originalPrice: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: colors.textMuted,
     textDecorationLine: 'line-through',
     marginLeft: spacing.xs + 2,
@@ -329,6 +342,10 @@ const styles = StyleSheet.create({
   ratingChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.xs + 1,
+    paddingVertical: 1.5,
+    borderRadius: borderRadius.sm,
     gap: 2,
   },
   ratingText: {
@@ -338,7 +355,7 @@ const styles = StyleSheet.create({
   },
   reviewCount: {
     fontSize: 10,
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
   locationChip: {
     flexDirection: 'row',
