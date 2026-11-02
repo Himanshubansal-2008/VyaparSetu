@@ -62,6 +62,12 @@ export default function ProductCard({
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.92}
+        accessibilityRole="button"
+        accessibilityLabel={
+          (product?.name || name)
+            ? `View details for ${product?.name || name}`
+            : 'View product details'
+        }
         onPress={() =>
           onPress?.(
             product || {
