@@ -4,27 +4,66 @@ import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 
+const VALID_ROUTES = ['Home', 'ProductListing', 'ProductDetails'];
+
 export default function AppNavigator() {
-  const [currentRoute, setCurrentRoute] = useState({
-    name: 'Home',
-    params: {},
+  const [navState, setNavState] = useState({
+    currentRoute: {
+      name: 'Home',
+      params: {},
+    },
+    history: [],
   });
-  const [history, setHistory] = useState([]);
+
+  const { currentRoute, history } = navState;
 
   const navigate = useCallback((name, params = {}) => {
-    setCurrentRoute((prevRoute) => {
-      setHistory((prevHistory) => [...prevHistory, prevRoute]);
-      return { name, params };
+    if (!name || typeof name !== 'string' || !VALID_ROUTES.includes(name)) {
+      console.warn(
+        `[AppNavigator] Invalid or missing navigation target: "${name}". Valid routes are: ${VALID_ROUTES.join(
+          ', '
+        )}`
+      );
+      return;
+    }
+
+    setNavState((prevState) => {
+      const { currentRoute: prevRoute, history: prevHistory } = prevState;
+
+      // Prevent duplicate navigation actions or unintended multiple screen instances
+      if (prevRoute.name === name) {
+        const isParamsEqual =
+          JSON.stringify(prevRoute.params || {}) ===
+          JSON.stringify(params || {});
+        if (isParamsEqual) {
+          return prevState;
+        }
+        return {
+          ...prevState,
+          currentRoute: {
+            name,
+            params: { ...(prevRoute.params || {}), ...params },
+          },
+        };
+      }
+
+      return {
+        currentRoute: { name, params },
+        history: [...prevHistory, prevRoute],
+      };
     });
   }, []);
 
   const goBack = useCallback(() => {
-    setHistory((prevHistory) => {
-      if (prevHistory.length === 0) return prevHistory;
+    setNavState((prevState) => {
+      const { history: prevHistory } = prevState;
+      if (prevHistory.length === 0) return prevState;
       const nextHistory = [...prevHistory];
       const previousRoute = nextHistory.pop();
-      setCurrentRoute(previousRoute);
-      return nextHistory;
+      return {
+        currentRoute: previousRoute,
+        history: nextHistory,
+      };
     });
   }, []);
 

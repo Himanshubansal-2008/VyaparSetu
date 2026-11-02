@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -34,13 +34,15 @@ export default function ProductListingScreen({
     route?.params?.searchQuery || ''
   );
 
-  React.useEffect(() => {
-    if (route?.params?.selectedCategory) {
-      setSelectedCategory(route?.params.selectedCategory);
+  useEffect(() => {
+    const nextCategory =
+      route?.params?.selectedCategory || route?.params?.categoryId;
+    if (nextCategory) {
+      setSelectedCategory(nextCategory);
     }
-  }, [route?.params?.selectedCategory]);
+  }, [route?.params?.selectedCategory, route?.params?.categoryId]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (route?.params?.searchQuery !== undefined) {
       setSearchQuery(route.params.searchQuery);
     }

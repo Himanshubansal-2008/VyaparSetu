@@ -132,8 +132,11 @@ export default function HomeScreen({
         onSearchChange={handleSearchChange}
         onClearSearch={() => handleSearchChange('')}
         onSubmitSearch={() => {
-          // Trigger search action
-          console.log('Searching for:', searchQuery);
+          if (searchQuery.trim()) {
+            handleNavigateToProductListing({
+              searchQuery: searchQuery.trim(),
+            });
+          }
         }}
         onNotificationPress={() => console.log('Notifications opened')}
         onCartPress={() => console.log('Cart opened')}
