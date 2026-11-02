@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
+import EmptyState from '../components/EmptyState';
 import { products, categories } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -69,6 +70,12 @@ export default function ProductListingScreen({
       navigation.navigate('ProductDetails', productParams);
     }
   };
+
+  const trimmedQuery = searchQuery.trim();
+  const hasSearch = trimmedQuery.length > 0;
+  const hasCategory = selectedCategory !== 'all';
+  const categoryName =
+    categories.find((c) => c.id === selectedCategory)?.name || 'this category';
 
   const filteredProducts = useMemo(() => {
     const trimmed = searchQuery.trim().toLowerCase();
@@ -182,31 +189,48 @@ export default function ProductListingScreen({
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconBox}>
-              <Ionicons name="cube-outline" size={44} color={colors.textMuted} />
-            </View>
-            <Text style={styles.emptyTitle}>
-              {searchQuery.trim()
-                ? `No products found matching "${searchQuery.trim()}".`
-                : 'No products found in this category.'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery.trim()
-                ? 'Try searching with a different term or clear filters.'
-                : 'Try exploring other categories or view all products.'}
-            </Text>
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={() => {
+          !products || products.length === 0 ? (
+            <EmptyState
+              icon="cube-outline"
+              title="No products available yet"
+              description="Wholesale listings will appear here once suppliers list their products."
+            />
+          ) : hasSearch && hasCategory ? (
+            <EmptyState
+              icon="search-outline"
+              title="No products found in this category"
+              description={`No products in ${categoryName} match "${trimmedQuery}". Try clearing your search or filters.`}
+              actionText="Clear Search"
+              onActionPress={() => setSearchQuery('')}
+              secondaryActionText="Clear Filters"
+              onSecondaryActionPress={() => {
                 setSelectedCategory('all');
                 setSearchQuery('');
               }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.resetButtonText}>View All Products</Text>
-            </TouchableOpacity>
-          </View>
+            />
+          ) : hasSearch ? (
+            <EmptyState
+              icon="search-outline"
+              title="No products found"
+              description={`No products found matching "${trimmedQuery}". Try searching with a different term.`}
+              actionText="Clear Search"
+              onActionPress={() => setSearchQuery('')}
+            />
+          ) : hasCategory ? (
+            <EmptyState
+              icon="file-tray-outline"
+              title="No products available in this category"
+              description={`There are currently no products in ${categoryName}. Try exploring other categories or view all products.`}
+              actionText="All Categories"
+              onActionPress={() => setSelectedCategory('all')}
+            />
+          ) : (
+            <EmptyState
+              icon="cube-outline"
+              title="No products available yet"
+              description="Wholesale listings will appear here once suppliers list their products."
+            />
+          )
         }
       />
     </SafeAreaView>

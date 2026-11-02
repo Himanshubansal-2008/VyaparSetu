@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -32,6 +32,7 @@ export default function ProductCard({
   style,
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [imageError, setImageError] = useState(false);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -93,8 +94,12 @@ export default function ProductCard({
         onPressOut={handlePressOut}
       >
         <View style={styles.imageContainer}>
-          {image ? (
-            <Image source={{ uri: image }} style={styles.image} />
+          {image && !imageError ? (
+            <Image
+              source={{ uri: image }}
+              style={styles.image}
+              onError={() => setImageError(true)}
+            />
           ) : (
             <View style={styles.imagePlaceholder}>
               <Ionicons name="cube-outline" size={36} color={colors.textMuted} />

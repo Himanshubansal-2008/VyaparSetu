@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import EmptyState from '../components/EmptyState';
 import { products } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -644,34 +645,16 @@ export default function ProductDetailsScreen({
         </View>
 
         {/* Empty / Not Found State */}
-        <View style={styles.notFoundContainer}>
-          <View style={styles.notFoundIconBox}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={52}
-              color={colors.textMuted}
-            />
-          </View>
-          <Text style={styles.notFoundTitle}>Product Not Found</Text>
-          <Text style={styles.notFoundSubtitle}>
-            The selected product could not be found or may no longer be available.
-          </Text>
-          <TouchableOpacity
-            style={styles.notFoundButton}
-            onPress={handleBack}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Return to previous screen"
-          >
-            <Ionicons
-              name="arrow-back"
-              size={16}
-              color={colors.textInverse}
-              style={styles.notFoundButtonIcon}
-            />
-            <Text style={styles.notFoundButtonText}>Back to Products</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          icon="alert-circle-outline"
+          iconSize={48}
+          title="Product not found"
+          description="The selected product could not be found or may no longer be available."
+          actionText="Go Back"
+          actionIcon="arrow-back"
+          onActionPress={handleBack}
+          style={styles.notFoundContainer}
+        />
       </SafeAreaView>
     );
   }

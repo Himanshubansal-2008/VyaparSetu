@@ -14,6 +14,7 @@ import Header from '../components/Header';
 import CategoryList from '../components/CategoryList';
 import FeaturedProducts from '../components/FeaturedProducts';
 import ProductCard from '../components/ProductCard';
+import EmptyState from '../components/EmptyState';
 import {
   products,
   categories,
@@ -277,69 +278,45 @@ export default function HomeScreen({
           ) : null
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>
-              {hasSearch && hasCategory
-                ? 'No products found in this category'
-                : hasSearch
-                  ? 'No products found'
-                  : 'No products available in this category'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {hasSearch && hasCategory
-                ? `No products in ${categoryName} match "${trimmedQuery}". Try another search or clear your filters.`
-                : hasSearch
-                  ? `No products match "${trimmedQuery}". Try a different search term.`
-                  : 'Try exploring other categories or view all products.'}
-            </Text>
-            {hasSearch && hasCategory ? (
-              <View style={styles.emptyActionRow}>
-                <TouchableOpacity
-                  style={[styles.clearSearchButton, { marginTop: 0 }]}
-                  onPress={() => handleSearchChange('')}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear Search"
-                >
-                  <Text style={styles.clearSearchButtonText}>Clear Search</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.clearSearchButton,
-                    styles.clearFiltersButton,
-                    { marginTop: 0 },
-                  ]}
-                  onPress={handleClearFilters}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear Filters"
-                >
-                  <Text style={styles.clearFiltersButtonText}>Clear Filters</Text>
-                </TouchableOpacity>
-              </View>
-            ) : hasSearch ? (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => handleSearchChange('')}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Clear Search"
-              >
-                <Text style={styles.clearSearchButtonText}>Clear Search</Text>
-              </TouchableOpacity>
-            ) : hasCategory ? (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => handleSelectCategory('all')}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="View All Products"
-              >
-                <Text style={styles.clearSearchButtonText}>View All Products</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
+          !products || products.length === 0 ? (
+            <EmptyState
+              icon="cube-outline"
+              title="No products available right now"
+              description="Check back soon as sellers add new wholesale products to the marketplace."
+            />
+          ) : hasSearch && hasCategory ? (
+            <EmptyState
+              icon="search-outline"
+              title="No products found in this category"
+              description={`No products in ${categoryName} match "${trimmedQuery}". Try another search or clear your filters.`}
+              actionText="Clear Search"
+              onActionPress={() => handleSearchChange('')}
+              secondaryActionText="Clear Filters"
+              onSecondaryActionPress={handleClearFilters}
+            />
+          ) : hasSearch ? (
+            <EmptyState
+              icon="search-outline"
+              title="No products found"
+              description={`No products match "${trimmedQuery}". Try a different search term.`}
+              actionText="Clear Search"
+              onActionPress={() => handleSearchChange('')}
+            />
+          ) : hasCategory ? (
+            <EmptyState
+              icon="file-tray-outline"
+              title="No products available in this category"
+              description={`There are currently no products in ${categoryName}. Try exploring other categories or view all products.`}
+              actionText="All Categories"
+              onActionPress={() => handleSelectCategory('all')}
+            />
+          ) : (
+            <EmptyState
+              icon="cube-outline"
+              title="No products available right now"
+              description="Check back soon as sellers add new wholesale products to the marketplace."
+            />
+          )
         }
       />
     </SafeAreaView>
