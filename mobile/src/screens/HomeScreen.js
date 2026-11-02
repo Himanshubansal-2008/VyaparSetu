@@ -76,9 +76,11 @@ export default function HomeScreen({
   };
 
   const handleProductPress = (product) => {
+    const productId =
+      product?.id || (typeof product === 'string' ? product : undefined);
     const productParams = {
-      productId: product?.id,
-      product,
+      productId,
+      product: typeof product === 'object' ? product : undefined,
     };
     if (onNavigateToProductDetails) {
       onNavigateToProductDetails(productParams);

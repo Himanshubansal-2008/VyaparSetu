@@ -175,6 +175,11 @@ export default function AppNavigator() {
       {currentRoute.name === 'ProductDetails' && (
         <View style={styles.screen}>
           <ProductDetailsScreen
+            key={
+              currentRoute.params?.productId ||
+              currentRoute.params?.id ||
+              'details'
+            }
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}

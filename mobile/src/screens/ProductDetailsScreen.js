@@ -72,19 +72,29 @@ export default function ProductDetailsScreen({
     route?.params?.id ||
     route?.params?.product?.id;
 
-  // Retrieve matching product dynamically from catalog
+  // Retrieve matching product dynamically from catalog using product ID as primary reference
   const product = useMemo(() => {
-    if (propProduct) return propProduct;
-
     if (routeProductId) {
       const found = products.find(
         (p) => String(p.id) === String(routeProductId)
       );
       if (found) {
-        return route?.params?.product
-          ? { ...found, ...route.params.product }
-          : found;
+        return found;
       }
+    }
+
+    if (propProduct?.id) {
+      const found = products.find(
+        (p) => String(p.id) === String(propProduct.id)
+      );
+      if (found) {
+        return found;
+      }
+      return propProduct;
+    }
+
+    if (propProduct && propProduct.name) {
+      return propProduct;
     }
 
     if (route?.params?.product && route.params.product.name) {
