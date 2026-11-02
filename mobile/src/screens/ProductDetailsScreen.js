@@ -629,18 +629,16 @@ export default function ProductDetailsScreen({
 
         {/* A. Header */}
         <View style={styles.header}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={handleBack}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-          </Pressable>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Product Details</Text>
           <View style={styles.headerRightSpacer} />
         </View>
@@ -684,18 +682,16 @@ export default function ProductDetailsScreen({
 
       {/* A. Header */}
       <View style={styles.header}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed && styles.backButtonPressed,
-          ]}
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={handleBack}
+          activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </Pressable>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Product Details</Text>
         <View style={styles.headerRightSpacer} />
       </View>
@@ -1309,7 +1305,6 @@ export default function ProductDetailsScreen({
                         name="pricetag"
                         size={15}
                         color={colors.success}
-                        style={{ marginRight: 6 }}
                       />
                       <Text style={styles.savingsCalloutText}>
                         You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> on this purchase ({savings.percent}% off)!
@@ -1431,7 +1426,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.04,
         shadowRadius: 3,
       },
       android: {
@@ -1440,11 +1435,14 @@ const styles = StyleSheet.create({
     }),
   },
   backButton: {
-    padding: spacing.xs,
-    marginLeft: -spacing.xs,
-    borderRadius: borderRadius.md,
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   backButtonPressed: {
     opacity: 0.7,
@@ -1452,18 +1450,18 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.textPrimary,
     textAlign: 'center',
   },
   headerRightSpacer: {
-    width: 32,
+    width: 38,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xxxl,
+    paddingBottom: spacing.xxxl * 1.5,
   },
   galleryContainer: {
     backgroundColor: colors.surface,
@@ -1472,7 +1470,7 @@ const styles = StyleSheet.create({
   },
   mainImageContainer: {
     width: '100%',
-    height: 300,
+    height: 320,
     backgroundColor: colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1495,17 +1493,18 @@ const styles = StyleSheet.create({
   },
   imageCounterBadge: {
     position: 'absolute',
-    bottom: spacing.sm,
+    bottom: spacing.md,
     right: spacing.md,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
     borderRadius: borderRadius.full,
   },
   imageCounterText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textInverse,
+    letterSpacing: 0.3,
   },
   thumbnailsContainer: {
     backgroundColor: colors.surface,
@@ -1519,9 +1518,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   thumbnailWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: borderRadius.md,
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
     backgroundColor: colors.surfaceSubtle,
     justifyContent: 'center',
@@ -1530,7 +1529,7 @@ const styles = StyleSheet.create({
   thumbnailWrapperUnselected: {
     borderWidth: 1.5,
     borderColor: colors.border,
-    opacity: 0.7,
+    opacity: 0.8,
   },
   thumbnailWrapperSelected: {
     borderWidth: 2,
@@ -1541,7 +1540,7 @@ const styles = StyleSheet.create({
         shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
-        shadowRadius: 3,
+        shadowRadius: 4,
       },
       android: {
         elevation: 3,
@@ -1577,7 +1576,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -1589,7 +1588,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: spacing.xs + 2,
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   categoryBadge: {
@@ -1606,7 +1605,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   categoryText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.info,
     textTransform: 'uppercase',
@@ -1633,10 +1632,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   productName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: colors.textPrimary,
     lineHeight: 28,
+    letterSpacing: -0.3,
     marginBottom: spacing.xs,
   },
   brandContainer: {
@@ -1656,9 +1656,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   priceContainer: {
-    paddingTop: spacing.sm,
+    paddingTop: spacing.sm + 2,
     borderTopWidth: 1,
-    borderTopColor: colors.surfaceSubtle,
+    borderTopColor: colors.border,
   },
   priceRow: {
     flexDirection: 'row',
@@ -1667,39 +1667,39 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   priceSymbol: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: colors.primary,
   },
   price: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     color: colors.primary,
   },
   unit: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textSecondary,
     marginRight: spacing.xs,
   },
   originalPrice: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: colors.textMuted,
     textDecorationLine: 'line-through',
     marginLeft: spacing.xs,
   },
   discountBadge: {
-    backgroundColor: colors.errorLight,
+    backgroundColor: colors.error,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: borderRadius.sm,
     marginLeft: spacing.xs,
   },
   discountText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.error,
+    fontWeight: '800',
+    color: colors.textInverse,
   },
   priceSubtext: {
     fontSize: 12,
@@ -1716,7 +1716,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -1757,20 +1757,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.surfaceSubtle,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   bulkHeaderColLeft: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   bulkHeaderColRight: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: colors.textSecondary,
     textTransform: 'uppercase',
@@ -1785,12 +1785,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
   },
   bulkTableRowAlt: {
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.surfaceSubtle + '60',
   },
   bulkTableRowLast: {
     borderBottomWidth: 0,
+  },
+  bulkTableRowActive: {
+    backgroundColor: '#EFF6FF',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
   },
   bulkColLeft: {
     flex: 1.2,
@@ -1804,10 +1811,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
   },
+  qtyTextActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
   qtyUnit: {
     fontSize: 12,
     fontWeight: '500',
     color: colors.textSecondary,
+  },
+  qtyUnitActive: {
+    color: colors.primary,
+    fontWeight: '600',
   },
   bestValueBadge: {
     alignSelf: 'flex-start',
@@ -1835,10 +1850,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
+  bulkPriceSymbolActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
   bulkPriceValue: {
     fontSize: 16,
     fontWeight: '800',
     color: colors.primary,
+  },
+  bulkPriceValueActive: {
+    color: colors.primary,
+    fontSize: 17,
   },
   bulkPriceUnit: {
     fontSize: 12,
@@ -1846,9 +1869,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginLeft: 1,
   },
+  bulkPriceUnitActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
   savingsSubtext: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.success,
     marginTop: 2,
   },
@@ -1878,30 +1905,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-  bulkTableRowActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: colors.primary,
-    borderWidth: 1.5,
-  },
-  qtyBadgeActive: {
-    backgroundColor: colors.surface,
-  },
-  qtyTextActive: {
-    color: colors.primary,
-    fontWeight: '800',
-  },
-  qtyUnitActive: {
-    color: colors.primary,
-  },
-  bulkPriceSymbolActive: {
-    color: colors.primary,
-  },
-  bulkPriceValueActive: {
-    color: colors.primary,
-  },
-  bulkPriceUnitActive: {
-    color: colors.primary,
-  },
   activeTierBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1930,7 +1933,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -1948,12 +1951,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   moqNumber: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     color: colors.primary,
   },
   moqUnitText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.textSecondary,
   },
@@ -2008,7 +2011,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -2068,8 +2071,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   stepperButton: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: borderRadius.md,
     backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
@@ -2084,7 +2087,7 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flex: 1,
-    height: 44,
+    height: 46,
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
     borderColor: colors.primary,
@@ -2096,21 +2099,21 @@ const styles = StyleSheet.create({
   },
   quantityInput: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.textPrimary,
     textAlign: 'center',
     paddingVertical: 0,
   },
   unitLabelBox: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
+    height: 46,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
     backgroundColor: colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
-    minWidth: 64,
+    minWidth: 68,
   },
   unitLabelText: {
     fontSize: 13,
@@ -2148,8 +2151,8 @@ const styles = StyleSheet.create({
   },
   calculationContainer: {
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md + 2,
     borderWidth: 1,
     borderColor: colors.border,
     marginTop: spacing.xs,
@@ -2167,7 +2170,7 @@ const styles = StyleSheet.create({
   calcTierApplied: {
     fontSize: 11,
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
   },
   calcPriceRow: {
@@ -2192,7 +2195,7 @@ const styles = StyleSheet.create({
   calcDivider: {
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: spacing.sm,
+    marginVertical: spacing.sm + 2,
   },
   calcFormulaWrapper: {
     flex: 1,
@@ -2204,7 +2207,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   calcTotalFormula: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: colors.textMuted,
     marginTop: 2,
   },
@@ -2213,12 +2216,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   calcTotalCurrency: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
     color: colors.primary,
   },
   calcTotalValue: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: colors.primary,
   },
@@ -2231,18 +2234,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.successLight,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    gap: spacing.xs + 2,
   },
   savingsCalloutText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#065F46',
     flex: 1,
+    lineHeight: 17,
   },
   savingsCalloutBold: {
     fontWeight: '800',
@@ -2258,7 +2263,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -2318,7 +2323,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -2341,7 +2346,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
       },
       android: {
@@ -2366,7 +2371,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   specRowAlt: {
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.surfaceSubtle + '60',
   },
   specRowLast: {
     borderBottomWidth: 0,
@@ -2399,6 +2404,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   notFoundTitle: {
     fontSize: 18,
@@ -2422,6 +2429,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   notFoundButtonIcon: {
     marginRight: spacing.xs + 2,
