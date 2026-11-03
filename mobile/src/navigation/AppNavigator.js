@@ -3,13 +3,19 @@ import { StyleSheet, View, BackHandler, Platform } from 'react-native';
 import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
+import BusinessProfileScreen from '../screens/BusinessProfileScreen';
 
-const VALID_ROUTES = ['Home', 'ProductListing', 'ProductDetails'];
+const VALID_ROUTES = [
+  'Home',
+  'ProductListing',
+  'ProductDetails',
+  'BusinessProfile',
+];
 
-export default function AppNavigator() {
+export default function AppNavigator({ initialRouteName = 'Home' }) {
   const [navState, setNavState] = useState({
     currentRoute: {
-      name: 'Home',
+      name: VALID_ROUTES.includes(initialRouteName) ? initialRouteName : 'Home',
       params: {},
     },
     history: [],
@@ -135,6 +141,13 @@ export default function AppNavigator() {
     [navigate]
   );
 
+  const handleNavigateToBusinessProfile = useCallback(
+    (params = {}) => {
+      navigate('BusinessProfile', params);
+    },
+    [navigate]
+  );
+
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
@@ -151,6 +164,7 @@ export default function AppNavigator() {
             navigate('ProductListing', params)
           }
           onNavigateToProductDetails={handleNavigateToProductDetails}
+          onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
         />
       </View>
 
@@ -167,6 +181,7 @@ export default function AppNavigator() {
             route={listingRoute}
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
           />
         </View>
       )}
@@ -179,6 +194,22 @@ export default function AppNavigator() {
               currentRoute.params?.productId ||
               currentRoute.params?.id ||
               'details'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+          />
+        </View>
+      )}
+
+      {/* Business Profile Screen */}
+      {currentRoute.name === 'BusinessProfile' && (
+        <View style={styles.screen}>
+          <BusinessProfileScreen
+            key={
+              currentRoute.params?.businessId ||
+              currentRoute.params?.id ||
+              'profile'
             }
             navigation={navigation}
             route={currentRoute}

@@ -18,6 +18,7 @@ export default function Header({
   onSubmitSearch,
   onNotificationPress,
   onCartPress,
+  onProfilePress,
   unreadNotifications = 2,
   cartItemCount = 0,
   showBack = false,
@@ -63,6 +64,22 @@ export default function Header({
         </View>
 
         <View style={styles.actionsContainer}>
+          {onProfilePress && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={onProfilePress}
+              activeOpacity={0.7}
+              accessibilityLabel="Business Profile"
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={22}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onNotificationPress}

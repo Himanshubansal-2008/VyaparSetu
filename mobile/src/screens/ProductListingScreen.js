@@ -29,8 +29,10 @@ export default function ProductListingScreen({
   categories: propCategories,
   onBackPress,
   onNavigateToProductDetails,
+  onNavigateToBusinessProfile,
   onNotificationPress,
   onCartPress,
+  onProfilePress,
 }) {
   const allProducts =
     propProducts !== undefined
@@ -157,6 +159,11 @@ export default function ProductListingScreen({
         onSubmitSearch={() => Keyboard.dismiss()}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
+        onProfilePress={
+          onProfilePress ||
+          onNavigateToBusinessProfile ||
+          (() => navigation?.navigate?.('BusinessProfile'))
+        }
       />
 
       {/* Product Grid List */}
