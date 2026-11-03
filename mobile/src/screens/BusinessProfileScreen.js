@@ -8,6 +8,8 @@ import {
   StatusBar,
   Platform,
   TouchableOpacity,
+  Linking,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -27,17 +29,24 @@ export default function BusinessProfileScreen({
     businessProfileData;
 
   const {
-    businessName = 'Sharma Handicrafts',
-    description = '',
-    category = '',
-    ownerName = '',
-    contactNumber = '',
-    email = '',
-    address = '',
-    location = '',
-    isVerified = true,
-    specialties = [],
+    businessName = businessProfileData.businessName,
+    description = businessProfileData.description,
+    category = businessProfileData.category,
+    ownerName = businessProfileData.ownerName,
+    contactNumber = businessProfileData.contactNumber,
+    email = businessProfileData.email,
+    address = businessProfileData.address,
+    location = businessProfileData.location,
+    isVerified = businessProfileData.isVerified,
+    specialties = businessProfileData.specialties,
   } = business || {};
+
+  const specialtiesList =
+    Array.isArray(specialties) && specialties.length > 0
+      ? specialties
+      : Array.isArray(businessProfileData.specialties)
+      ? businessProfileData.specialties
+      : [];
 
   const canGoBack = Boolean(
     onBackPress || (navigation && typeof navigation.goBack === 'function')
@@ -51,11 +60,66 @@ export default function BusinessProfileScreen({
     }
   };
 
+  const handlePhonePress = async () => {
+    const rawNumber = contactNumber || businessProfileData.contactNumber;
+    if (!rawNumber) return;
+    const sanitizedNumber = String(rawNumber).replace(/[^\d+]/g, '');
+    const url = `tel:${sanitizedNumber}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(url).catch((err) => {
+          console.warn('[BusinessProfileScreen] Cannot open phone dialer:', err);
+          Alert.alert(
+            'Unable to place call',
+            `Device cannot make a call to ${rawNumber}.`
+          );
+        });
+      }
+    } catch (error) {
+      console.warn('[BusinessProfileScreen] Phone dialer error:', error);
+      Alert.alert(
+        'Unable to place call',
+        `An error occurred while trying to open dialer: ${error.message || error}`
+      );
+    }
+  };
+
+  const handleEmailPress = async () => {
+    const targetEmail = email || businessProfileData.email;
+    if (!targetEmail) return;
+    const url = `mailto:${targetEmail.trim()}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(url).catch((err) => {
+          console.warn('[BusinessProfileScreen] Cannot open email client:', err);
+          Alert.alert(
+            'Unable to send email',
+            `No email client available to email ${targetEmail}.`
+          );
+        });
+      }
+    } catch (error) {
+      console.warn('[BusinessProfileScreen] Email client error:', error);
+      Alert.alert(
+        'Unable to send email',
+        `An error occurred while trying to open email: ${error.message || error}`
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
 
-      {/* A. Screen Heading */}
+      {/* Screen Heading */}
       <View style={[styles.header, !canGoBack && styles.headerCentered]}>
         {canGoBack && (
           <TouchableOpacity
@@ -79,7 +143,7 @@ export default function BusinessProfileScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Business Header / Identity Section */}
+        {/* 1. Business Header (Logo, Name, Category Badge, Verification Badge) */}
         <View style={styles.businessHeaderCard}>
           <View style={styles.businessLogoPlaceholder}>
             <Ionicons
@@ -92,17 +156,48 @@ export default function BusinessProfileScreen({
             <Text style={styles.businessNameText}>
               {businessName || businessProfileData.businessName}
             </Text>
-            {Boolean(category || businessProfileData.category) && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>
-                  {category || businessProfileData.category}
+
+            <View style={styles.headerBadgesRow}>
+              {/* 2. Business Category Badge */}
+              {Boolean(category || businessProfileData.category) && (
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryBadgeText}>
+                    {category || businessProfileData.category}
+                  </Text>
+                </View>
+              )}
+
+              {/* 3. Business Verification Badge */}
+              <View
+                style={[
+                  styles.verificationBadge,
+                  isVerified
+                    ? styles.verificationBadgeVerified
+                    : styles.verificationBadgeUnverified,
+                ]}
+              >
+                <Ionicons
+                  name={isVerified ? 'checkmark-circle' : 'alert-circle-outline'}
+                  size={13}
+                  color={isVerified ? colors.success : colors.textSecondary}
+                  style={styles.verificationBadgeIcon}
+                />
+                <Text
+                  style={[
+                    styles.verificationBadgeText,
+                    isVerified
+                      ? styles.verificationBadgeTextVerified
+                      : styles.verificationBadgeTextUnverified,
+                  ]}
+                >
+                  {isVerified ? 'Verified' : 'Not Verified'}
                 </Text>
               </View>
-            )}
+            </View>
           </View>
         </View>
 
-        {/* D. Business Information */}
+        {/* 4. About Business Section */}
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons
@@ -111,86 +206,42 @@ export default function BusinessProfileScreen({
               color={colors.primary}
               style={styles.sectionHeaderIcon}
             />
-            <Text style={styles.sectionTitle}>Business Information</Text>
+            <Text style={styles.sectionTitle}>About Business</Text>
           </View>
+          <Text style={styles.aboutText}>
+            {description || businessProfileData.description}
+          </Text>
+        </View>
 
-          <View style={styles.fieldList}>
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Business Description</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {description || 'No description available'}
-                </Text>
-              </View>
+        {/* 5. Owner Information Section */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons
+              name="person-outline"
+              size={18}
+              color={colors.primary}
+              style={styles.sectionHeaderIcon}
+            />
+            <Text style={styles.sectionTitle}>Owner Information</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <View style={styles.infoIconBox}>
+              <Ionicons
+                name="person-circle-outline"
+                size={22}
+                color={colors.primary}
+              />
             </View>
-
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Business Category</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {category || 'No category specified'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Owner Name</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {ownerName || 'No owner name specified'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Business Location</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {location || 'No location specified'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.fieldItemLast}>
-              <Text style={styles.fieldLabel}>Verification Status</Text>
-              <View style={styles.valueBox}>
-                <View
-                  style={[
-                    styles.verificationBadge,
-                    isVerified
-                      ? styles.verificationBadgeVerified
-                      : styles.verificationBadgeUnverified,
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      isVerified
-                        ? 'checkmark-circle'
-                        : 'close-circle-outline'
-                    }
-                    size={14}
-                    color={
-                      isVerified ? colors.success : colors.textSecondary
-                    }
-                    style={styles.verificationBadgeIcon}
-                  />
-                  <Text
-                    style={[
-                      styles.verificationBadgeText,
-                      isVerified
-                        ? styles.verificationBadgeTextVerified
-                        : styles.verificationBadgeTextUnverified,
-                    ]}
-                  >
-                    {isVerified ? 'Verified' : 'Not Verified'}
-                  </Text>
-                </View>
-              </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Business Owner</Text>
+              <Text style={styles.infoValue}>
+                {ownerName || businessProfileData.ownerName}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* E. Contact Information */}
+        {/* 6. Contact Information Section (Clickable Phone & Email) */}
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons
@@ -202,60 +253,121 @@ export default function BusinessProfileScreen({
             <Text style={styles.sectionTitle}>Contact Information</Text>
           </View>
 
-          <View style={styles.fieldList}>
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Contact Number</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {contactNumber || 'No contact number available'}
+          <View style={styles.contactList}>
+            {/* Phone Number (tel: interaction) */}
+            <TouchableOpacity
+              style={styles.contactItem}
+              onPress={handlePhonePress}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${contactNumber || businessProfileData.contactNumber}`}
+            >
+              <View style={styles.contactIconBox}>
+                <Ionicons name="call" size={17} color={colors.primary} />
+              </View>
+              <View style={styles.contactContent}>
+                <Text style={styles.infoLabel}>Contact Number</Text>
+                <Text style={styles.contactLinkText}>
+                  {contactNumber || businessProfileData.contactNumber}
+                </Text>
+              </View>
+              <Ionicons
+                name="open-outline"
+                size={16}
+                color={colors.primaryLight}
+              />
+            </TouchableOpacity>
+
+            {/* Email Address (mailto: interaction) */}
+            <TouchableOpacity
+              style={[styles.contactItem, styles.contactItemLast]}
+              onPress={handleEmailPress}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Email ${email || businessProfileData.email}`}
+            >
+              <View style={styles.contactIconBox}>
+                <Ionicons name="mail" size={17} color={colors.primary} />
+              </View>
+              <View style={styles.contactContent}>
+                <Text style={styles.infoLabel}>Email Address</Text>
+                <Text style={styles.contactLinkText}>
+                  {email || businessProfileData.email}
+                </Text>
+              </View>
+              <Ionicons
+                name="open-outline"
+                size={16}
+                color={colors.primaryLight}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 7. Business Address and Location Section */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons
+              name="location-outline"
+              size={18}
+              color={colors.primary}
+              style={styles.sectionHeaderIcon}
+            />
+            <Text style={styles.sectionTitle}>Business Address & Location</Text>
+          </View>
+
+          <View style={styles.addressList}>
+            {/* Location (City, State) */}
+            <View style={styles.addressItem}>
+              <View style={styles.infoIconBox}>
+                <Ionicons
+                  name="navigate-outline"
+                  size={18}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Location</Text>
+                <Text style={styles.infoValue}>
+                  {location || businessProfileData.location}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Email Address</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {email || 'No email address available'}
-                </Text>
+            {/* Complete Address */}
+            <View style={[styles.addressItem, styles.addressItemLast]}>
+              <View style={styles.infoIconBox}>
+                <Ionicons
+                  name="location"
+                  size={18}
+                  color={colors.primary}
+                />
               </View>
-            </View>
-
-            <View style={styles.fieldItem}>
-              <Text style={styles.fieldLabel}>Business Address</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {address || 'No address available'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.fieldItemLast}>
-              <Text style={styles.fieldLabel}>Business Location</Text>
-              <View style={styles.valueBox}>
-                <Text style={styles.valueText}>
-                  {location || 'No location available'}
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Business Address</Text>
+                <Text style={styles.addressText}>
+                  {address || businessProfileData.address}
                 </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Business Specialties */}
-        {Array.isArray(specialties) && specialties.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.sectionHeaderRow}>
-              <Ionicons
-                name="sparkles-outline"
-                size={18}
-                color={colors.primary}
-                style={styles.sectionHeaderIcon}
-              />
-              <Text style={styles.sectionTitle}>Business Specialties</Text>
-            </View>
+        {/* 8. Business Specialties Section */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons
+              name="sparkles-outline"
+              size={18}
+              color={colors.primary}
+              style={styles.sectionHeaderIcon}
+            />
+            <Text style={styles.sectionTitle}>Business Specialties</Text>
+          </View>
 
+          {specialtiesList.length > 0 ? (
             <View style={styles.specialtiesWrapper}>
-              {specialties.map((specialty, index) => (
+              {specialtiesList.map((specialty, index) => (
                 <View key={`specialty-${index}`} style={styles.specialtyChip}>
                   <Ionicons
                     name="checkmark-circle-outline"
@@ -267,32 +379,11 @@ export default function BusinessProfileScreen({
                 </View>
               ))}
             </View>
-          </View>
-        )}
-
-        {/* F. Products Placeholder */}
-        <View style={styles.card}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons
-              name="cube-outline"
-              size={18}
-              color={colors.primary}
-              style={styles.sectionHeaderIcon}
-            />
-            <Text style={styles.sectionTitle}>Products</Text>
-          </View>
-
-          <View style={styles.emptyProductsArea}>
-            <Ionicons
-              name="cube-outline"
-              size={36}
-              color={colors.textMuted}
-              style={styles.emptyProductsIcon}
-            />
-            <Text style={styles.emptyProductsText}>
-              Your products will appear here
+          ) : (
+            <Text style={styles.emptySpecialtiesText}>
+              No specialties listed for this business.
             </Text>
-          </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -355,25 +446,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxxl,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
-  },
   businessHeaderCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -417,6 +489,13 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     letterSpacing: -0.3,
   },
+  headerBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    marginTop: spacing.xs + 2,
+  },
   categoryBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surfaceSubtle,
@@ -425,7 +504,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    marginTop: spacing.xs + 2,
   },
   categoryBadgeText: {
     fontSize: 12,
@@ -433,61 +511,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 0.2,
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    gap: spacing.xs + 2,
-  },
-  sectionHeaderIcon: {
-    marginRight: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  fieldList: {
-    marginTop: spacing.xs,
-  },
-  fieldItem: {
-    marginBottom: spacing.md,
-  },
-  fieldItemLast: {
-    marginBottom: 0,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs + 2,
-  },
-  valueBox: {
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md - 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  valueText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    lineHeight: 20,
-  },
-  valueTextBold: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    letterSpacing: -0.2,
-  },
   verificationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: spacing.sm + 1,
     paddingVertical: 3,
     borderRadius: borderRadius.full,
     borderWidth: 1,
@@ -516,11 +543,140 @@ const styles = StyleSheet.create({
   verificationBadgeTextUnverified: {
     color: colors.textSecondary,
   },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    gap: spacing.xs + 2,
+  },
+  sectionHeaderIcon: {
+    marginRight: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  aboutText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: colors.textPrimary,
+    lineHeight: 22,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  infoIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  contactList: {
+    gap: spacing.sm,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  contactItemLast: {
+    // handled by gap or margin
+  },
+  contactIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  contactContent: {
+    flex: 1,
+  },
+  contactLinkText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  addressList: {
+    gap: spacing.sm,
+  },
+  addressItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addressItemLast: {
+    // handled by gap
+  },
+  addressText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    lineHeight: 21,
+  },
   specialtiesWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
   },
   specialtyChip: {
     flexDirection: 'row',
@@ -540,23 +696,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textPrimary,
   },
-  emptyProductsArea: {
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyProductsIcon: {
-    marginBottom: spacing.xs + 2,
-  },
-  emptyProductsText: {
-    fontSize: 14,
-    fontWeight: '500',
+  emptySpecialtiesText: {
+    fontSize: 13,
     color: colors.textMuted,
-    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
