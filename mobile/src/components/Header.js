@@ -112,7 +112,7 @@ export default function Header({
           onChangeText={onSearchChange}
           onClear={onClearSearch}
           onSubmitEditing={onSubmitSearch}
-          placeholder="Search products by name (e.g., Silk Sarees, Cotton...)"
+          placeholder="Search products (e.g., Cotton Bags, Bluetooth, Pottery...)"
         />
       </View>
     </View>

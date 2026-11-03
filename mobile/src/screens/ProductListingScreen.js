@@ -58,8 +58,8 @@ export default function ProductListingScreen({
   useEffect(() => {
     const nextCategory =
       route?.params?.selectedCategory || route?.params?.categoryId;
-    if (nextCategory) {
-      setSelectedCategory(nextCategory);
+    if (nextCategory !== undefined && nextCategory !== null) {
+      setSelectedCategory(nextCategory || 'all');
     }
   }, [route?.params?.selectedCategory, route?.params?.categoryId]);
 

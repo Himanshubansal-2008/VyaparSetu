@@ -43,7 +43,7 @@ export const products = [
       { minQuantity: 50, maxQuantity: 99, pricePerUnit: 160 },
       { minQuantity: 100, maxQuantity: null, pricePerUnit: 140 },
     ],
-    tags: ["cotton", "handmade", "reusable"],
+    tags: ["cotton", "handmade", "reusable", "bags", "tote"],
     specifications: {
       "Material": "100% Khadi Cotton",
       "Color": "Natural Ecru / Off-white",
@@ -87,7 +87,7 @@ export const products = [
       { minQuantity: 20, maxQuantity: 49, pricePerUnit: 600 },
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 550 },
     ],
-    tags: ["electronics", "wireless", "audio"],
+    tags: ["electronics", "wireless", "audio", "earphones", "bluetooth", "accessories"],
     specifications: {
       "Model Number": "TS-BT500",
       "Color": "Matte Black",
@@ -130,7 +130,7 @@ export const products = [
       { minQuantity: 20, maxQuantity: 49, pricePerUnit: 410 },
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 370 },
     ],
-    tags: ["pottery", "handmade", "decor"],
+    tags: ["pottery", "handmade", "decor", "handicrafts", "vase", "ceramic"],
     specifications: {
       "Material": "Quartz stone powder & natural resin",
       "Color": "Cobalt Blue & Turquoise",
@@ -169,7 +169,7 @@ export const products = [
       { minQuantity: 25, maxQuantity: 49, pricePerUnit: 125 },
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 110 },
     ],
-    tags: ["organic", "spices", "food"],
+    tags: ["organic", "spices", "food", "turmeric", "grocery"],
     specifications: {
       "Grade": "Agmark Grade-A (5% Curcumin)",
       "Form": "Fine Ground Powder",
@@ -205,7 +205,7 @@ export const products = [
       { minQuantity: 20, maxQuantity: 49, pricePerUnit: 220 },
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 195 },
     ],
-    tags: ["planters", "ceramic", "home"],
+    tags: ["planters", "ceramic", "home", "pots", "decor"],
     specifications: {
       "Material": "Glazed Terracotta Ceramic",
       "Color": "Pastel Sage & Ivory",
@@ -242,7 +242,7 @@ export const products = [
       { minQuantity: 100, maxQuantity: 299, pricePerUnit: 145 },
       { minQuantity: 300, maxQuantity: null, pricePerUnit: 130 },
     ],
-    tags: ["cotton", "fabric", "textile"],
+    tags: ["cotton", "fabric", "textile", "kurta", "kurti", "apparel"],
     specifications: {
       "Material": "60s Count Combed Cotton",
       "Color": "Indigo Block Print",
@@ -275,7 +275,7 @@ export const products = [
     isFeatured: false,
     isSurplus: true,
     surplusDeadline: "2026-11-30",
-    tags: ["jute", "eco-friendly", "clearance"],
+    tags: ["jute", "eco-friendly", "clearance", "bags", "handicrafts"],
     specifications: {
       "Material": "Laminated Golden Jute",
       "Color": "Natural Golden Brown",
@@ -311,7 +311,7 @@ export const products = [
       { minQuantity: 20, maxQuantity: 49, pricePerUnit: 345 },
       { minQuantity: 50, maxQuantity: null, pricePerUnit: 310 },
     ],
-    tags: ["LED", "lighting", "office"],
+    tags: ["LED", "lighting", "office", "lamp", "electronics"],
     specifications: {
       "Model Number": "DL-12W-ECO",
       "Color": "Arctic White",
@@ -398,31 +398,41 @@ export const products = [
 ];
 
 export const getFeaturedProducts = () =>
-  products.filter((product) => product.isFeatured);
+  products.filter((product) => Boolean(product?.isFeatured));
 
 export const getSurplusProducts = () =>
-  products.filter((product) => product.isSurplus);
+  products.filter((product) => Boolean(product?.isSurplus));
 
 export const getProductsByCategory = (categoryId) =>
-  categoryId === "all"
+  !categoryId || categoryId === "all"
     ? products
-    : products.filter((product) => product.categoryId === categoryId);
+    : products.filter(
+        (product) =>
+          product &&
+          (product.categoryId === categoryId || product.category === categoryId)
+      );
 
 export const searchProducts = (query) => {
-  const normalizedQuery = query.trim().toLowerCase();
+  if (!query || typeof query !== "string") return products;
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return products;
 
-  if (!normalizedQuery) return products;
-
-  return products.filter((product) =>
-    [
+  return products.filter((product) => {
+    if (!product) return false;
+    const searchableText = [
       product.name,
       product.categoryName,
+      product.category,
+      product.brand,
+      product.manufacturer,
       product.sellerName,
       product.location,
-      ...product.tags,
+      ...(Array.isArray(product.tags) ? product.tags : []),
     ]
+      .filter(Boolean)
       .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery)
-  );
+      .toLowerCase();
+
+    return tokens.every((token) => searchableText.includes(token));
+  });
 };

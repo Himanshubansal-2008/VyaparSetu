@@ -159,11 +159,11 @@ export default function HomeScreen({
   );
 
   const quickSearches = [
-    'Cotton Kurtis',
-    'Silk Sarees',
-    'Brass Handicrafts',
-    'Spices & Tea',
-    'Mobile Accessories',
+    'Cotton Bags',
+    'Bluetooth Earphones',
+    'Blue Pottery',
+    'Organic Spices',
+    'Ceramic Planters',
   ];
 
   return (
