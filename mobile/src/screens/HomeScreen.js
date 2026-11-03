@@ -16,8 +16,8 @@ import FeaturedProducts from '../components/FeaturedProducts';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
 import {
-  products,
-  categories,
+  products as defaultProducts,
+  categories as defaultCategories,
   getFeaturedProducts,
   getProductsByCategory,
   searchProducts,
@@ -28,6 +28,8 @@ import { spacing, borderRadius } from '../theme/spacing';
 export default function HomeScreen({
   navigation,
   route,
+  products: propProducts,
+  categories: propCategories,
   onNavigateToProductListing,
   onNavigateToProductDetails,
   searchQuery: propSearchQuery,
@@ -35,6 +37,20 @@ export default function HomeScreen({
   selectedCategory: propSelectedCategory,
   onSelectCategory: propOnSelectCategory,
 }) {
+  const allProducts =
+    propProducts !== undefined
+      ? propProducts
+      : route?.params?.products !== undefined
+      ? route.params.products
+      : defaultProducts;
+
+  const allCategories =
+    propCategories !== undefined
+      ? propCategories
+      : route?.params?.categories !== undefined
+      ? route.params.categories
+      : defaultCategories;
+
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
     propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
@@ -94,11 +110,11 @@ export default function HomeScreen({
   const hasSearch = trimmedQuery.length > 0;
   const hasCategory = selectedCategory !== 'all';
   const categoryName =
-    categories.find((c) => c.id === selectedCategory)?.name || 'All Products';
+    allCategories.find((c) => c.id === selectedCategory)?.name || 'All Products';
 
   // Filter products matching BOTH search query and selected category
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return allProducts.filter((product) => {
       const matchesCategory =
         !hasCategory ||
         product.categoryId === selectedCategory ||
@@ -110,9 +126,12 @@ export default function HomeScreen({
 
       return matchesCategory && matchesSearch;
     });
-  }, [hasCategory, selectedCategory, hasSearch, trimmedQuery]);
+  }, [allProducts, hasCategory, selectedCategory, hasSearch, trimmedQuery]);
 
-  const featuredProducts = useMemo(() => getFeaturedProducts(), []);
+  const featuredProducts = useMemo(
+    () => allProducts.filter((product) => product.isFeatured),
+    [allProducts]
+  );
 
   const quickSearches = [
     'Cotton Kurtis',
@@ -147,7 +166,7 @@ export default function HomeScreen({
 
       {/* 2. Product Categories — horizontal scroll strip */}
       <CategoryList
-        categories={categories}
+        categories={allCategories}
         selectedCategory={selectedCategory}
         onSelectCategory={handleSelectCategory}
       />
@@ -278,7 +297,7 @@ export default function HomeScreen({
           ) : null
         }
         ListEmptyComponent={
-          !products || products.length === 0 ? (
+          !allProducts || allProducts.length === 0 ? (
             <EmptyState
               icon="cube-outline"
               title="No products available right now"

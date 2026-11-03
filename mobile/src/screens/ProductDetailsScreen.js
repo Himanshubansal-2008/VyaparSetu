@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
-import { products } from '../data/products';
+import { products as defaultProducts } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -63,10 +63,18 @@ export default function ProductDetailsScreen({
   route,
   onBackPress,
   product: propProduct,
+  products: propProducts,
 }) {
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+
+  const allProducts =
+    propProducts !== undefined
+      ? propProducts
+      : route?.params?.products !== undefined
+      ? route.params.products
+      : defaultProducts;
 
   const routeProductId =
     route?.params?.productId ||
@@ -76,7 +84,7 @@ export default function ProductDetailsScreen({
   // Retrieve matching product dynamically from catalog using product ID as primary reference
   const product = useMemo(() => {
     if (routeProductId) {
-      const found = products.find(
+      const found = allProducts.find(
         (p) => String(p.id) === String(routeProductId)
       );
       if (found) {
@@ -85,7 +93,7 @@ export default function ProductDetailsScreen({
     }
 
     if (propProduct?.id) {
-      const found = products.find(
+      const found = allProducts.find(
         (p) => String(p.id) === String(propProduct.id)
       );
       if (found) {
@@ -103,7 +111,7 @@ export default function ProductDetailsScreen({
     }
 
     return null;
-  }, [propProduct, routeProductId, route?.params?.product]);
+  }, [allProducts, propProduct, routeProductId, route?.params?.product]);
 
   // Extract images array from product data
   const productImages = useMemo(() => {

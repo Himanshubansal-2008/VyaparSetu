@@ -14,18 +14,37 @@ import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
-import { products, categories } from '../data/products';
+import {
+  products as defaultProducts,
+  categories as defaultCategories,
+} from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
 export default function ProductListingScreen({
   navigation,
   route,
+  products: propProducts,
+  categories: propCategories,
   onBackPress,
   onNavigateToProductDetails,
   onNotificationPress,
   onCartPress,
 }) {
+  const allProducts =
+    propProducts !== undefined
+      ? propProducts
+      : route?.params?.products !== undefined
+      ? route.params.products
+      : defaultProducts;
+
+  const allCategories =
+    propCategories !== undefined
+      ? propCategories
+      : route?.params?.categories !== undefined
+      ? route.params.categories
+      : defaultCategories;
+
   const initialCategory =
     route?.params?.selectedCategory ||
     route?.params?.categoryId ||
@@ -75,11 +94,11 @@ export default function ProductListingScreen({
   const hasSearch = trimmedQuery.length > 0;
   const hasCategory = selectedCategory !== 'all';
   const categoryName =
-    categories.find((c) => c.id === selectedCategory)?.name || 'this category';
+    allCategories.find((c) => c.id === selectedCategory)?.name || 'this category';
 
   const filteredProducts = useMemo(() => {
     const trimmed = searchQuery.trim().toLowerCase();
-    return products.filter((product) => {
+    return allProducts.filter((product) => {
       const matchesCategory =
         selectedCategory === 'all' ||
         product.categoryId === selectedCategory ||
@@ -91,7 +110,7 @@ export default function ProductListingScreen({
 
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [allProducts, selectedCategory, searchQuery]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -140,7 +159,7 @@ export default function ProductListingScreen({
               style={styles.categoryScrollWrapper}
               contentContainerStyle={styles.categoryScroll}
             >
-              {categories.map((category) => {
+              {allCategories.map((category) => {
                 const isSelected = selectedCategory === category.id;
                 const label = category.id === 'all' ? 'All' : category.name;
 
@@ -189,7 +208,7 @@ export default function ProductListingScreen({
           </View>
         }
         ListEmptyComponent={
-          !products || products.length === 0 ? (
+          !allProducts || allProducts.length === 0 ? (
             <EmptyState
               icon="cube-outline"
               title="No products available yet"
