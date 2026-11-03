@@ -92,6 +92,13 @@ export default function BusinessProfileScreen({
             <Text style={styles.businessNameText}>
               {businessName || businessProfileData.businessName}
             </Text>
+            {Boolean(category || businessProfileData.category) && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryBadgeText}>
+                  {category || businessProfileData.category}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -409,6 +416,22 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     lineHeight: 26,
     letterSpacing: -0.3,
+  },
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: spacing.xs + 2,
+  },
+  categoryBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 0.2,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
