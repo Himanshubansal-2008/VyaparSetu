@@ -18,9 +18,6 @@ import EmptyState from '../components/EmptyState';
 import {
   products as defaultProducts,
   categories as defaultCategories,
-  getFeaturedProducts,
-  getProductsByCategory,
-  searchProducts,
 } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -36,6 +33,8 @@ export default function HomeScreen({
   onSearchChange: propOnSearchChange,
   selectedCategory: propSelectedCategory,
   onSelectCategory: propOnSelectCategory,
+  onNotificationPress,
+  onCartPress,
 }) {
   const allProducts =
     propProducts !== undefined
@@ -185,8 +184,8 @@ export default function HomeScreen({
             });
           }
         }}
-        onNotificationPress={() => console.log('Notifications opened')}
-        onCartPress={() => console.log('Cart opened')}
+        onNotificationPress={onNotificationPress}
+        onCartPress={onCartPress}
       />
 
       {/* 2. Product Categories — horizontal scroll strip */}
