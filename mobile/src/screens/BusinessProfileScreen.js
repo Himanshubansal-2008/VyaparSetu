@@ -79,56 +79,18 @@ export default function BusinessProfileScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* B. Business Logo Placeholder */}
-        <View style={styles.logoCard}>
-          <View style={styles.logoPlaceholder}>
+        {/* Business Header / Identity Section */}
+        <View style={styles.businessHeaderCard}>
+          <View style={styles.businessLogoPlaceholder}>
             <Ionicons
-              name="business-outline"
-              size={34}
-              color={colors.textMuted}
-              style={styles.logoIcon}
+              name="storefront-outline"
+              size={32}
+              color={colors.primary}
             />
-            <Text style={styles.logoPlaceholderText}>Business Logo</Text>
           </View>
-        </View>
-
-        {/* C. Business Name */}
-        <View style={styles.card}>
-          <View style={styles.fieldHeaderRow}>
-            <Text style={styles.fieldLabel}>Business Name</Text>
-            <View
-              style={[
-                styles.verificationBadge,
-                isVerified
-                  ? styles.verificationBadgeVerified
-                  : styles.verificationBadgeUnverified,
-              ]}
-            >
-              <Ionicons
-                name={
-                  isVerified
-                    ? 'checkmark-circle'
-                    : 'close-circle-outline'
-                }
-                size={13}
-                color={isVerified ? colors.success : colors.textSecondary}
-                style={styles.verificationBadgeIcon}
-              />
-              <Text
-                style={[
-                  styles.verificationBadgeText,
-                  isVerified
-                    ? styles.verificationBadgeTextVerified
-                    : styles.verificationBadgeTextUnverified,
-                ]}
-              >
-                {isVerified ? 'Verified' : 'Not Verified'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.valueBox}>
-            <Text style={styles.valueTextBold}>
-              {businessName || 'Business Name Unavailable'}
+          <View style={styles.businessHeaderInfo}>
+            <Text style={styles.businessNameText}>
+              {businessName || businessProfileData.businessName}
             </Text>
           </View>
         </View>
@@ -405,46 +367,48 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  logoCard: {
+  businessHeaderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.xl,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: spacing.lg,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
       },
       android: {
-        elevation: 1,
+        elevation: 2,
       },
     }),
   },
-  logoPlaceholder: {
-    width: 104,
-    height: 104,
+  businessLogoPlaceholder: {
+    width: 64,
+    height: 64,
     borderRadius: borderRadius.full,
     backgroundColor: colors.surfaceSubtle,
     borderWidth: 1.5,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.xs,
+    marginRight: spacing.lg,
   },
-  logoIcon: {
-    marginBottom: spacing.xs / 2,
+  businessHeaderInfo: {
+    flex: 1,
+    justifyContent: 'center',
   },
-  logoPlaceholderText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
+  businessNameText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    lineHeight: 26,
+    letterSpacing: -0.3,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -459,12 +423,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.textPrimary,
-  },
-  fieldHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs + 2,
   },
   fieldList: {
     marginTop: spacing.xs,
