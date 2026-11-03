@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -56,6 +56,44 @@ export default function ProductCard({
     originalPrice && price && originalPrice > price
       ? Math.round(((originalPrice - price) / originalPrice) * 100)
       : 0;
+
+  const formattedPrice =
+    typeof price === 'number'
+      ? price.toLocaleString('en-IN')
+      : price !== undefined && price !== null
+      ? String(price)
+      : '0';
+
+  const formattedOriginalPrice =
+    typeof originalPrice === 'number'
+      ? originalPrice.toLocaleString('en-IN')
+      : originalPrice !== undefined && originalPrice !== null
+      ? String(originalPrice)
+      : null;
+
+  const moqUnitLabel = useMemo(() => {
+    if (!unit) return moq === 1 ? 'unit' : 'units';
+    const u = String(unit).trim().toLowerCase();
+    if (moq <= 1) {
+      if (u === 'pieces') return 'piece';
+      if (u === 'pairs') return 'pair';
+      if (u === 'packs') return 'pack';
+      if (u === 'sets') return 'set';
+      if (u === 'boxes') return 'box';
+      if (u === 'meters' || u === 'metres') return 'meter';
+      return unit;
+    }
+    if (u === 'piece' || u === 'pieces') return 'pieces';
+    if (u === 'pair' || u === 'pairs') return 'pairs';
+    if (u === 'pack' || u === 'packs') return 'packs';
+    if (u === 'set' || u === 'sets') return 'sets';
+    if (u === 'box' || u === 'boxes') return 'boxes';
+    if (u === 'meter' || u === 'metre' || u === 'meters' || u === 'metres')
+      return 'meters';
+    if (u === 'kg' || u === 'kgs') return 'kg';
+    if (u.endsWith('s')) return unit;
+    return `${unit}s`;
+  }, [unit, moq]);
 
   return (
     <Animated.View
@@ -139,17 +177,16 @@ export default function ProductCard({
           </Text>
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>₹{price ?? 0}</Text>
+            <Text style={styles.price}>₹{formattedPrice}</Text>
             {unit ? <Text style={styles.unit}>/{unit}</Text> : null}
-            {originalPrice && originalPrice > price ? (
-              <Text style={styles.originalPrice}>₹{originalPrice}</Text>
+            {formattedOriginalPrice && originalPrice > price ? (
+              <Text style={styles.originalPrice}>₹{formattedOriginalPrice}</Text>
             ) : null}
           </View>
 
           {moq ? (
             <Text style={styles.moq}>
-              MOQ: {moq} {unit}
-              {moq > 1 ? 's' : ''}
+              MOQ: {moq} {moqUnitLabel}
             </Text>
           ) : null}
 
@@ -294,6 +331,8 @@ const styles = StyleSheet.create({
   },
   details: {
     padding: spacing.sm + 2,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   category: {
     fontSize: 10,

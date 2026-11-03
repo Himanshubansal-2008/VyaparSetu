@@ -9,6 +9,7 @@ import {
   FlatList,
   ScrollView,
   TouchableOpacity,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
@@ -91,26 +92,51 @@ export default function ProductListingScreen({
   };
 
   const trimmedQuery = searchQuery.trim();
-  const hasSearch = trimmedQuery.length > 0;
+  const searchTokens = useMemo(() => {
+    return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  }, [trimmedQuery]);
+
+  const hasSearch = searchTokens.length > 0;
   const hasCategory = selectedCategory !== 'all';
   const categoryName =
     allCategories.find((c) => c.id === selectedCategory)?.name || 'this category';
 
+  // Filter products matching BOTH search query (multi-token, case-insensitive, whitespace-safe) and selected category
   const filteredProducts = useMemo(() => {
-    const trimmed = searchQuery.trim().toLowerCase();
     return allProducts.filter((product) => {
+      if (!product) return false;
+
       const matchesCategory =
         selectedCategory === 'all' ||
         product.categoryId === selectedCategory ||
         product.category === selectedCategory;
 
-      const matchesSearch =
-        !trimmed ||
-        product.name?.toLowerCase().includes(trimmed);
+      if (!matchesCategory) return false;
 
-      return matchesCategory && matchesSearch;
+      if (hasSearch) {
+        const searchableText = [
+          product.name,
+          product.categoryName,
+          product.category,
+          product.brand,
+          product.manufacturer,
+          product.sellerName,
+          product.location,
+          ...(Array.isArray(product.tags) ? product.tags : []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        const allTokensMatch = searchTokens.every((token) =>
+          searchableText.includes(token)
+        );
+        if (!allTokensMatch) return false;
+      }
+
+      return true;
     });
-  }, [allProducts, selectedCategory, searchQuery]);
+  }, [allProducts, selectedCategory, hasSearch, searchTokens]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -128,6 +154,7 @@ export default function ProductListingScreen({
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onClearSearch={() => setSearchQuery('')}
+        onSubmitSearch={() => Keyboard.dismiss()}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
       />

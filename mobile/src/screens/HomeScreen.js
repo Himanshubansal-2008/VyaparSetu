@@ -106,27 +106,52 @@ export default function HomeScreen({
     }
   };
 
-  const trimmedQuery = searchQuery.trim().toLowerCase();
-  const hasSearch = trimmedQuery.length > 0;
+  const trimmedQuery = searchQuery.trim();
+  const searchTokens = useMemo(() => {
+    return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  }, [trimmedQuery]);
+
+  const hasSearch = searchTokens.length > 0;
   const hasCategory = selectedCategory !== 'all';
   const categoryName =
     allCategories.find((c) => c.id === selectedCategory)?.name || 'All Products';
 
-  // Filter products matching BOTH search query and selected category
+  // Filter products matching BOTH search query (case-insensitive, multi-token, whitespace-safe) and selected category
   const filteredProducts = useMemo(() => {
     return allProducts.filter((product) => {
+      if (!product) return false;
+
       const matchesCategory =
         !hasCategory ||
         product.categoryId === selectedCategory ||
         product.category === selectedCategory;
 
-      const matchesSearch =
-        !hasSearch ||
-        product.name?.toLowerCase().includes(trimmedQuery);
+      if (!matchesCategory) return false;
 
-      return matchesCategory && matchesSearch;
+      if (hasSearch) {
+        const searchableText = [
+          product.name,
+          product.categoryName,
+          product.category,
+          product.brand,
+          product.manufacturer,
+          product.sellerName,
+          product.location,
+          ...(Array.isArray(product.tags) ? product.tags : []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        const allTokensMatch = searchTokens.every((token) =>
+          searchableText.includes(token)
+        );
+        if (!allTokensMatch) return false;
+      }
+
+      return true;
     });
-  }, [allProducts, hasCategory, selectedCategory, hasSearch, trimmedQuery]);
+  }, [allProducts, hasCategory, selectedCategory, hasSearch, searchTokens]);
 
   const featuredProducts = useMemo(
     () => allProducts.filter((product) => product.isFeatured),

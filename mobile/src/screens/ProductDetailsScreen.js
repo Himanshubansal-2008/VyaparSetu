@@ -729,6 +729,7 @@ export default function ProductDetailsScreen({
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* B. Main Product Image & Gallery */}
         <View style={styles.galleryContainer}>
