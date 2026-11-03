@@ -229,9 +229,10 @@ export default function ProductDetailsScreen({
   }, [product?.stock, product?.availableQuantity]);
 
   // Calculate dynamic availability status:
-  // - In Stock: stock > 20
+  // - Out of Stock: stock <= 0
+  // - Below MOQ: 0 < stock < minQty
   // - Low Stock: 1 <= stock <= 20
-  // - Out of Stock: stock === 0
+  // - In Stock: stock > 20
   const stockStatus = useMemo(() => {
     if (stockValue === null || isNaN(stockValue)) {
       return {
@@ -243,17 +244,35 @@ export default function ProductDetailsScreen({
         icon: 'help-circle-outline',
       };
     }
-    if (stockValue > 20) {
+    if (stockValue <= 0) {
       return {
-        status: 'in-stock',
-        label: 'In Stock',
-        color: colors.success,
-        bgColor: colors.successLight,
-        borderColor: colors.success,
-        icon: 'checkmark-circle',
+        status: 'out-of-stock',
+        label: 'Out of Stock',
+        color: colors.error,
+        bgColor: colors.errorLight,
+        borderColor: colors.error,
+        icon: 'close-circle',
       };
     }
-    if (stockValue >= 1 && stockValue <= 20) {
+    const resolvedMoq =
+      product?.moq !== undefined &&
+      product?.moq !== null &&
+      !isNaN(product.moq) &&
+      Number(product.moq) > 0
+        ? Math.max(1, Math.floor(Number(product.moq)))
+        : 1;
+
+    if (stockValue < resolvedMoq) {
+      return {
+        status: 'below-moq',
+        label: 'Below MOQ',
+        color: colors.warning,
+        bgColor: colors.warningLight,
+        borderColor: colors.warning,
+        icon: 'alert-circle',
+      };
+    }
+    if (stockValue <= 20) {
       return {
         status: 'low-stock',
         label: 'Low Stock',
@@ -264,14 +283,14 @@ export default function ProductDetailsScreen({
       };
     }
     return {
-      status: 'out-of-stock',
-      label: 'Out of Stock',
-      color: colors.error,
-      bgColor: colors.errorLight,
-      borderColor: colors.error,
-      icon: 'close-circle',
+      status: 'in-stock',
+      label: 'In Stock',
+      color: colors.success,
+      bgColor: colors.successLight,
+      borderColor: colors.success,
+      icon: 'checkmark-circle',
     };
-  }, [stockValue]);
+  }, [stockValue, product?.moq]);
 
   // Build key details list dynamically from available basic product properties
   const keyDetails = useMemo(() => {
@@ -357,12 +376,21 @@ export default function ProductDetailsScreen({
   const isOutOfStock =
     stockValue !== null && !isNaN(stockValue) && stockValue <= 0;
 
-  // Initial quantity: 0 if out of stock, otherwise MOQ (clamped to maxQty if available)
+  // Check if stock is greater than 0 but strictly lower than the minimum order quantity
+  const isStockBelowMoq = useMemo(() => {
+    return (
+      stockValue !== null &&
+      !isNaN(stockValue) &&
+      stockValue > 0 &&
+      stockValue < minQty
+    );
+  }, [stockValue, minQty]);
+
+  // Initial quantity: 0 if out of stock or stock is below MOQ, otherwise MOQ
   const defaultQuantity = useMemo(() => {
-    if (isOutOfStock) return 0;
-    if (maxQty < minQty) return maxQty;
+    if (isOutOfStock || isStockBelowMoq) return 0;
     return minQty;
-  }, [isOutOfStock, minQty, maxQty]);
+  }, [isOutOfStock, isStockBelowMoq, minQty]);
 
   const [quantity, setQuantity] = useState(defaultQuantity);
   const [quantityInputText, setQuantityInputText] = useState(
@@ -379,13 +407,13 @@ export default function ProductDetailsScreen({
 
   // Check if current quantity and input state represent a valid purchasable quantity
   const isValidQuantity = useMemo(() => {
-    if (isOutOfStock) return false;
+    if (isOutOfStock || isStockBelowMoq) return false;
     if (inputError) return false;
     if (typeof quantity !== 'number' || isNaN(quantity) || quantity <= 0)
       return false;
     if (quantity < minQty || quantity > maxQty) return false;
     return true;
-  }, [isOutOfStock, inputError, quantity, minQty, maxQty]);
+  }, [isOutOfStock, isStockBelowMoq, inputError, quantity, minQty, maxQty]);
 
   // Identify applicable pricing tier based on entered quantity
   const activeTierIndex = useMemo(() => {
@@ -459,7 +487,7 @@ export default function ProductDetailsScreen({
   }, [isValidQuantity, quantity, product?.price, applicableUnitPrice]);
 
   const handleIncrement = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || isStockBelowMoq) return;
     setInputError(null);
     setQuantity((prev) => {
       const current = prev < minQty ? minQty : prev;
@@ -476,7 +504,7 @@ export default function ProductDetailsScreen({
   };
 
   const handleDecrement = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || isStockBelowMoq) return;
     setInputError(null);
     setQuantity((prev) => {
       if (prev <= minQty) {
@@ -491,7 +519,7 @@ export default function ProductDetailsScreen({
   };
 
   const handleQuantityInputChange = (text) => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || isStockBelowMoq) return;
 
     if (text === '') {
       setQuantityInputText('');
@@ -540,7 +568,7 @@ export default function ProductDetailsScreen({
   };
 
   const handleQuantityInputBlur = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || isStockBelowMoq) return;
     if (quantityInputText === '') {
       setQuantity(minQty);
       setQuantityInputText(String(minQty));
@@ -565,8 +593,16 @@ export default function ProductDetailsScreen({
   };
 
   const handleSelectTier = (tierMin) => {
-    if (isOutOfStock) return;
-    const targetQty = Math.min(Math.max(tierMin, minQty), maxQty);
+    if (isOutOfStock || isStockBelowMoq) return;
+    if (tierMin > maxQty) {
+      setInputError(
+        `Tier requires at least ${tierMin} ${unitPlural}, but only ${maxQty.toLocaleString('en-IN')} available in stock`
+      );
+      setQuantity(maxQty);
+      setQuantityInputText(String(maxQty));
+      return;
+    }
+    const targetQty = Math.max(tierMin, minQty);
     setQuantity(targetQty);
     setQuantityInputText(String(targetQty));
     setInputError(null);
@@ -1131,6 +1167,22 @@ export default function ProductDetailsScreen({
                   </Text>
                 </View>
               </View>
+            ) : isStockBelowMoq ? (
+              <View style={styles.stockBelowMoqBanner}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={20}
+                  color={colors.warning}
+                />
+                <View style={styles.stockBelowMoqTextWrapper}>
+                  <Text style={styles.stockBelowMoqTitle}>
+                    Stock Below Minimum Order Quantity
+                  </Text>
+                  <Text style={styles.stockBelowMoqSubtext}>
+                    Available stock ({stockValue.toLocaleString('en-IN')} {unitPlural}) is lower than the minimum order quantity ({minQty} {unitPlural}). Quantity selection is unavailable until restocked.
+                  </Text>
+                </View>
+              </View>
             ) : (
               <View style={styles.quantityControlsWrapper}>
                 {/* Stepper & Input Row */}
@@ -1243,7 +1295,7 @@ export default function ProductDetailsScreen({
                       <Text style={styles.calcLabel}>Applicable Unit Price</Text>
                       <Text style={styles.calcTierApplied}>
                         {activeTier
-                          ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
+                          ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity !== null && activeTier.maxQuantity !== undefined ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
                           : 'Standard Wholesale Price'}
                       </Text>
                     </View>
@@ -2049,6 +2101,30 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   outOfStockSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  stockBelowMoqBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.warningLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    gap: spacing.sm + 2,
+  },
+  stockBelowMoqTextWrapper: {
+    flex: 1,
+  },
+  stockBelowMoqTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.warning,
+    marginBottom: 2,
+  },
+  stockBelowMoqSubtext: {
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 16,
