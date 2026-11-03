@@ -29,14 +29,12 @@ export default function HomeScreen({
   categories: propCategories,
   onNavigateToProductListing,
   onNavigateToProductDetails,
-  onNavigateToBusinessProfile,
   searchQuery: propSearchQuery,
   onSearchChange: propOnSearchChange,
   selectedCategory: propSelectedCategory,
   onSelectCategory: propOnSelectCategory,
   onNotificationPress,
   onCartPress,
-  onProfilePress,
 }) {
   const allProducts =
     propProducts !== undefined
@@ -188,11 +186,6 @@ export default function HomeScreen({
         }}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
-        onProfilePress={
-          onProfilePress ||
-          onNavigateToBusinessProfile ||
-          (() => navigation?.navigate?.('BusinessProfile'))
-        }
       />
 
       {/* 2. Product Categories — horizontal scroll strip */}

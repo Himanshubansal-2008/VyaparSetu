@@ -12,12 +12,33 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import businessProfileData from '../data/businessProfileData';
 
 export default function BusinessProfileScreen({
   navigation,
   route,
   onBackPress,
+  business: propBusiness,
 }) {
+  const business =
+    propBusiness ||
+    route?.params?.business ||
+    route?.params?.businessProfile ||
+    businessProfileData;
+
+  const {
+    businessName = 'Sharma Handicrafts',
+    description = '',
+    category = '',
+    ownerName = '',
+    contactNumber = '',
+    email = '',
+    address = '',
+    location = '',
+    isVerified = true,
+    specialties = [],
+  } = business || {};
+
   const canGoBack = Boolean(
     onBackPress || (navigation && typeof navigation.goBack === 'function')
   );
@@ -71,15 +92,48 @@ export default function BusinessProfileScreen({
           </View>
         </View>
 
-        {/* C. Business Name Placeholder */}
+        {/* C. Business Name */}
         <View style={styles.card}>
-          <Text style={styles.fieldLabel}>Business Name</Text>
-          <View style={styles.placeholderBox}>
-            <Text style={styles.placeholderText}>Your Business Name</Text>
+          <View style={styles.fieldHeaderRow}>
+            <Text style={styles.fieldLabel}>Business Name</Text>
+            <View
+              style={[
+                styles.verificationBadge,
+                isVerified
+                  ? styles.verificationBadgeVerified
+                  : styles.verificationBadgeUnverified,
+              ]}
+            >
+              <Ionicons
+                name={
+                  isVerified
+                    ? 'checkmark-circle'
+                    : 'close-circle-outline'
+                }
+                size={13}
+                color={isVerified ? colors.success : colors.textSecondary}
+                style={styles.verificationBadgeIcon}
+              />
+              <Text
+                style={[
+                  styles.verificationBadgeText,
+                  isVerified
+                    ? styles.verificationBadgeTextVerified
+                    : styles.verificationBadgeTextUnverified,
+                ]}
+              >
+                {isVerified ? 'Verified' : 'Not Verified'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.valueBox}>
+            <Text style={styles.valueTextBold}>
+              {businessName || 'Business Name Unavailable'}
+            </Text>
           </View>
         </View>
 
-        {/* D. Business Information Placeholder */}
+        {/* D. Business Information */}
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons
@@ -94,32 +148,80 @@ export default function BusinessProfileScreen({
           <View style={styles.fieldList}>
             <View style={styles.fieldItem}>
               <Text style={styles.fieldLabel}>Business Description</Text>
-              <View style={styles.placeholderBox}>
-                <Text style={styles.placeholderText}>
-                  Add business description
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {description || 'No description available'}
                 </Text>
               </View>
             </View>
 
             <View style={styles.fieldItem}>
               <Text style={styles.fieldLabel}>Business Category</Text>
-              <View style={styles.placeholderBox}>
-                <Text style={styles.placeholderText}>
-                  Add business category
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {category || 'No category specified'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldItem}>
+              <Text style={styles.fieldLabel}>Owner Name</Text>
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {ownerName || 'No owner name specified'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldItem}>
+              <Text style={styles.fieldLabel}>Business Location</Text>
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {location || 'No location specified'}
                 </Text>
               </View>
             </View>
 
             <View style={styles.fieldItemLast}>
-              <Text style={styles.fieldLabel}>Owner Name</Text>
-              <View style={styles.placeholderBox}>
-                <Text style={styles.placeholderText}>Add owner name</Text>
+              <Text style={styles.fieldLabel}>Verification Status</Text>
+              <View style={styles.valueBox}>
+                <View
+                  style={[
+                    styles.verificationBadge,
+                    isVerified
+                      ? styles.verificationBadgeVerified
+                      : styles.verificationBadgeUnverified,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      isVerified
+                        ? 'checkmark-circle'
+                        : 'close-circle-outline'
+                    }
+                    size={14}
+                    color={
+                      isVerified ? colors.success : colors.textSecondary
+                    }
+                    style={styles.verificationBadgeIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.verificationBadgeText,
+                      isVerified
+                        ? styles.verificationBadgeTextVerified
+                        : styles.verificationBadgeTextUnverified,
+                    ]}
+                  >
+                    {isVerified ? 'Verified' : 'Not Verified'}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
         </View>
 
-        {/* E. Contact Information Placeholder */}
+        {/* E. Contact Information */}
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons
@@ -134,26 +236,70 @@ export default function BusinessProfileScreen({
           <View style={styles.fieldList}>
             <View style={styles.fieldItem}>
               <Text style={styles.fieldLabel}>Contact Number</Text>
-              <View style={styles.placeholderBox}>
-                <Text style={styles.placeholderText}>Add contact number</Text>
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {contactNumber || 'No contact number available'}
+                </Text>
               </View>
             </View>
 
             <View style={styles.fieldItem}>
               <Text style={styles.fieldLabel}>Email Address</Text>
-              <View style={styles.placeholderBox}>
-                <Text style={styles.placeholderText}>Add email address</Text>
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {email || 'No email address available'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldItem}>
+              <Text style={styles.fieldLabel}>Business Address</Text>
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {address || 'No address available'}
+                </Text>
               </View>
             </View>
 
             <View style={styles.fieldItemLast}>
-              <Text style={styles.fieldLabel}>Business Address</Text>
-              <View style={styles.placeholderBox}>
-                <Text style={styles.placeholderText}>Add business address</Text>
+              <Text style={styles.fieldLabel}>Business Location</Text>
+              <View style={styles.valueBox}>
+                <Text style={styles.valueText}>
+                  {location || 'No location available'}
+                </Text>
               </View>
             </View>
           </View>
         </View>
+
+        {/* Business Specialties */}
+        {Array.isArray(specialties) && specialties.length > 0 && (
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons
+                name="sparkles-outline"
+                size={18}
+                color={colors.primary}
+                style={styles.sectionHeaderIcon}
+              />
+              <Text style={styles.sectionTitle}>Business Specialties</Text>
+            </View>
+
+            <View style={styles.specialtiesWrapper}>
+              {specialties.map((specialty, index) => (
+                <View key={`specialty-${index}`} style={styles.specialtyChip}>
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={14}
+                    color={colors.primary}
+                    style={styles.specialtyIcon}
+                  />
+                  <Text style={styles.specialtyText}>{specialty}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* F. Products Placeholder */}
         <View style={styles.card}>
@@ -314,6 +460,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
   },
+  fieldHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs + 2,
+  },
   fieldList: {
     marginTop: spacing.xs,
   },
@@ -331,7 +483,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: spacing.xs + 2,
   },
-  placeholderBox: {
+  valueBox: {
     backgroundColor: colors.surfaceSubtle,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
@@ -339,10 +491,73 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  placeholderText: {
+  valueText: {
     fontSize: 14,
     fontWeight: '500',
-    color: colors.textMuted,
+    color: colors.textPrimary,
+    lineHeight: 20,
+  },
+  valueTextBold: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  verificationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  verificationBadgeVerified: {
+    backgroundColor: colors.successLight,
+    borderColor: colors.success,
+  },
+  verificationBadgeUnverified: {
+    backgroundColor: colors.surfaceSubtle,
+    borderColor: colors.borderDark,
+  },
+  verificationBadgeIcon: {
+    marginRight: 1,
+  },
+  verificationBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  verificationBadgeTextVerified: {
+    color: colors.success,
+  },
+  verificationBadgeTextUnverified: {
+    color: colors.textSecondary,
+  },
+  specialtiesWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  specialtyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  specialtyIcon: {
+    marginRight: spacing.xs,
+  },
+  specialtyText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textPrimary,
   },
   emptyProductsArea: {
     backgroundColor: colors.surfaceSubtle,
@@ -364,4 +579,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

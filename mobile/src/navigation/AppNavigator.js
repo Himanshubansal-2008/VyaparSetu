@@ -141,13 +141,6 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
-  const handleNavigateToBusinessProfile = useCallback(
-    (params = {}) => {
-      navigate('BusinessProfile', params);
-    },
-    [navigate]
-  );
-
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
@@ -164,7 +157,6 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             navigate('ProductListing', params)
           }
           onNavigateToProductDetails={handleNavigateToProductDetails}
-          onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
         />
       </View>
 
@@ -181,7 +173,6 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={listingRoute}
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
-            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
           />
         </View>
       )}
