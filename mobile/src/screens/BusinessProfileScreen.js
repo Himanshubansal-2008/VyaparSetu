@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,18 +15,92 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import businessProfileData from '../data/businessProfileData';
+import { products as defaultProducts } from '../data/products';
+import ProductCard from '../components/ProductCard';
 
 export default function BusinessProfileScreen({
   navigation,
   route,
   onBackPress,
   business: propBusiness,
+  products: propProducts,
+  onNavigateToProductDetails,
 }) {
   const business =
     propBusiness ||
     route?.params?.business ||
     route?.params?.businessProfile ||
     businessProfileData;
+
+  const allProducts =
+    propProducts !== undefined
+      ? propProducts
+      : route?.params?.products !== undefined
+      ? route.params.products
+      : defaultProducts;
+
+  const currentBusinessId =
+    business?.id ||
+    business?.businessId ||
+    business?.sellerId ||
+    route?.params?.businessId ||
+    route?.params?.sellerId ||
+    businessProfileData.id;
+
+  const currentBusinessName =
+    business?.businessName ||
+    business?.sellerName ||
+    business?.name ||
+    route?.params?.businessName ||
+    route?.params?.sellerName ||
+    businessProfileData.businessName;
+
+  const businessProducts = useMemo(() => {
+    if (!Array.isArray(allProducts)) return [];
+
+    const normId = currentBusinessId
+      ? String(currentBusinessId).trim().toLowerCase()
+      : null;
+    const normName = currentBusinessName
+      ? String(currentBusinessName).trim().toLowerCase()
+      : null;
+
+    if (!normId && !normName) return [];
+
+    return allProducts.filter((product) => {
+      if (!product) return false;
+
+      const pSellerId = product.sellerId
+        ? String(product.sellerId).trim().toLowerCase()
+        : null;
+      const pBusinessId = product.businessId
+        ? String(product.businessId).trim().toLowerCase()
+        : null;
+      const pSellerName = product.sellerName
+        ? String(product.sellerName).trim().toLowerCase()
+        : null;
+
+      const matchesId =
+        Boolean(normId) && (pSellerId === normId || pBusinessId === normId);
+
+      const matchesName =
+        Boolean(normName) && pSellerName === normName;
+
+      return matchesId || matchesName;
+    });
+  }, [allProducts, currentBusinessId, currentBusinessName]);
+
+  const handleProductPress = (product) => {
+    if (onNavigateToProductDetails) {
+      onNavigateToProductDetails(product);
+    } else if (navigation?.navigate) {
+      const productId = product?.id || product;
+      navigation.navigate('ProductDetails', {
+        productId,
+        product: typeof product === 'object' ? product : undefined,
+      });
+    }
+  };
 
   const {
     businessName = businessProfileData.businessName,
@@ -385,6 +459,51 @@ export default function BusinessProfileScreen({
             </Text>
           )}
         </View>
+
+        {/* 9. Business Products Section */}
+        <View style={[styles.card, businessProducts.length > 0 && styles.productsCard]}>
+          <View style={[styles.sectionHeaderRow, businessProducts.length > 0 && styles.productsSectionHeader]}>
+            <Ionicons
+              name="cube-outline"
+              size={18}
+              color={colors.primary}
+              style={styles.sectionHeaderIcon}
+            />
+            <Text style={styles.sectionTitle}>Products</Text>
+            {businessProducts.length > 0 && (
+              <View style={styles.productCountBadge}>
+                <Text style={styles.productCountText}>
+                  {businessProducts.length}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {businessProducts.length > 0 ? (
+            <View style={styles.productsGrid}>
+              {businessProducts.map((item) => (
+                <ProductCard
+                  key={item.id}
+                  product={item}
+                  onPress={handleProductPress}
+                  style={styles.productCardCol}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyProductsContainer}>
+              <Ionicons
+                name="cube-outline"
+                size={40}
+                color={colors.textMuted}
+                style={styles.emptyProductsIcon}
+              />
+              <Text style={styles.emptyProductsTitle}>
+                No products listed by this business yet.
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -700,5 +819,52 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     fontStyle: 'italic',
+  },
+  productsCard: {
+    paddingHorizontal: spacing.sm,
+  },
+  productsSectionHeader: {
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  productsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  productCardCol: {
+    width: '50%',
+  },
+  productCountBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginLeft: spacing.xs,
+  },
+  productCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  emptyProductsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptyProductsIcon: {
+    marginBottom: spacing.xs + 2,
+  },
+  emptyProductsTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textMuted,
+    textAlign: 'center',
   },
 });
