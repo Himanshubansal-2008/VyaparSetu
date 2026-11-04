@@ -208,7 +208,6 @@ export default function BusinessProfileScreen({
   }
 
   const {
-    id = '',
     businessName = 'Business Profile',
     description = 'No business description provided.',
     category = '',

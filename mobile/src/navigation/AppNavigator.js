@@ -4,12 +4,14 @@ import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import BusinessProfileScreen from '../screens/BusinessProfileScreen';
+import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen';
 
 const VALID_ROUTES = [
   'Home',
   'ProductListing',
   'ProductDetails',
   'BusinessProfile',
+  'CreateBusinessProfile',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -237,6 +239,16 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={currentRoute}
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+          />
+        </View>
+      )}
+
+      {/* Create Business Profile Screen */}
+      {currentRoute.name === 'CreateBusinessProfile' && (
+        <View style={styles.screen}>
+          <CreateBusinessProfileScreen
+            navigation={navigation}
+            onBackPress={goBack}
           />
         </View>
       )}

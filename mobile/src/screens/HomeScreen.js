@@ -193,6 +193,7 @@ export default function HomeScreen({
           activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel="Create Business Profile - Start selling on VyaparSetu"
+          onPress={() => navigation?.navigate('CreateBusinessProfile')}
         >
           <View style={styles.createBusinessIconBox}>
             <Ionicons

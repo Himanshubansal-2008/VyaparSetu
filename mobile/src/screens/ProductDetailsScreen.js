@@ -204,16 +204,9 @@ export default function ProductDetailsScreen({
         : String(product.originalPrice)
       : null;
 
-  // Resolve brand or manufacturer label and value
+  // Resolve brand, manufacturer, and seller identity
   const brandValue = product?.brand || null;
   const manufacturerValue = product?.manufacturer || null;
-  const brandOrMaker =
-    brandValue || manufacturerValue || product?.sellerName || null;
-  const brandLabel = brandValue
-    ? 'Brand'
-    : manufacturerValue
-    ? 'Manufacturer'
-    : 'Manufacturer / Seller';
 
   const sellerDisplayName =
     product?.sellerName ||
@@ -231,8 +224,8 @@ export default function ProductDetailsScreen({
     const navParams = {
       businessId,
       sellerId: businessId,
-      sellerName: product?.sellerName || brandOrMaker,
-      businessName: product?.sellerName || brandOrMaker,
+      sellerName: sellerDisplayName,
+      businessName: sellerDisplayName,
       location: product?.location,
     };
 
@@ -1726,22 +1719,6 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     letterSpacing: -0.3,
     marginBottom: spacing.xs,
-  },
-  brandContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  brandLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  brandValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
   },
   sellerHeaderBanner: {
     flexDirection: 'row',
