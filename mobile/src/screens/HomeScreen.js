@@ -172,7 +172,7 @@ export default function HomeScreen({
         backgroundColor={colors.surface}
       />
 
-      {/* 1. Header + Search Bar */}
+      {/* 1. Header + Create Business Profile Card + Search Bar */}
       <Header
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
@@ -186,7 +186,38 @@ export default function HomeScreen({
         }}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
-      />
+      >
+        {/* Create Business Profile Card: positioned directly below header top row and above search bar */}
+        <TouchableOpacity
+          style={styles.createBusinessCard}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Create Business Profile - Start selling on VyaparSetu"
+        >
+          <View style={styles.createBusinessIconBox}>
+            <Ionicons
+              name="storefront-outline"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <View style={styles.createBusinessTextCol}>
+            <Text style={styles.createBusinessHeading}>
+              Create Business Profile
+            </Text>
+            <Text style={styles.createBusinessSubtitle} numberOfLines={1}>
+              Start selling on VyaparSetu
+            </Text>
+          </View>
+          <View style={styles.createBusinessArrowBox}>
+            <Ionicons
+              name="arrow-forward"
+              size={16}
+              color={colors.primary}
+            />
+          </View>
+        </TouchableOpacity>
+      </Header>
 
       {/* 2. Product Categories — horizontal scroll strip */}
       <CategoryList
@@ -572,5 +603,65 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: '700',
+  },
+  createBusinessCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  createBusinessIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.infoLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  createBusinessTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  createBusinessHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+    marginBottom: 2,
+  },
+  createBusinessSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  createBusinessArrowBox: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.xs + 2,
   },
 });
