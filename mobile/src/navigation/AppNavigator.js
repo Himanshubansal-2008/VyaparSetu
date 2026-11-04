@@ -121,6 +121,18 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     return foundInHistory || null;
   }, [currentRoute, history]);
 
+  // Preserve ProductDetailsScreen while active or in history when navigating to BusinessProfile
+  const detailsRoute = useMemo(() => {
+    if (currentRoute.name === 'ProductDetails') {
+      return currentRoute;
+    }
+    const foundInHistory = history
+      .slice()
+      .reverse()
+      .find((r) => r.name === 'ProductDetails');
+    return foundInHistory || null;
+  }, [currentRoute, history]);
+
   const handleNavigateToProductDetails = useCallback(
     (itemOrParams) => {
       if (
@@ -136,6 +148,19 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         });
       } else {
         navigate('ProductDetails', {});
+      }
+    },
+    [navigate]
+  );
+
+  const handleNavigateToBusinessProfile = useCallback(
+    (itemOrParams) => {
+      if (typeof itemOrParams === 'string') {
+        navigate('BusinessProfile', { businessId: itemOrParams });
+      } else if (itemOrParams && typeof itemOrParams === 'object') {
+        navigate('BusinessProfile', itemOrParams);
+      } else {
+        navigate('BusinessProfile', {});
       }
     },
     [navigate]
@@ -177,18 +202,24 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         </View>
       )}
 
-      {/* Product Details Screen */}
-      {currentRoute.name === 'ProductDetails' && (
-        <View style={styles.screen}>
+      {/* Product Details Screen is kept mounted while active or in history to preserve state and scroll */}
+      {detailsRoute && (
+        <View
+          style={[
+            styles.screen,
+            currentRoute.name !== 'ProductDetails' && styles.screenHidden,
+          ]}
+        >
           <ProductDetailsScreen
             key={
-              currentRoute.params?.productId ||
-              currentRoute.params?.id ||
+              detailsRoute.params?.productId ||
+              detailsRoute.params?.id ||
               'details'
             }
             navigation={navigation}
-            route={currentRoute}
+            route={detailsRoute}
             onBackPress={goBack}
+            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
           />
         </View>
       )}
@@ -205,6 +236,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
           />
         </View>
       )}

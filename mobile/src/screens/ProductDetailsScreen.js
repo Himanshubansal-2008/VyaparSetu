@@ -64,6 +64,7 @@ export default function ProductDetailsScreen({
   onBackPress,
   product: propProduct,
   products: propProducts,
+  onNavigateToBusinessProfile,
 }) {
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -213,6 +214,34 @@ export default function ProductDetailsScreen({
     : manufacturerValue
     ? 'Manufacturer'
     : 'Manufacturer / Seller';
+
+  const sellerDisplayName =
+    product?.sellerName ||
+    manufacturerValue ||
+    brandValue ||
+    'Verified Seller';
+
+  const handleViewBusinessProfile = () => {
+    const businessId =
+      product?.sellerId ||
+      product?.businessId ||
+      product?.seller?.id ||
+      null;
+
+    const navParams = {
+      businessId,
+      sellerId: businessId,
+      sellerName: product?.sellerName || brandOrMaker,
+      businessName: product?.sellerName || brandOrMaker,
+      location: product?.location,
+    };
+
+    if (onNavigateToBusinessProfile) {
+      onNavigateToBusinessProfile(navParams);
+    } else if (navigation?.navigate) {
+      navigation.navigate('BusinessProfile', navParams);
+    }
+  };
 
   // Resolve stock quantity (using stock property or availableQuantity fallback)
   const stockValue = useMemo(() => {
@@ -826,18 +855,38 @@ export default function ProductDetailsScreen({
               {product?.name || 'Unnamed Product'}
             </Text>
 
-            {/* Brand or Manufacturer Row (if available) */}
-            {brandOrMaker ? (
-              <View style={styles.brandContainer}>
+            {/* Seller Information & View Business Profile Action (visible immediately without scrolling) */}
+            <TouchableOpacity
+              style={styles.sellerHeaderBanner}
+              onPress={handleViewBusinessProfile}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`View Business Profile for ${sellerDisplayName}`}
+            >
+              <View style={styles.sellerHeaderBannerLeft}>
                 <Ionicons
-                  name="business-outline"
-                  size={14}
-                  color={colors.textSecondary}
+                  name="storefront-outline"
+                  size={15}
+                  color={colors.primary}
+                  style={styles.sellerHeaderIcon}
                 />
-                <Text style={styles.brandLabel}>{brandLabel}: </Text>
-                <Text style={styles.brandValue}>{brandOrMaker}</Text>
+                <Text style={styles.sellerHeaderLabel}>Seller: </Text>
+                <Text style={styles.sellerHeaderName} numberOfLines={1}>
+                  {sellerDisplayName}
+                </Text>
               </View>
-            ) : null}
+
+              <View style={styles.viewProfilePill}>
+                <Text style={styles.viewProfilePillText}>
+                  View Business Profile
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={13}
+                  color={colors.primary}
+                />
+              </View>
+            </TouchableOpacity>
 
             {/* Product Price Row */}
             <View style={styles.priceContainer}>
@@ -1440,11 +1489,6 @@ export default function ProductDetailsScreen({
               </View>
             </View>
           )}
-
-          {/*
-            Layout ready for upcoming sections:
-            - Seller & Business Information
-          */}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -1696,6 +1740,55 @@ const styles = StyleSheet.create({
   },
   brandValue: {
     fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  sellerHeaderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceSubtle,
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  sellerHeaderBannerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.xs,
+  },
+  sellerHeaderIcon: {
+    marginRight: spacing.xs,
+  },
+  sellerHeaderLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  sellerHeaderName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  viewProfilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+    gap: 3,
+  },
+  viewProfilePillText: {
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primary,
   },

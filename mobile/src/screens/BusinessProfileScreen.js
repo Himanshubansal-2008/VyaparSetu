@@ -14,9 +14,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import businessProfileData from '../data/businessProfileData';
+import {
+  businessProfileData,
+  getBusinessById,
+  getBusinessByName,
+} from '../data/businessProfileData';
 import { products as defaultProducts } from '../data/products';
 import ProductCard from '../components/ProductCard';
+import EmptyState from '../components/EmptyState';
 
 export default function BusinessProfileScreen({
   navigation,
@@ -26,11 +31,77 @@ export default function BusinessProfileScreen({
   products: propProducts,
   onNavigateToProductDetails,
 }) {
-  const business =
-    propBusiness ||
-    route?.params?.business ||
-    route?.params?.businessProfile ||
-    businessProfileData;
+  // 1. Resolve target business dynamically using ID, object, or lookup
+  const resolvedBusiness = useMemo(() => {
+    // Explicit business prop
+    if (
+      propBusiness &&
+      typeof propBusiness === 'object' &&
+      (propBusiness.id || propBusiness.businessName)
+    ) {
+      return propBusiness;
+    }
+
+    // Business object passed in route params
+    if (
+      route?.params?.business &&
+      typeof route.params.business === 'object' &&
+      (route.params.business.id || route.params.business.businessName)
+    ) {
+      return route.params.business;
+    }
+
+    if (
+      route?.params?.businessProfile &&
+      typeof route.params.businessProfile === 'object' &&
+      (route.params.businessProfile.id || route.params.businessProfile.businessName)
+    ) {
+      return route.params.businessProfile;
+    }
+
+    // Lookup by businessId or sellerId
+    const targetId =
+      route?.params?.businessId ??
+      route?.params?.sellerId ??
+      route?.params?.id;
+
+    if (targetId !== undefined && targetId !== null && String(targetId).trim()) {
+      const found = getBusinessById(String(targetId));
+      if (found) return found;
+
+      // Try matching by name if provided in params alongside an ID
+      if (route?.params?.businessName || route?.params?.sellerName) {
+        const foundByName = getBusinessByName(
+          String(route.params.businessName || route.params.sellerName)
+        );
+        if (foundByName) return foundByName;
+      }
+
+      // Explicit ID was provided but does not match any known business
+      return null;
+    }
+
+    // Lookup by business name if provided without ID
+    if (route?.params?.businessName || route?.params?.sellerName) {
+      const foundByName = getBusinessByName(
+        String(route.params.businessName || route.params.sellerName)
+      );
+      if (foundByName) return foundByName;
+      return null;
+    }
+
+    // If route params explicitly has businessId as null/undefined (missing business reference)
+    if (route?.params && ('businessId' in route.params || 'sellerId' in route.params)) {
+      return null;
+    }
+
+    // Standalone fallback: only when no navigation parameters exist at all
+    if (!route?.params || Object.keys(route.params).length === 0) {
+      return businessProfileData;
+    }
+
+    return null;
+  }, [propBusiness, route?.params]);
 
   const allProducts =
     propProducts !== undefined
@@ -39,30 +110,14 @@ export default function BusinessProfileScreen({
       ? route.params.products
       : defaultProducts;
 
-  const currentBusinessId =
-    business?.id ||
-    business?.businessId ||
-    business?.sellerId ||
-    route?.params?.businessId ||
-    route?.params?.sellerId ||
-    businessProfileData.id;
-
-  const currentBusinessName =
-    business?.businessName ||
-    business?.sellerName ||
-    business?.name ||
-    route?.params?.businessName ||
-    route?.params?.sellerName ||
-    businessProfileData.businessName;
-
   const businessProducts = useMemo(() => {
-    if (!Array.isArray(allProducts)) return [];
+    if (!Array.isArray(allProducts) || !resolvedBusiness) return [];
 
-    const normId = currentBusinessId
-      ? String(currentBusinessId).trim().toLowerCase()
+    const normId = resolvedBusiness.id
+      ? String(resolvedBusiness.id).trim().toLowerCase()
       : null;
-    const normName = currentBusinessName
-      ? String(currentBusinessName).trim().toLowerCase()
+    const normName = resolvedBusiness.businessName
+      ? String(resolvedBusiness.businessName).trim().toLowerCase()
       : null;
 
     if (!normId && !normName) return [];
@@ -88,7 +143,7 @@ export default function BusinessProfileScreen({
 
       return matchesId || matchesName;
     });
-  }, [allProducts, currentBusinessId, currentBusinessName]);
+  }, [allProducts, resolvedBusiness]);
 
   const handleProductPress = (product) => {
     if (onNavigateToProductDetails) {
@@ -102,26 +157,6 @@ export default function BusinessProfileScreen({
     }
   };
 
-  const {
-    businessName = businessProfileData.businessName,
-    description = businessProfileData.description,
-    category = businessProfileData.category,
-    ownerName = businessProfileData.ownerName,
-    contactNumber = businessProfileData.contactNumber,
-    email = businessProfileData.email,
-    address = businessProfileData.address,
-    location = businessProfileData.location,
-    isVerified = businessProfileData.isVerified,
-    specialties = businessProfileData.specialties,
-  } = business || {};
-
-  const specialtiesList =
-    Array.isArray(specialties) && specialties.length > 0
-      ? specialties
-      : Array.isArray(businessProfileData.specialties)
-      ? businessProfileData.specialties
-      : [];
-
   const canGoBack = Boolean(
     onBackPress || (navigation && typeof navigation.goBack === 'function')
   );
@@ -134,10 +169,63 @@ export default function BusinessProfileScreen({
     }
   };
 
+  // If business was not found or invalid businessId was provided, render error state
+  if (!resolvedBusiness) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+        <View style={[styles.header, !canGoBack && styles.headerCentered]}>
+          {canGoBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerTitle}>Business Profile</Text>
+          {canGoBack && <View style={styles.headerRightSpacer} />}
+        </View>
+
+        <View style={styles.errorContainer}>
+          <EmptyState
+            icon="business-outline"
+            iconSize={54}
+            iconColor={colors.textMuted}
+            title="Business Not Found"
+            description="The requested business profile could not be found or has an invalid business ID."
+            actionText={canGoBack ? 'Go Back' : undefined}
+            onActionPress={canGoBack ? handleBack : undefined}
+            actionIcon={canGoBack ? 'arrow-back' : undefined}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const {
+    id = '',
+    businessName = 'Business Profile',
+    description = 'No business description provided.',
+    category = '',
+    ownerName = '',
+    contactNumber = '',
+    email = '',
+    address = '',
+    location = '',
+    isVerified = false,
+    specialties = [],
+  } = resolvedBusiness;
+
+  const specialtiesList = Array.isArray(specialties) ? specialties : [];
+
   const handlePhonePress = async () => {
-    const rawNumber = contactNumber || businessProfileData.contactNumber;
-    if (!rawNumber) return;
-    const sanitizedNumber = String(rawNumber).replace(/[^\d+]/g, '');
+    if (!contactNumber) return;
+    const sanitizedNumber = String(contactNumber).replace(/[^\d+]/g, '');
     const url = `tel:${sanitizedNumber}`;
 
     try {
@@ -149,7 +237,7 @@ export default function BusinessProfileScreen({
           console.warn('[BusinessProfileScreen] Cannot open phone dialer:', err);
           Alert.alert(
             'Unable to place call',
-            `Device cannot make a call to ${rawNumber}.`
+            `Device cannot make a call to ${contactNumber}.`
           );
         });
       }
@@ -163,9 +251,8 @@ export default function BusinessProfileScreen({
   };
 
   const handleEmailPress = async () => {
-    const targetEmail = email || businessProfileData.email;
-    if (!targetEmail) return;
-    const url = `mailto:${targetEmail.trim()}`;
+    if (!email) return;
+    const url = `mailto:${email.trim()}`;
 
     try {
       const supported = await Linking.canOpenURL(url);
@@ -176,7 +263,7 @@ export default function BusinessProfileScreen({
           console.warn('[BusinessProfileScreen] Cannot open email client:', err);
           Alert.alert(
             'Unable to send email',
-            `No email client available to email ${targetEmail}.`
+            `No email client available to email ${email}.`
           );
         });
       }
@@ -228,15 +315,15 @@ export default function BusinessProfileScreen({
           </View>
           <View style={styles.businessHeaderInfo}>
             <Text style={styles.businessNameText}>
-              {businessName || businessProfileData.businessName}
+              {businessName}
             </Text>
 
             <View style={styles.headerBadgesRow}>
               {/* 2. Business Category Badge */}
-              {Boolean(category || businessProfileData.category) && (
+              {Boolean(category) && (
                 <View style={styles.categoryBadge}>
                   <Text style={styles.categoryBadgeText}>
-                    {category || businessProfileData.category}
+                    {category}
                   </Text>
                 </View>
               )}
@@ -283,7 +370,7 @@ export default function BusinessProfileScreen({
             <Text style={styles.sectionTitle}>About Business</Text>
           </View>
           <Text style={styles.aboutText}>
-            {description || businessProfileData.description}
+            {description}
           </Text>
         </View>
 
@@ -309,7 +396,7 @@ export default function BusinessProfileScreen({
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Business Owner</Text>
               <Text style={styles.infoValue}>
-                {ownerName || businessProfileData.ownerName}
+                {ownerName || 'Not specified'}
               </Text>
             </View>
           </View>
@@ -334,7 +421,7 @@ export default function BusinessProfileScreen({
               onPress={handlePhonePress}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={`Call ${contactNumber || businessProfileData.contactNumber}`}
+              accessibilityLabel={`Call ${contactNumber || 'business'}`}
             >
               <View style={styles.contactIconBox}>
                 <Ionicons name="call" size={17} color={colors.primary} />
@@ -342,7 +429,7 @@ export default function BusinessProfileScreen({
               <View style={styles.contactContent}>
                 <Text style={styles.infoLabel}>Contact Number</Text>
                 <Text style={styles.contactLinkText}>
-                  {contactNumber || businessProfileData.contactNumber}
+                  {contactNumber || 'Not available'}
                 </Text>
               </View>
               <Ionicons
@@ -358,7 +445,7 @@ export default function BusinessProfileScreen({
               onPress={handleEmailPress}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={`Email ${email || businessProfileData.email}`}
+              accessibilityLabel={`Email ${email || 'business'}`}
             >
               <View style={styles.contactIconBox}>
                 <Ionicons name="mail" size={17} color={colors.primary} />
@@ -366,7 +453,7 @@ export default function BusinessProfileScreen({
               <View style={styles.contactContent}>
                 <Text style={styles.infoLabel}>Email Address</Text>
                 <Text style={styles.contactLinkText}>
-                  {email || businessProfileData.email}
+                  {email || 'Not available'}
                 </Text>
               </View>
               <Ionicons
@@ -403,7 +490,7 @@ export default function BusinessProfileScreen({
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Location</Text>
                 <Text style={styles.infoValue}>
-                  {location || businessProfileData.location}
+                  {location || 'Location not specified'}
                 </Text>
               </View>
             </View>
@@ -420,7 +507,7 @@ export default function BusinessProfileScreen({
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Business Address</Text>
                 <Text style={styles.addressText}>
-                  {address || businessProfileData.address}
+                  {address || 'Address not specified'}
                 </Text>
               </View>
             </View>
@@ -514,6 +601,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
   },
   header: {
     flexDirection: 'row',
