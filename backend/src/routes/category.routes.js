@@ -1,18 +1,18 @@
 const express = require("express");
 const router = express.Router();
-const prisma = require("../lib/prisma");
+const {
+  getAllCategories,
+  getCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} = require("../controllers/category.controller");
 
-router.get("/", async (req, res) => {
-  try {
-    const categories = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-    });
-
-    res.json({ success: true, data: categories });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to fetch categories" });
-  }
-});
+// Route mappings for /api/categories
+router.get("/", getAllCategories);
+router.get("/:id", getCategoryById);
+router.post("/", createCategory);
+router.put("/:id", updateCategory);
+router.delete("/:id", deleteCategory);
 
 module.exports = router;
