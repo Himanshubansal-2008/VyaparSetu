@@ -207,6 +207,15 @@ export default function BusinessProfileScreen({
     }
   };
 
+  const handleEditProfile = () => {
+    if (navigation?.navigate && resolvedBusiness) {
+      navigation.navigate('CreateBusinessProfile', {
+        business: resolvedBusiness,
+        isEdit: true,
+      });
+    }
+  };
+
   // If business was not found or invalid businessId was provided, render error state
   if (!resolvedBusiness) {
     return (
@@ -332,7 +341,16 @@ export default function BusinessProfileScreen({
           </TouchableOpacity>
         )}
         <Text style={styles.headerTitle}>Business Profile</Text>
-        {canGoBack && <View style={styles.headerRightSpacer} />}
+        <TouchableOpacity
+          style={styles.headerEditButton}
+          onPress={handleEditProfile}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Edit Profile"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="create-outline" size={20} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Main Content Area */}
@@ -401,6 +419,18 @@ export default function BusinessProfileScreen({
                 </Text>
               </View>
             </View>
+
+            {/* Edit Profile Action Button */}
+            <TouchableOpacity
+              style={styles.editProfileButton}
+              onPress={handleEditProfile}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Edit Profile"
+            >
+              <Ionicons name="create-outline" size={15} color={colors.primary} />
+              <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -694,8 +724,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  headerEditButton: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   headerRightSpacer: {
     width: 38,
+  },
+  editProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.sm,
+  },
+  editProfileButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
   scrollView: {
     flex: 1,

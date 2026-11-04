@@ -218,4 +218,22 @@ export const getSessionBusinessProfile = () => {
   return sessionBusinessProfile;
 };
 
+export const updateBusinessProfile = (updatedProfile) => {
+  if (!updatedProfile) return;
+  sessionBusinessProfile = updatedProfile;
+
+  const targetId = updatedProfile.id || updatedProfile.sellerId;
+  if (targetId) {
+    const cleanId = String(targetId).trim().toLowerCase();
+    const index = businesses.findIndex(
+      (b) =>
+        (b.id && b.id.toLowerCase() === cleanId) ||
+        (b.sellerId && b.sellerId.toLowerCase() === cleanId)
+    );
+    if (index !== -1) {
+      businesses[index] = { ...businesses[index], ...updatedProfile };
+    }
+  }
+};
+
 export default businessProfileData;

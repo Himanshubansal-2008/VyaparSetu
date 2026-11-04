@@ -248,7 +248,9 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
       {currentRoute.name === 'CreateBusinessProfile' && (
         <View style={styles.screen}>
           <CreateBusinessProfileScreen
+            key={currentRoute.params?.business?.id || 'create'}
             navigation={navigation}
+            route={currentRoute}
             onBackPress={goBack}
           />
         </View>

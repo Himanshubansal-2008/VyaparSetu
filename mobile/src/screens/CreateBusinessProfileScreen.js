@@ -19,7 +19,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { setSessionBusinessProfile } from '../data/businessProfileData';
+import {
+  setSessionBusinessProfile,
+  updateBusinessProfile,
+} from '../data/businessProfileData';
 
 const CATEGORIES = [
   'Handicrafts',
@@ -70,25 +73,102 @@ const INDIAN_STATES = [
 
 export default function CreateBusinessProfileScreen({
   navigation,
+  route,
   onBackPress,
 }) {
+  const isEditMode = Boolean(route?.params?.isEdit || route?.params?.business);
+  const initialBusiness = route?.params?.business || null;
+
   // 1. Form State
-  const [businessImage, setBusinessImage] = useState(null);
-  const [formData, setFormData] = useState({
-    businessName: '',
-    ownerName: '',
-    category: '',
-    description: '',
-    contactNumber: '',
-    email: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
+  const [businessImage, setBusinessImage] = useState(() => {
+    if (initialBusiness?.imageUri) return initialBusiness.imageUri;
+    if (typeof initialBusiness?.image === 'string') return initialBusiness.image;
+    return null;
+  });
+
+  const [formData, setFormData] = useState(() => {
+    if (!initialBusiness) {
+      return {
+        businessName: '',
+        ownerName: '',
+        category: '',
+        description: '',
+        contactNumber: '',
+        email: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+      };
+    }
+
+    const cleanDigits = (
+      initialBusiness.phone ||
+      initialBusiness.contactNumber ||
+      ''
+    ).replace(/\D/g, '');
+    const contactNumber =
+      cleanDigits.length >= 10
+        ? cleanDigits.slice(-10)
+        : initialBusiness.contactNumber || initialBusiness.phone || '';
+
+    let city = initialBusiness.city || '';
+    let state = initialBusiness.state || '';
+    if (!city && !state && initialBusiness.location) {
+      const parts = initialBusiness.location.split(',').map((p) => p.trim());
+      if (parts.length >= 2) {
+        city = parts[0];
+        state = parts[1];
+      } else if (parts.length === 1) {
+        city = parts[0];
+      }
+    }
+
+    let category = initialBusiness.category || '';
+    const exactCat = CATEGORIES.find(
+      (c) => c.toLowerCase() === category.toLowerCase()
+    );
+    if (exactCat) {
+      category = exactCat;
+    } else {
+      const partialCat = CATEGORIES.find(
+        (c) =>
+          category.toLowerCase().includes(c.toLowerCase()) ||
+          c.toLowerCase().includes(category.toLowerCase())
+      );
+      if (partialCat) {
+        category = partialCat;
+      }
+    }
+
+    let pincode = initialBusiness.pincode || '';
+    if (!pincode && initialBusiness.address) {
+      const pinMatch = initialBusiness.address.match(/\b\d{6}\b/);
+      if (pinMatch) pincode = pinMatch[0];
+    }
+
+    return {
+      businessName:
+        initialBusiness.businessName || initialBusiness.sellerName || '',
+      ownerName:
+        initialBusiness.ownerName || initialBusiness.sellerName || '',
+      category,
+      description: initialBusiness.description || initialBusiness.about || '',
+      contactNumber,
+      email: initialBusiness.email || '',
+      address: initialBusiness.streetAddress || initialBusiness.address || '',
+      city,
+      state,
+      pincode,
+    };
   });
 
   // 2. Specialties State
-  const [specialties, setSpecialties] = useState([]);
+  const [specialties, setSpecialties] = useState(() => {
+    return Array.isArray(initialBusiness?.specialties)
+      ? [...initialBusiness.specialties]
+      : [];
+  });
   const [specialtyInput, setSpecialtyInput] = useState('');
   const [specialtyError, setSpecialtyError] = useState('');
 
@@ -254,15 +334,26 @@ export default function CreateBusinessProfileScreen({
       return;
     }
 
+    const targetId =
+      isEditMode && initialBusiness?.id
+        ? initialBusiness.id
+        : `biz-submitted-${Date.now()}`;
+    const targetSellerId =
+      isEditMode && initialBusiness?.sellerId
+        ? initialBusiness.sellerId
+        : targetId;
+
     const payload = {
-      id: `biz-submitted-${Date.now()}`,
-      sellerId: `biz-submitted-${Date.now()}`,
+      ...(initialBusiness || {}),
+      id: targetId,
+      sellerId: targetSellerId,
       businessName: formData.businessName.trim(),
       sellerName: formData.businessName.trim(),
       ownerName: formData.ownerName.trim(),
       category: formData.category.trim(),
       description: formData.description.trim(),
       contactNumber: formData.contactNumber.trim(),
+      phone: formData.contactNumber.trim(),
       email: formData.email.trim().toLowerCase(),
       streetAddress: formData.address.trim(),
       city: formData.city.trim(),
@@ -280,13 +371,27 @@ export default function CreateBusinessProfileScreen({
       imageUri: businessImage,
       image: businessImage,
       specialties: [...specialties],
-      isVerified: false,
-      verificationStatus: 'Not Verified',
+      isVerified:
+        isEditMode && initialBusiness?.isVerified !== undefined
+          ? initialBusiness.isVerified
+          : false,
+      verificationStatus:
+        isEditMode && initialBusiness?.verificationStatus
+          ? initialBusiness.verificationStatus
+          : 'Not Verified',
       isSubmitted: true,
-      createdAt: new Date().toISOString(),
+      createdAt:
+        isEditMode && initialBusiness?.createdAt
+          ? initialBusiness.createdAt
+          : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    setSessionBusinessProfile(payload);
+    if (isEditMode) {
+      updateBusinessProfile(payload);
+    } else {
+      setSessionBusinessProfile(payload);
+    }
 
     if (navigation?.navigate) {
       navigation.navigate('BusinessProfile', { business: payload });
@@ -355,7 +460,9 @@ export default function CreateBusinessProfileScreen({
         >
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Business Profile</Text>
+        <Text style={styles.headerTitle}>
+          {isEditMode ? 'Edit Business Profile' : 'Create Business Profile'}
+        </Text>
         <View style={styles.headerRightSpacer} />
       </View>
 
@@ -371,10 +478,13 @@ export default function CreateBusinessProfileScreen({
         >
           {/* Form Intro Banner */}
           <View style={styles.introCard}>
-            <Text style={styles.introHeading}>Register Your Business</Text>
+            <Text style={styles.introHeading}>
+              {isEditMode ? 'Edit Your Business' : 'Register Your Business'}
+            </Text>
             <Text style={styles.introSubtext}>
-              Fill in your details below to set up your business profile and
-              start selling on VyaparSetu.
+              {isEditMode
+                ? 'Update your business details below. Changes will be reflected on your business profile.'
+                : 'Fill in your details below to set up your business profile and start selling on VyaparSetu.'}
             </Text>
           </View>
 
@@ -385,7 +495,11 @@ export default function CreateBusinessProfileScreen({
               <View style={styles.imagePreviewContainer}>
                 {businessImage ? (
                   <Image
-                    source={{ uri: businessImage }}
+                    source={
+                      typeof businessImage === 'number'
+                        ? businessImage
+                        : { uri: businessImage }
+                    }
                     style={styles.imagePreview}
                   />
                 ) : (
@@ -814,15 +928,19 @@ export default function CreateBusinessProfileScreen({
             onPress={handleSubmit}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Create Business Profile"
+            accessibilityLabel={
+              isEditMode ? 'Save Changes' : 'Create Business Profile'
+            }
           >
             <Ionicons
-              name="checkmark-circle-outline"
+              name={isEditMode ? 'save-outline' : 'checkmark-circle-outline'}
               size={20}
               color={colors.textInverse}
               style={styles.buttonIcon}
             />
-            <Text style={styles.primaryButtonText}>Create Business Profile</Text>
+            <Text style={styles.primaryButtonText}>
+              {isEditMode ? 'Save Changes' : 'Create Business Profile'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
