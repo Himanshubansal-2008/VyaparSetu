@@ -3,6 +3,7 @@ import {
   StyleSheet,
   View,
   Text,
+  Image,
   ScrollView,
   SafeAreaView,
   StatusBar,
@@ -18,6 +19,7 @@ import {
   businessProfileData,
   getBusinessById,
   getBusinessByName,
+  getSessionBusinessProfile,
 } from '../data/businessProfileData';
 import { products as defaultProducts } from '../data/products';
 import ProductCard from '../components/ProductCard';
@@ -59,6 +61,16 @@ export default function BusinessProfileScreen({
       return route.params.businessProfile;
     }
 
+    // Direct submitted business object passed at root of route params
+    if (
+      route?.params &&
+      typeof route.params === 'object' &&
+      route.params.businessName &&
+      (route.params.isSubmitted || route.params.category || route.params.description)
+    ) {
+      return route.params;
+    }
+
     // Lookup by businessId or sellerId
     const targetId =
       route?.params?.businessId ??
@@ -66,6 +78,19 @@ export default function BusinessProfileScreen({
       route?.params?.id;
 
     if (targetId !== undefined && targetId !== null && String(targetId).trim()) {
+      const cleanTargetId = String(targetId).trim().toLowerCase();
+
+      // Check if target matches session submitted business profile
+      const sessionProfile = getSessionBusinessProfile();
+      if (
+        sessionProfile &&
+        ((sessionProfile.id && sessionProfile.id.toLowerCase() === cleanTargetId) ||
+          (sessionProfile.sellerId &&
+            sessionProfile.sellerId.toLowerCase() === cleanTargetId))
+      ) {
+        return sessionProfile;
+      }
+
       const found = getBusinessById(String(targetId));
       if (found) return found;
 
@@ -95,12 +120,14 @@ export default function BusinessProfileScreen({
       return null;
     }
 
-    // Standalone fallback: only when no navigation parameters exist at all
-    if (!route?.params || Object.keys(route.params).length === 0) {
-      return businessProfileData;
+    // Priority 1: Check if a business profile was submitted during this session
+    const sessionProfile = getSessionBusinessProfile();
+    if (sessionProfile) {
+      return sessionProfile;
     }
 
-    return null;
+    // Priority 2: Standalone fallback to mock data (Sharma Handicrafts)
+    return businessProfileData;
   }, [propBusiness, route?.params]);
 
   const allProducts =
@@ -122,6 +149,13 @@ export default function BusinessProfileScreen({
 
     if (!normId && !normName) return [];
 
+    // For submitted businesses, only match by business ID to prevent accidental collision
+    // with existing mock sellers (e.g. if the user created a business named 'Sharma Handicrafts')
+    const isSubmittedBusiness = Boolean(
+      resolvedBusiness.isSubmitted ||
+      (normId && normId.startsWith('biz-submitted-'))
+    );
+
     return allProducts.filter((product) => {
       if (!product) return false;
 
@@ -137,6 +171,10 @@ export default function BusinessProfileScreen({
 
       const matchesId =
         Boolean(normId) && (pSellerId === normId || pBusinessId === normId);
+
+      if (isSubmittedBusiness) {
+        return matchesId;
+      }
 
       const matchesName =
         Boolean(normName) && pSellerName === normName;
@@ -306,11 +344,20 @@ export default function BusinessProfileScreen({
         {/* 1. Business Header (Logo, Name, Category Badge, Verification Badge) */}
         <View style={styles.businessHeaderCard}>
           <View style={styles.businessLogoPlaceholder}>
-            <Ionicons
-              name="storefront-outline"
-              size={32}
-              color={colors.primary}
-            />
+            {resolvedBusiness?.imageUri || resolvedBusiness?.image ? (
+              <Image
+                source={{
+                  uri: resolvedBusiness.imageUri || resolvedBusiness.image,
+                }}
+                style={styles.businessLogoImage}
+              />
+            ) : (
+              <Ionicons
+                name="storefront-outline"
+                size={32}
+                color={colors.primary}
+              />
+            )}
           </View>
           <View style={styles.businessHeaderInfo}>
             <Text style={styles.businessNameText}>
@@ -688,6 +735,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.lg,
+    overflow: 'hidden',
+  },
+  businessLogoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: borderRadius.full,
   },
   businessHeaderInfo: {
     flex: 1,

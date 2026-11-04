@@ -208,4 +208,14 @@ export const getBusinessByName = (name) => {
 
 export const businessProfileData = businesses[0];
 
+let sessionBusinessProfile = null;
+
+export const setSessionBusinessProfile = (profile) => {
+  sessionBusinessProfile = profile;
+};
+
+export const getSessionBusinessProfile = () => {
+  return sessionBusinessProfile;
+};
+
 export default businessProfileData;

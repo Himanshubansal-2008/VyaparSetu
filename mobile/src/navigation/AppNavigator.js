@@ -233,6 +233,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             key={
               currentRoute.params?.businessId ||
               currentRoute.params?.id ||
+              currentRoute.params?.business?.id ||
               'profile'
             }
             navigation={navigation}

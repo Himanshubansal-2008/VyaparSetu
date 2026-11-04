@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import { setSessionBusinessProfile } from '../data/businessProfileData';
 
 const CATEGORIES = [
   'Handicrafts',
@@ -254,38 +255,42 @@ export default function CreateBusinessProfileScreen({
     }
 
     const payload = {
+      id: `biz-submitted-${Date.now()}`,
+      sellerId: `biz-submitted-${Date.now()}`,
       businessName: formData.businessName.trim(),
+      sellerName: formData.businessName.trim(),
       ownerName: formData.ownerName.trim(),
       category: formData.category.trim(),
       description: formData.description.trim(),
       contactNumber: formData.contactNumber.trim(),
       email: formData.email.trim().toLowerCase(),
-      address: formData.address.trim(),
+      streetAddress: formData.address.trim(),
       city: formData.city.trim(),
       state: formData.state.trim(),
       pincode: formData.pincode.trim(),
+      address: [
+        formData.address.trim(),
+        formData.city.trim(),
+        formData.state.trim(),
+        formData.pincode.trim(),
+      ]
+        .filter(Boolean)
+        .join(', '),
       location: `${formData.city.trim()}, ${formData.state.trim()}`,
       imageUri: businessImage,
+      image: businessImage,
       specialties: [...specialties],
       isVerified: false,
-      verificationStatus: 'Pending',
+      verificationStatus: 'Not Verified',
+      isSubmitted: true,
       createdAt: new Date().toISOString(),
     };
 
-    Alert.alert(
-      'Profile Validated',
-      `Your business profile for "${payload.businessName}" is valid and ready for backend integration.`,
-      [
-        {
-          text: 'Return to Home',
-          onPress: handleBack,
-        },
-        {
-          text: 'OK',
-          style: 'cancel',
-        },
-      ]
-    );
+    setSessionBusinessProfile(payload);
+
+    if (navigation?.navigate) {
+      navigation.navigate('BusinessProfile', { business: payload });
+    }
   };
 
   // Render Selection Modal
