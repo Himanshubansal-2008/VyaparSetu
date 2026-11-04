@@ -19,6 +19,13 @@ import { getProducts } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
+/**
+ * Computes semantic stock status badge and color scheme.
+ * - Out of stock: stock === 0
+ * - Low stock: stock <= 20
+ * - In stock: stock > 20
+ * @param {number} stock - Current inventory level
+ */
 const getStockStatus = (stock) => {
   if (stock === 0) {
     return {
