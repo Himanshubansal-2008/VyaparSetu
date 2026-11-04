@@ -67,8 +67,15 @@ model Product {
   description String?
   price       Decimal @db.Decimal(10, 2)
   stock       Int     @default(0)
+  minOrderQuantity Int    @default(1)
+  unit             String @default("piece")
   imageUrl    String?
   isActive    Boolean @default(true)
+  isFeatured  Boolean @default(false)
+  isSurplus       Boolean   @default(false)
+  surplusQuantity Int       @default(0)
+  surplusPrice    Decimal?  @db.Decimal(10, 2)
+  surplusDeadline DateTime?
 
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -76,10 +83,30 @@ model Product {
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
+  bulkPricing BulkPricing[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([businessId])
   @@index([categoryId])
   @@index([name])
+  @@index([isActive, isFeatured])
+  @@index([isSurplus])
+}
+
+model BulkPricing {
+  id String @id @default(uuid())
+
+  minQuantity Int
+  maxQuantity Int?
+  pricePerUnit Decimal @db.Decimal(10, 2)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
 }
