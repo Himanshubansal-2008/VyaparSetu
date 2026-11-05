@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Inventory List Screen
+ * Provides complete inventory catalog with real-time text search,
+ * stock status filtering (All, In Stock, Low Stock, Out of Stock),
+ * and quick actions for editing, updating stock, and soft deactivation.
+ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
