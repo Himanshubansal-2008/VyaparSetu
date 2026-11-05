@@ -1,11 +1,14 @@
 const categoryService = require("../services/category.service");
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // GET /api/categories - Return all active categories
 const getAllCategories = async (req, res) => {
   try {
     const categories = await categoryService.getAllCategories();
     return res.status(200).json({
       success: true,
+      message: "Categories fetched successfully",
       data: categories,
     });
   } catch (error) {
@@ -16,19 +19,19 @@ const getAllCategories = async (req, res) => {
   }
 };
 
-// GET /api/categories/:id - Return a category by ID
+// GET /api/categories/:id - Return an active category by ID
 const getCategoryById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || typeof id !== "string" || !id.trim()) {
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
       return res.status(400).json({
         success: false,
-        message: "Category ID is required",
+        message: "Invalid category ID format",
       });
     }
 
-    const category = await categoryService.getCategoryById(id.trim());
+    const category = await categoryService.getActiveCategoryById(id.trim());
 
     if (!category) {
       return res.status(404).json({
@@ -39,6 +42,7 @@ const getCategoryById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: "Category fetched successfully",
       data: category,
     });
   } catch (error) {

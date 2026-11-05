@@ -12,19 +12,40 @@ const getAllCategories = async () => {
       name: true,
       description: true,
       imageUrl: true,
+    },
+  });
+};
+
+/**
+ * Fetch an active category by its unique ID
+ */
+const getActiveCategoryById = async (id) => {
+  return await prisma.category.findFirst({
+    where: {
+      id,
       isActive: true,
-      createdAt: true,
-      updatedAt: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      imageUrl: true,
     },
   });
 };
 
 /**
  * Fetch a category by its unique ID
+ * @param {string} id - Category ID
+ * @param {boolean} [activeOnly=false] - If true, only returns active category
  */
-const getCategoryById = async (id) => {
-  return await prisma.category.findUnique({
-    where: { id },
+const getCategoryById = async (id, activeOnly = false) => {
+  const where = { id };
+  if (activeOnly) {
+    where.isActive = true;
+  }
+  return await prisma.category.findFirst({
+    where,
     select: {
       id: true,
       name: true,
@@ -124,8 +145,10 @@ const deleteCategory = async (id) => {
 module.exports = {
   getAllCategories,
   getCategoryById,
+  getActiveCategoryById,
   getCategoryByName,
   createCategory,
   updateCategory,
   deleteCategory,
 };
+
