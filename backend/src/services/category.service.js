@@ -130,6 +130,15 @@ const updateCategory = async (id, data) => {
 };
 
 /**
+ * Count products associated with a category
+ */
+const countCategoryProducts = async (categoryId) => {
+  return await prisma.product.count({
+    where: { categoryId },
+  });
+};
+
+/**
  * Delete a category record by ID
  */
 const deleteCategory = async (id) => {
@@ -150,5 +159,6 @@ module.exports = {
   createCategory,
   updateCategory,
   deleteCategory,
+  countCategoryProducts,
 };
 

@@ -65,6 +65,20 @@ const createCategory = async (req, res) => {
       });
     }
 
+    if (description !== undefined && description !== null && typeof description !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Category description must be a string or null",
+      });
+    }
+
+    if (imageUrl !== undefined && imageUrl !== null && typeof imageUrl !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Category imageUrl must be a string or null",
+      });
+    }
+
     const trimmedName = name.trim();
 
     // Check for duplicate category name
@@ -72,7 +86,7 @@ const createCategory = async (req, res) => {
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: "Category with this name already exists",
+        message: "Category already exists",
       });
     }
 
@@ -92,7 +106,7 @@ const createCategory = async (req, res) => {
     if (error.code === "P2002") {
       return res.status(409).json({
         success: false,
-        message: "Category with this name already exists",
+        message: "Category already exists",
       });
     }
     return res.status(500).json({
@@ -107,10 +121,10 @@ const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || typeof id !== "string" || !id.trim()) {
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
       return res.status(400).json({
         success: false,
-        message: "Category ID is required",
+        message: "Invalid category ID format",
       });
     }
 
@@ -153,10 +167,34 @@ const updateCategory = async (req, res) => {
         if (conflict && conflict.id !== categoryId) {
           return res.status(409).json({
             success: false,
-            message: "Category with this name already exists",
+            message: "Category already exists",
           });
         }
       }
+    }
+
+    // Validate description if provided
+    if (description !== undefined && description !== null && typeof description !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Category description must be a string or null",
+      });
+    }
+
+    // Validate imageUrl if provided
+    if (imageUrl !== undefined && imageUrl !== null && typeof imageUrl !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Category imageUrl must be a string or null",
+      });
+    }
+
+    // Validate isActive if provided
+    if (isActive !== undefined && typeof isActive !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "isActive must be a boolean",
+      });
     }
 
     const updatedCategory = await categoryService.updateCategory(categoryId, {
@@ -175,7 +213,7 @@ const updateCategory = async (req, res) => {
     if (error.code === "P2002") {
       return res.status(409).json({
         success: false,
-        message: "Category with this name already exists",
+        message: "Category already exists",
       });
     }
     if (error.code === "P2025") {
@@ -196,10 +234,10 @@ const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || typeof id !== "string" || !id.trim()) {
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
       return res.status(400).json({
         success: false,
-        message: "Category ID is required",
+        message: "Invalid category ID format",
       });
     }
 
@@ -213,6 +251,15 @@ const deleteCategory = async (req, res) => {
       });
     }
 
+    // Check if products are associated with this category
+    const productCount = await categoryService.countCategoryProducts(categoryId);
+    if (productCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Cannot delete category while products are linked to it",
+      });
+    }
+
     const deleted = await categoryService.deleteCategory(categoryId);
 
     return res.status(200).json({
@@ -222,9 +269,9 @@ const deleteCategory = async (req, res) => {
     });
   } catch (error) {
     if (error.code === "P2003") {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        message: "Cannot delete category associated with existing products",
+        message: "Cannot delete category while products are linked to it",
       });
     }
     if (error.code === "P2025") {
