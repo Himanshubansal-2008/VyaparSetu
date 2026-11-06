@@ -103,20 +103,26 @@ const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || typeof id !== "string" || !id.trim()) {
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
       return res.status(400).json({
         success: false,
-        message: "Product ID is required",
+        message: "Invalid product ID format",
       });
     }
 
-    // Structured controller placeholder awaiting Product service layer
+    const product = await productService.getProductById(id.trim());
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Product fetched successfully",
-      data: {
-        id: id.trim(),
-      },
+      data: product,
     });
   } catch (error) {
     return res.status(500).json({

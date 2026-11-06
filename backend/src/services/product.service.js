@@ -128,7 +128,73 @@ const getAllProducts = async (filters = {}) => {
   };
 };
 
+/**
+ * Fetch a single active product by ID with full details and relations
+ * @param {string} id - Product UUID
+ * @returns {Promise<Object|null>} - Active product or null
+ */
+const getProductById = async (id) => {
+  return await prisma.product.findFirst({
+    where: {
+      id,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      price: true,
+      stock: true,
+      minOrderQuantity: true,
+      unit: true,
+      imageUrl: true,
+      isActive: true,
+      isFeatured: true,
+      isSurplus: true,
+      surplusQuantity: true,
+      surplusPrice: true,
+      surplusDeadline: true,
+      createdAt: true,
+      updatedAt: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          imageUrl: true,
+        },
+      },
+      business: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          category: true,
+          address: true,
+          city: true,
+          state: true,
+          pincode: true,
+          phone: true,
+          email: true,
+        },
+      },
+      bulkPricing: {
+        select: {
+          id: true,
+          minQuantity: true,
+          maxQuantity: true,
+          pricePerUnit: true,
+        },
+        orderBy: {
+          minQuantity: "asc",
+        },
+      },
+    },
+  });
+};
+
 module.exports = {
   getAllProducts,
+  getProductById,
 };
 
