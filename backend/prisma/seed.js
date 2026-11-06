@@ -1,5 +1,6 @@
 require("dotenv/config");
 const prisma = require("../src/lib/prisma");
+const { sampleProducts } = require("./data/sampleProducts");
 
 const sampleCategories = [
   {
@@ -64,7 +65,7 @@ const sampleCategories = [
   },
 ];
 
-async function main() {
+async function seedCategories() {
   console.log("Seeding marketplace categories...");
 
   for (const category of sampleCategories) {
@@ -84,9 +85,89 @@ async function main() {
   console.log(`Successfully completed seeding of ${sampleCategories.length} categories.`);
 }
 
+async function seedProducts() {
+  const existingBusinesses = await prisma.business.findMany({
+    select: { id: true, name: true },
+  });
+
+  if (existingBusinesses.length === 0) {
+    console.log("\n⚠️  Missing database prerequisite: No Business records found in database.");
+    console.log("ℹ️  Skipping product and bulk pricing seeding. Products require existing seller businesses.\n");
+    return;
+  }
+
+  const existingCategories = await prisma.category.findMany({
+    select: { id: true, name: true },
+  });
+  const categoryMap = new Map();
+  for (const cat of existingCategories) {
+    categoryMap.set(cat.name.trim().toLowerCase(), cat.id);
+  }
+
+  console.log("\nSeeding marketplace products and bulk pricing tiers...");
+  for (let i = 0; i < sampleProducts.length; i++) {
+    const p = sampleProducts[i];
+    const categoryId = categoryMap.get(p.categoryName.trim().toLowerCase());
+    if (!categoryId) {
+      console.warn(`Skipping '${p.name}': Category '${p.categoryName}' not found in database.`);
+      continue;
+    }
+
+    const business = existingBusinesses[(p.businessIndex !== undefined ? p.businessIndex : i) % existingBusinesses.length];
+
+    const productRecord = await prisma.product.upsert({
+      where: { id: p.id },
+      update: {},
+      create: {
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        stock: p.stock,
+        minOrderQuantity: p.minOrderQuantity,
+        unit: p.unit,
+        imageUrl: p.imageUrl,
+        isActive: p.isActive,
+        isFeatured: p.isFeatured,
+        isSurplus: p.isSurplus,
+        surplusQuantity: p.surplusQuantity,
+        surplusPrice: p.surplusPrice,
+        surplusDeadline: p.surplusDeadline,
+        categoryId,
+        businessId: business.id,
+      },
+    });
+
+    console.log(`- Product upserted: ${productRecord.name} (${productRecord.id})`);
+
+    if (p.bulkPricing && p.bulkPricing.length > 0) {
+      for (const tier of p.bulkPricing) {
+        await prisma.bulkPricing.upsert({
+          where: { id: tier.id },
+          update: {},
+          create: {
+            id: tier.id,
+            productId: productRecord.id,
+            minQuantity: tier.minQuantity,
+            maxQuantity: tier.maxQuantity,
+            pricePerUnit: tier.pricePerUnit,
+          },
+        });
+      }
+    }
+  }
+
+  console.log(`Successfully completed seeding of ${sampleProducts.length} sample products.`);
+}
+
+async function main() {
+  await seedCategories();
+  await seedProducts();
+}
+
 main()
   .catch((e) => {
-    console.error("Error during category seeding:", e);
+    console.error("Error during seeding:", e);
     process.exit(1);
   })
   .finally(async () => {
