@@ -90,9 +90,13 @@ const getAllProducts = async (filters = {}) => {
             id: true,
             name: true,
             description: true,
+            category: true,
+            address: true,
             city: true,
             state: true,
+            pincode: true,
             phone: true,
+            email: true,
           },
         },
         bulkPricing: {
