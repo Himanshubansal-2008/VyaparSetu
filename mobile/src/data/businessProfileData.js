@@ -210,11 +210,40 @@ export const getBusinessByName = (name) => {
 
 export const businessProfileData = businesses[0];
 
-const STORAGE_KEY_SESSION_PROFILE = '@vyaparsetu_business_profile';
-const STORAGE_KEY_CUSTOM_BUSINESSES = '@vyaparsetu_custom_businesses';
+export const STORAGE_KEY_SESSION_PROFILE = '@vyaparsetu_business_profile';
+export const STORAGE_KEY_CUSTOM_BUSINESSES = '@vyaparsetu_custom_businesses';
 
 let sessionBusinessProfile = null;
 const profileListeners = new Set();
+
+/**
+ * Check whether a business profile object represents a valid user-created business profile.
+ * Rejects null, undefined, invalid objects, and the mock Sharma Handicrafts business profile.
+ */
+export const isUserCreatedProfile = (profile) => {
+  if (!profile || typeof profile !== 'object') return false;
+
+  const id = String(profile.id || profile.sellerId || '').trim().toLowerCase();
+  // Must NOT be the mock Sharma Handicrafts profile or empty ID
+  if (!id || id === 'biz-sharma-handicrafts') {
+    return false;
+  }
+
+  const name = String(profile.businessName || profile.sellerName || '').trim();
+  // Must have a non-empty business name
+  if (!name) {
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Returns true if a valid user-created business profile exists in the current session.
+ */
+export const hasUserBusinessProfile = () => {
+  return isUserCreatedProfile(sessionBusinessProfile);
+};
 
 export const subscribeBusinessProfile = (listener) => {
   if (typeof listener !== 'function') return () => {};

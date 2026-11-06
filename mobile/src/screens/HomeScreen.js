@@ -8,7 +8,10 @@ import {
   Platform,
   FlatList,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import CategoryList from '../components/CategoryList';
@@ -21,7 +24,10 @@ import {
 } from '../data/products';
 import {
   getSessionBusinessProfile,
+  setSessionBusinessProfile,
   subscribeBusinessProfile,
+  isUserCreatedProfile,
+  STORAGE_KEY_SESSION_PROFILE,
 } from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -62,6 +68,8 @@ export default function HomeScreen({
 
   // Track saved business profile to dynamically update the Business Profile card
   const [savedProfile, setSavedProfile] = useState(getSessionBusinessProfile);
+  const [isProfileRequiredModalVisible, setIsProfileRequiredModalVisible] =
+    useState(false);
 
   useEffect(() => {
     setSavedProfile(getSessionBusinessProfile());
@@ -70,14 +78,7 @@ export default function HomeScreen({
     });
   }, []);
 
-  const hasSavedProfile = Boolean(
-    savedProfile &&
-      typeof savedProfile === 'object' &&
-      ((typeof savedProfile.businessName === 'string' &&
-        savedProfile.businessName.trim().length > 0) ||
-        (typeof savedProfile.id === 'string' &&
-          savedProfile.id.trim().length > 0))
-  );
+  const hasSavedProfile = isUserCreatedProfile(savedProfile);
 
   // Selected category state with 'all' as default option
   const [internalSelectedCategory, setInternalSelectedCategory] =
@@ -141,20 +142,48 @@ export default function HomeScreen({
     }
   };
 
-  const handleAddProductPress = () => {
-    const profile = getSessionBusinessProfile();
-    const params = profile
-      ? {
-          business: profile,
-          businessId: profile?.id,
-          sellerId: profile?.sellerId || profile?.id,
-        }
-      : {};
+  const handleAddProductPress = async () => {
+    try {
+      // 1. Check in-memory shared profile first
+      let currentProfile = getSessionBusinessProfile() || savedProfile;
 
-    if (onNavigateToAddProduct) {
-      onNavigateToAddProduct(params);
-    } else if (navigation?.navigate) {
-      navigation.navigate('AddProduct', params);
+      // 2. If not found in memory, perform a safe disk read from AsyncStorage as fallback
+      if (!isUserCreatedProfile(currentProfile)) {
+        const storedJson = await AsyncStorage.getItem(
+          STORAGE_KEY_SESSION_PROFILE
+        );
+        if (storedJson) {
+          const parsed = JSON.parse(storedJson);
+          if (isUserCreatedProfile(parsed)) {
+            currentProfile = parsed;
+            setSessionBusinessProfile(parsed);
+          }
+        }
+      }
+
+      // 3. Evaluate if valid user-created business profile exists
+      if (isUserCreatedProfile(currentProfile)) {
+        const params = {
+          business: currentProfile,
+          businessId: currentProfile.id,
+          sellerId: currentProfile.sellerId || currentProfile.id,
+        };
+
+        if (onNavigateToAddProduct) {
+          onNavigateToAddProduct(params);
+        } else if (navigation?.navigate) {
+          navigation.navigate('AddProduct', params);
+        }
+      } else {
+        // Business profile does not exist: display the requirement message modal
+        setIsProfileRequiredModalVisible(true);
+      }
+    } catch (error) {
+      console.warn('[HomeScreen] Failed to verify business profile:', error);
+      Alert.alert(
+        'Verification Error',
+        'Unable to verify your business profile at this time. Please try again.'
+      );
     }
   };
 
@@ -483,6 +512,72 @@ export default function HomeScreen({
           )
         }
       />
+
+      {/* Business Profile Required Modal */}
+      <Modal
+        visible={isProfileRequiredModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsProfileRequiredModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setIsProfileRequiredModalVisible(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close dialog"
+            >
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={styles.modalIconBox}>
+              <Ionicons
+                name="storefront-outline"
+                size={32}
+                color={colors.primary}
+              />
+            </View>
+
+            <Text style={styles.modalHeading}>Business Profile Required</Text>
+            <Text style={styles.modalMessage}>
+              You need to create a business profile before adding products. Create
+              your business profile to start listing products on VyaparSetu.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalPrimaryButton}
+              onPress={() => {
+                setIsProfileRequiredModalVisible(false);
+                navigation?.navigate('CreateBusinessProfile');
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Create Business Profile"
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={18}
+                color={colors.textInverse}
+              />
+              <Text style={styles.modalPrimaryButtonText}>
+                Create Business Profile
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setIsProfileRequiredModalVisible(false)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+            >
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -813,5 +908,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.xs + 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.lg,
+    alignItems: 'center',
+    position: 'relative',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    padding: spacing.xs,
+  },
+  modalIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.infoLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  modalHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    letterSpacing: -0.3,
+  },
+  modalMessage: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.xs,
+  },
+  modalPrimaryButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.xs,
+    gap: spacing.xs + 2,
+  },
+  modalPrimaryButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
+  modalCancelButton: {
+    width: '100%',
+    paddingVertical: spacing.sm + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
 });
