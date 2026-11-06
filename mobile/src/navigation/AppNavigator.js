@@ -5,6 +5,7 @@ import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import BusinessProfileScreen from '../screens/BusinessProfileScreen';
 import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen';
+import AddProductScreen from '../screens/AddProductScreen';
 
 const VALID_ROUTES = [
   'Home',
@@ -12,6 +13,7 @@ const VALID_ROUTES = [
   'ProductDetails',
   'BusinessProfile',
   'CreateBusinessProfile',
+  'AddProduct',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -135,6 +137,18 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     return foundInHistory || null;
   }, [currentRoute, history]);
 
+  // Preserve BusinessProfileScreen while active or in history when navigating to AddProduct
+  const profileRoute = useMemo(() => {
+    if (currentRoute.name === 'BusinessProfile') {
+      return currentRoute;
+    }
+    const foundInHistory = history
+      .slice()
+      .reverse()
+      .find((r) => r.name === 'BusinessProfile');
+    return foundInHistory || null;
+  }, [currentRoute, history]);
+
   const handleNavigateToProductDetails = useCallback(
     (itemOrParams) => {
       if (
@@ -163,6 +177,23 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         navigate('BusinessProfile', itemOrParams);
       } else {
         navigate('BusinessProfile', {});
+      }
+    },
+    [navigate]
+  );
+
+  const handleNavigateToAddProduct = useCallback(
+    (itemOrParams) => {
+      if (itemOrParams && typeof itemOrParams === 'object') {
+        navigate('AddProduct', {
+          business: itemOrParams,
+          businessId: itemOrParams.id,
+          sellerId: itemOrParams.sellerId || itemOrParams.id,
+        });
+      } else if (typeof itemOrParams === 'string') {
+        navigate('AddProduct', { businessId: itemOrParams });
+      } else {
+        navigate('AddProduct', {});
       }
     },
     [navigate]
@@ -226,20 +257,27 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         </View>
       )}
 
-      {/* Business Profile Screen */}
-      {currentRoute.name === 'BusinessProfile' && (
-        <View style={styles.screen}>
+      {/* Business Profile Screen is kept mounted while in history to preserve state and scroll */}
+      {profileRoute && (
+        <View
+          style={[
+            styles.screen,
+            currentRoute.name !== 'BusinessProfile' && styles.screenHidden,
+          ]}
+        >
           <BusinessProfileScreen
             key={
-              currentRoute.params?.businessId ||
-              currentRoute.params?.id ||
-              currentRoute.params?.business?.id ||
+              profileRoute.params?.business?.updatedAt ||
+              profileRoute.params?.businessId ||
+              profileRoute.params?.id ||
+              profileRoute.params?.business?.id ||
               'profile'
             }
             navigation={navigation}
-            route={currentRoute}
+            route={profileRoute}
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToAddProduct={handleNavigateToAddProduct}
           />
         </View>
       )}
@@ -249,6 +287,17 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         <View style={styles.screen}>
           <CreateBusinessProfileScreen
             key={currentRoute.params?.business?.id || 'create'}
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+          />
+        </View>
+      )}
+
+      {/* Add Product Screen */}
+      {currentRoute.name === 'AddProduct' && (
+        <View style={styles.screen}>
+          <AddProductScreen
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}

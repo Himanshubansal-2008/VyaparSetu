@@ -32,6 +32,7 @@ export default function BusinessProfileScreen({
   business: propBusiness,
   products: propProducts,
   onNavigateToProductDetails,
+  onNavigateToAddProduct,
 }) {
   // 1. Resolve target business dynamically using ID, object, or lookup
   const resolvedBusiness = useMemo(() => {
@@ -212,6 +213,18 @@ export default function BusinessProfileScreen({
       navigation.navigate('CreateBusinessProfile', {
         business: resolvedBusiness,
         isEdit: true,
+      });
+    }
+  };
+
+  const handleNavigateToAddProduct = () => {
+    if (onNavigateToAddProduct) {
+      onNavigateToAddProduct(resolvedBusiness);
+    } else if (navigation?.navigate) {
+      navigation.navigate('AddProduct', {
+        business: resolvedBusiness,
+        businessId: resolvedBusiness?.id,
+        sellerId: resolvedBusiness?.sellerId || resolvedBusiness?.id,
       });
     }
   };
@@ -626,20 +639,32 @@ export default function BusinessProfileScreen({
         {/* 9. Business Products Section */}
         <View style={[styles.card, businessProducts.length > 0 && styles.productsCard]}>
           <View style={[styles.sectionHeaderRow, businessProducts.length > 0 && styles.productsSectionHeader]}>
-            <Ionicons
-              name="cube-outline"
-              size={18}
-              color={colors.primary}
-              style={styles.sectionHeaderIcon}
-            />
-            <Text style={styles.sectionTitle}>Products</Text>
-            {businessProducts.length > 0 && (
-              <View style={styles.productCountBadge}>
-                <Text style={styles.productCountText}>
-                  {businessProducts.length}
-                </Text>
-              </View>
-            )}
+            <View style={styles.productsTitleGroup}>
+              <Ionicons
+                name="cube-outline"
+                size={18}
+                color={colors.primary}
+                style={styles.sectionHeaderIcon}
+              />
+              <Text style={styles.sectionTitle}>Products</Text>
+              {businessProducts.length > 0 && (
+                <View style={styles.productCountBadge}>
+                  <Text style={styles.productCountText}>
+                    {businessProducts.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.addProductButton}
+              onPress={handleNavigateToAddProduct}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add Product"
+            >
+              <Ionicons name="add" size={16} color={colors.textInverse} />
+              <Text style={styles.addProductButtonText}>Add Product</Text>
+            </TouchableOpacity>
           </View>
 
           {businessProducts.length > 0 ? (
@@ -664,6 +689,16 @@ export default function BusinessProfileScreen({
               <Text style={styles.emptyProductsTitle}>
                 No products listed by this business yet.
               </Text>
+              <TouchableOpacity
+                style={[styles.addProductButton, styles.emptyAddProductButton]}
+                onPress={handleNavigateToAddProduct}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Add Product"
+              >
+                <Ionicons name="add" size={16} color={colors.textInverse} />
+                <Text style={styles.addProductButtonText}>Add Product</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -1069,5 +1104,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  productsTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    flex: 1,
+  },
+  addProductButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.md,
+  },
+  emptyAddProductButton: {
+    marginTop: spacing.md,
+  },
+  addProductButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textInverse,
   },
 });
