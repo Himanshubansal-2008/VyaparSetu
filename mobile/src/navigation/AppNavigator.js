@@ -17,6 +17,7 @@ const VALID_ROUTES = [
   'ProductDetails',
   'BusinessProfile',
   'CreateBusinessProfile',
+  'EditBusinessProfile',
   'AddProduct',
 ];
 
@@ -298,8 +299,9 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         </View>
       )}
 
-      {/* Create Business Profile Screen */}
-      {currentRoute.name === 'CreateBusinessProfile' && (
+      {/* Create / Edit Business Profile Screen */}
+      {(currentRoute.name === 'CreateBusinessProfile' ||
+        currentRoute.name === 'EditBusinessProfile') && (
         <View style={styles.screen}>
           <CreateBusinessProfileScreen
             key={

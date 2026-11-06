@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,6 +20,7 @@ import {
   getBusinessById,
   getBusinessByName,
   getSessionBusinessProfile,
+  subscribeBusinessProfile,
 } from '../data/businessProfileData';
 import { products as defaultProducts } from '../data/products';
 import ProductCard from '../components/ProductCard';
@@ -34,8 +35,41 @@ export default function BusinessProfileScreen({
   onNavigateToProductDetails,
   onNavigateToAddProduct,
 }) {
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
   // 1. Resolve target business dynamically using ID, object, or lookup
   const resolvedBusiness = useMemo(() => {
+    const rawTarget =
+      propBusiness ||
+      route?.params?.business ||
+      route?.params?.businessProfile ||
+      null;
+
+    const targetId =
+      rawTarget?.id ||
+      route?.params?.businessId ||
+      route?.params?.sellerId ||
+      route?.params?.id;
+
+    // Priority 0: If viewing the session business profile, use latest sessionProfile state
+    if (
+      sessionProfile &&
+      targetId &&
+      (String(targetId).trim().toLowerCase() ===
+        String(sessionProfile.id).trim().toLowerCase() ||
+        String(targetId).trim().toLowerCase() ===
+          String(sessionProfile.sellerId).trim().toLowerCase())
+    ) {
+      return sessionProfile;
+    }
+
     // Explicit business prop
     if (
       propBusiness &&
@@ -72,17 +106,10 @@ export default function BusinessProfileScreen({
       return route.params;
     }
 
-    // Lookup by businessId or sellerId
-    const targetId =
-      route?.params?.businessId ??
-      route?.params?.sellerId ??
-      route?.params?.id;
-
     if (targetId !== undefined && targetId !== null && String(targetId).trim()) {
       const cleanTargetId = String(targetId).trim().toLowerCase();
 
       // Check if target matches session submitted business profile
-      const sessionProfile = getSessionBusinessProfile();
       if (
         sessionProfile &&
         ((sessionProfile.id && sessionProfile.id.toLowerCase() === cleanTargetId) ||
@@ -122,14 +149,13 @@ export default function BusinessProfileScreen({
     }
 
     // Priority 1: Check if a business profile was submitted during this session
-    const sessionProfile = getSessionBusinessProfile();
     if (sessionProfile) {
       return sessionProfile;
     }
 
     // Priority 2: Standalone fallback to mock data (Sharma Handicrafts)
     return businessProfileData;
-  }, [propBusiness, route?.params]);
+  }, [propBusiness, route?.params, sessionProfile]);
 
   const allProducts =
     propProducts !== undefined
@@ -210,7 +236,7 @@ export default function BusinessProfileScreen({
 
   const handleEditProfile = () => {
     if (navigation?.navigate && resolvedBusiness) {
-      navigation.navigate('CreateBusinessProfile', {
+      navigation.navigate('EditBusinessProfile', {
         business: resolvedBusiness,
         isEdit: true,
       });
@@ -276,11 +302,18 @@ export default function BusinessProfileScreen({
     email = '',
     address = '',
     location = '',
+    city = '',
+    state = '',
+    pincode = '',
     isVerified = false,
     specialties = [],
   } = resolvedBusiness;
 
   const specialtiesList = Array.isArray(specialties) ? specialties : [];
+  const displayLocation =
+    location ||
+    [city, state].filter(Boolean).join(', ') ||
+    'Location not specified';
 
   const handlePhonePress = async () => {
     if (!contactNumber) return;
@@ -579,13 +612,18 @@ export default function BusinessProfileScreen({
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Location</Text>
                 <Text style={styles.infoValue}>
-                  {location || 'Location not specified'}
+                  {displayLocation}
                 </Text>
               </View>
             </View>
 
             {/* Complete Address */}
-            <View style={[styles.addressItem, styles.addressItemLast]}>
+            <View
+              style={[
+                styles.addressItem,
+                !pincode && styles.addressItemLast,
+              ]}
+            >
               <View style={styles.infoIconBox}>
                 <Ionicons
                   name="location"
@@ -600,6 +638,23 @@ export default function BusinessProfileScreen({
                 </Text>
               </View>
             </View>
+
+            {/* PIN Code */}
+            {Boolean(pincode) && (
+              <View style={[styles.addressItem, styles.addressItemLast]}>
+                <View style={styles.infoIconBox}>
+                  <Ionicons
+                    name="mail-unread-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>PIN Code</Text>
+                  <Text style={styles.infoValue}>{pincode}</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
@@ -634,6 +689,20 @@ export default function BusinessProfileScreen({
               No specialties listed for this business.
             </Text>
           )}
+        </View>
+
+        {/* Edit Profile Action Button below business details and specialties */}
+        <View style={styles.editProfileContainer}>
+          <TouchableOpacity
+            style={styles.fullEditProfileButton}
+            onPress={handleEditProfile}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Edit Profile"
+          >
+            <Ionicons name="create-outline" size={18} color={colors.primary} />
+            <Text style={styles.fullEditProfileButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 9. Business Products Section */}
@@ -1127,5 +1196,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.textInverse,
+  },
+  editProfileContainer: {
+    marginBottom: spacing.lg,
+  },
+  fullEditProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs + 2,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  fullEditProfileButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });

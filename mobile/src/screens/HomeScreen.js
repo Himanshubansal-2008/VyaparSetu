@@ -128,6 +128,18 @@ export default function HomeScreen({
     }
   };
 
+  const handleBusinessCardPress = () => {
+    if (hasSavedProfile) {
+      const profile = getSessionBusinessProfile();
+      navigation?.navigate('BusinessProfile', {
+        business: profile,
+        businessId: profile?.id,
+      });
+    } else {
+      navigation?.navigate('CreateBusinessProfile');
+    }
+  };
+
   const trimmedQuery = searchQuery.trim();
   const searchTokens = useMemo(() => {
     return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
@@ -220,7 +232,7 @@ export default function HomeScreen({
               ? 'My Business Profile - Start selling on VyaparSetu'
               : 'Create Business Profile - Start selling on VyaparSetu'
           }
-          onPress={() => navigation?.navigate('CreateBusinessProfile')}
+          onPress={handleBusinessCardPress}
         >
           <View style={styles.createBusinessIconBox}>
             <Ionicons
