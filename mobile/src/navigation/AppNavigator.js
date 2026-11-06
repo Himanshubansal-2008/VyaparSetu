@@ -6,6 +6,10 @@ import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import BusinessProfileScreen from '../screens/BusinessProfileScreen';
 import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen';
 import AddProductScreen from '../screens/AddProductScreen';
+import {
+  loadPersistedBusinessProfile,
+  getSessionBusinessProfile,
+} from '../data/businessProfileData';
 
 const VALID_ROUTES = [
   'Home',
@@ -17,6 +21,7 @@ const VALID_ROUTES = [
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
+  const [isLoaded, setIsLoaded] = useState(false);
   const [navState, setNavState] = useState({
     currentRoute: {
       name: VALID_ROUTES.includes(initialRouteName) ? initialRouteName : 'Home',
@@ -107,6 +112,13 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
 
     return () => backHandler.remove();
   }, [history.length, goBack]);
+
+  // Load persisted business profile data from AsyncStorage on app launch
+  useEffect(() => {
+    loadPersistedBusinessProfile().finally(() => {
+      setIsLoaded(true);
+    });
+  }, []);
 
   const homeRoute = useMemo(
     () => (currentRoute.name === 'Home' ? currentRoute : { name: 'Home', params: {} }),
@@ -199,6 +211,10 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  if (!isLoaded) {
+    return <View style={styles.container} />;
+  }
+
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
@@ -286,7 +302,11 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
       {currentRoute.name === 'CreateBusinessProfile' && (
         <View style={styles.screen}>
           <CreateBusinessProfileScreen
-            key={currentRoute.params?.business?.id || 'create'}
+            key={
+              currentRoute.params?.business?.id ||
+              getSessionBusinessProfile()?.id ||
+              'create'
+            }
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}

@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 /**
  * Mock data for Business Profile Screen
  * Represents sample business profile information for VyaparSetu sellers.
@@ -208,10 +210,136 @@ export const getBusinessByName = (name) => {
 
 export const businessProfileData = businesses[0];
 
+const STORAGE_KEY_SESSION_PROFILE = '@vyaparsetu_business_profile';
+const STORAGE_KEY_CUSTOM_BUSINESSES = '@vyaparsetu_custom_businesses';
+
 let sessionBusinessProfile = null;
+
+/**
+ * Load persisted business profile and custom businesses from AsyncStorage into memory.
+ * Call this during app startup before screens render.
+ */
+export const loadPersistedBusinessProfile = async () => {
+  try {
+    const [profileJson, businessesJson] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY_SESSION_PROFILE),
+      AsyncStorage.getItem(STORAGE_KEY_CUSTOM_BUSINESSES),
+    ]);
+
+    if (profileJson) {
+      sessionBusinessProfile = JSON.parse(profileJson);
+      if (sessionBusinessProfile) {
+        const targetId =
+          sessionBusinessProfile.id || sessionBusinessProfile.sellerId;
+        if (targetId) {
+          const cleanId = String(targetId).trim().toLowerCase();
+          const index = businesses.findIndex(
+            (b) =>
+              (b.id && b.id.toLowerCase() === cleanId) ||
+              (b.sellerId && b.sellerId.toLowerCase() === cleanId)
+          );
+          if (index !== -1) {
+            businesses[index] = {
+              ...businesses[index],
+              ...sessionBusinessProfile,
+            };
+          } else {
+            businesses.push(sessionBusinessProfile);
+          }
+        }
+      }
+    }
+
+    if (businessesJson) {
+      const customBusinesses = JSON.parse(businessesJson);
+      if (Array.isArray(customBusinesses)) {
+        customBusinesses.forEach((cb) => {
+          if (!cb) return;
+          const targetId = cb.id || cb.sellerId;
+          if (targetId) {
+            const cleanId = String(targetId).trim().toLowerCase();
+            const index = businesses.findIndex(
+              (b) =>
+                (b.id && b.id.toLowerCase() === cleanId) ||
+                (b.sellerId && b.sellerId.toLowerCase() === cleanId)
+            );
+            if (index !== -1) {
+              businesses[index] = { ...businesses[index], ...cb };
+            } else {
+              businesses.push(cb);
+            }
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.warn(
+      '[businessProfileData] Failed to load persisted business profile:',
+      error
+    );
+  }
+  return sessionBusinessProfile;
+};
+
+const persistData = async () => {
+  try {
+    const promises = [];
+    if (sessionBusinessProfile) {
+      promises.push(
+        AsyncStorage.setItem(
+          STORAGE_KEY_SESSION_PROFILE,
+          JSON.stringify(sessionBusinessProfile)
+        )
+      );
+    } else {
+      promises.push(AsyncStorage.removeItem(STORAGE_KEY_SESSION_PROFILE));
+    }
+
+    // Persist all submitted or updated custom businesses
+    const customBusinesses = businesses.filter(
+      (b) =>
+        b &&
+        (b.isSubmitted ||
+          (b.id && b.id.startsWith('biz-submitted-')) ||
+          (sessionBusinessProfile &&
+            (b.id === sessionBusinessProfile.id ||
+              b.sellerId === sessionBusinessProfile.sellerId)))
+    );
+
+    if (customBusinesses.length > 0) {
+      promises.push(
+        AsyncStorage.setItem(
+          STORAGE_KEY_CUSTOM_BUSINESSES,
+          JSON.stringify(customBusinesses)
+        )
+      );
+    }
+    await Promise.all(promises);
+  } catch (error) {
+    console.warn('[businessProfileData] Failed to persist data:', error);
+  }
+};
 
 export const setSessionBusinessProfile = (profile) => {
   sessionBusinessProfile = profile;
+  if (profile) {
+    const targetId = profile.id || profile.sellerId;
+    if (targetId) {
+      const cleanId = String(targetId).trim().toLowerCase();
+      const index = businesses.findIndex(
+        (b) =>
+          (b.id && b.id.toLowerCase() === cleanId) ||
+          (b.sellerId && b.sellerId.toLowerCase() === cleanId)
+      );
+      if (index !== -1) {
+        businesses[index] = { ...businesses[index], ...profile };
+      } else {
+        businesses.push(profile);
+      }
+    }
+    return persistData();
+  }
+  return Promise.resolve();
 };
 
 export const getSessionBusinessProfile = () => {
@@ -219,7 +347,7 @@ export const getSessionBusinessProfile = () => {
 };
 
 export const updateBusinessProfile = (updatedProfile) => {
-  if (!updatedProfile) return;
+  if (!updatedProfile) return Promise.resolve();
   sessionBusinessProfile = updatedProfile;
 
   const targetId = updatedProfile.id || updatedProfile.sellerId;
@@ -232,8 +360,11 @@ export const updateBusinessProfile = (updatedProfile) => {
     );
     if (index !== -1) {
       businesses[index] = { ...businesses[index], ...updatedProfile };
+    } else {
+      businesses.push(updatedProfile);
     }
   }
+  return persistData();
 };
 
 export default businessProfileData;

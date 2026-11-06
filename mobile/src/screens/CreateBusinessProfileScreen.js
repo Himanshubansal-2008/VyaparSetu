@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import {
+  getSessionBusinessProfile,
   setSessionBusinessProfile,
   updateBusinessProfile,
 } from '../data/businessProfileData';
@@ -76,8 +77,12 @@ export default function CreateBusinessProfileScreen({
   route,
   onBackPress,
 }) {
-  const isEditMode = Boolean(route?.params?.isEdit || route?.params?.business);
-  const initialBusiness = route?.params?.business || null;
+  const existingProfile = getSessionBusinessProfile();
+  const isEditMode = Boolean(
+    route?.params?.isEdit || route?.params?.business || existingProfile
+  );
+  const initialBusiness =
+    route?.params?.business || existingProfile || null;
 
   // 1. Form State
   const [businessImage, setBusinessImage] = useState(() => {
