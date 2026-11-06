@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,6 +19,10 @@ import {
   products as defaultProducts,
   categories as defaultCategories,
 } from '../data/products';
+import {
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+} from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -54,6 +58,25 @@ export default function HomeScreen({
   const searchQuery =
     propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
   const handleSearchChange = propOnSearchChange || setInternalSearchQuery;
+
+  // Track saved business profile to dynamically update the Business Profile card
+  const [savedProfile, setSavedProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSavedProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSavedProfile(updated);
+    });
+  }, []);
+
+  const hasSavedProfile = Boolean(
+    savedProfile &&
+      typeof savedProfile === 'object' &&
+      ((typeof savedProfile.businessName === 'string' &&
+        savedProfile.businessName.trim().length > 0) ||
+        (typeof savedProfile.id === 'string' &&
+          savedProfile.id.trim().length > 0))
+  );
 
   // Selected category state with 'all' as default option
   const [internalSelectedCategory, setInternalSelectedCategory] =
@@ -192,7 +215,11 @@ export default function HomeScreen({
           style={styles.createBusinessCard}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Create Business Profile - Start selling on VyaparSetu"
+          accessibilityLabel={
+            hasSavedProfile
+              ? 'My Business Profile - Start selling on VyaparSetu'
+              : 'Create Business Profile - Start selling on VyaparSetu'
+          }
           onPress={() => navigation?.navigate('CreateBusinessProfile')}
         >
           <View style={styles.createBusinessIconBox}>
@@ -204,7 +231,9 @@ export default function HomeScreen({
           </View>
           <View style={styles.createBusinessTextCol}>
             <Text style={styles.createBusinessHeading}>
-              Create Business Profile
+              {hasSavedProfile
+                ? 'My Business Profile'
+                : 'Create Business Profile'}
             </Text>
             <Text style={styles.createBusinessSubtitle} numberOfLines={1}>
               Start selling on VyaparSetu

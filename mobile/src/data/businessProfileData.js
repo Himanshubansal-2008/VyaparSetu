@@ -214,6 +214,25 @@ const STORAGE_KEY_SESSION_PROFILE = '@vyaparsetu_business_profile';
 const STORAGE_KEY_CUSTOM_BUSINESSES = '@vyaparsetu_custom_businesses';
 
 let sessionBusinessProfile = null;
+const profileListeners = new Set();
+
+export const subscribeBusinessProfile = (listener) => {
+  if (typeof listener !== 'function') return () => {};
+  profileListeners.add(listener);
+  return () => {
+    profileListeners.delete(listener);
+  };
+};
+
+const notifyProfileListeners = () => {
+  profileListeners.forEach((listener) => {
+    try {
+      listener(sessionBusinessProfile);
+    } catch (e) {
+      console.warn('[businessProfileData] Listener error:', e);
+    }
+  });
+};
 
 /**
  * Load persisted business profile and custom businesses from AsyncStorage into memory.
@@ -278,6 +297,7 @@ export const loadPersistedBusinessProfile = async () => {
       error
     );
   }
+  notifyProfileListeners();
   return sessionBusinessProfile;
 };
 
@@ -337,9 +357,11 @@ export const setSessionBusinessProfile = (profile) => {
         businesses.push(profile);
       }
     }
+    notifyProfileListeners();
     return persistData();
   }
-  return Promise.resolve();
+  notifyProfileListeners();
+  return persistData();
 };
 
 export const getSessionBusinessProfile = () => {
@@ -364,6 +386,7 @@ export const updateBusinessProfile = (updatedProfile) => {
       businesses.push(updatedProfile);
     }
   }
+  notifyProfileListeners();
   return persistData();
 };
 
