@@ -198,10 +198,13 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
   const handleNavigateToAddProduct = useCallback(
     (itemOrParams) => {
       if (itemOrParams && typeof itemOrParams === 'object') {
+        const businessObj = itemOrParams.business || itemOrParams;
+        const bId = itemOrParams.businessId || itemOrParams.id || businessObj?.id;
+        const sId = itemOrParams.sellerId || businessObj?.sellerId || bId;
         navigate('AddProduct', {
-          business: itemOrParams,
-          businessId: itemOrParams.id,
-          sellerId: itemOrParams.sellerId || itemOrParams.id,
+          business: businessObj,
+          businessId: bId,
+          sellerId: sId,
         });
       } else if (typeof itemOrParams === 'string') {
         navigate('AddProduct', { businessId: itemOrParams });
@@ -232,6 +235,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             navigate('ProductListing', params)
           }
           onNavigateToProductDetails={handleNavigateToProductDetails}
+          onNavigateToAddProduct={handleNavigateToAddProduct}
         />
       </View>
 

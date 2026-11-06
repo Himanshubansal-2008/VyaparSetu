@@ -33,6 +33,7 @@ export default function HomeScreen({
   categories: propCategories,
   onNavigateToProductListing,
   onNavigateToProductDetails,
+  onNavigateToAddProduct,
   searchQuery: propSearchQuery,
   onSearchChange: propOnSearchChange,
   selectedCategory: propSelectedCategory,
@@ -137,6 +138,23 @@ export default function HomeScreen({
       });
     } else {
       navigation?.navigate('CreateBusinessProfile');
+    }
+  };
+
+  const handleAddProductPress = () => {
+    const profile = getSessionBusinessProfile();
+    const params = profile
+      ? {
+          business: profile,
+          businessId: profile?.id,
+          sellerId: profile?.sellerId || profile?.id,
+        }
+      : {};
+
+    if (onNavigateToAddProduct) {
+      onNavigateToAddProduct(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('AddProduct', params);
     }
   };
 
@@ -252,6 +270,36 @@ export default function HomeScreen({
             </Text>
           </View>
           <View style={styles.createBusinessArrowBox}>
+            <Ionicons
+              name="arrow-forward"
+              size={16}
+              color={colors.primary}
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* Add Product Card: positioned directly below Business Profile card and above search bar */}
+        <TouchableOpacity
+          style={styles.addProductCard}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Add Product - List a new product on VyaparSetu"
+          onPress={handleAddProductPress}
+        >
+          <View style={styles.addProductIconBox}>
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={colors.success}
+            />
+          </View>
+          <View style={styles.addProductTextCol}>
+            <Text style={styles.addProductHeading}>Add Product</Text>
+            <Text style={styles.addProductSubtitle} numberOfLines={1}>
+              List a new product on VyaparSetu
+            </Text>
+          </View>
+          <View style={styles.addProductArrowBox}>
             <Ionicons
               name="arrow-forward"
               size={16}
@@ -655,7 +703,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: spacing.sm + 2,
+    marginBottom: spacing.sm,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -696,6 +744,66 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   createBusinessArrowBox: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.xs + 2,
+  },
+  addProductCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  addProductIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.successLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  addProductTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  addProductHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+    marginBottom: 2,
+  },
+  addProductSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  addProductArrowBox: {
     width: 28,
     height: 28,
     borderRadius: borderRadius.full,
