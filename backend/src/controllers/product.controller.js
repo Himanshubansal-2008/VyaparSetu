@@ -1,14 +1,26 @@
-// GET /api/products - Get all products (with optional query filters)
+const productService = require("../services/product.service");
+
+// GET /api/products - Get all products (with optional query filters and pagination)
 const getAllProducts = async (req, res) => {
   try {
-    // Read query parameters for future filtering and pagination
-    const { category, categoryId, search, isFeatured, isSurplus, page, limit } = req.query;
+    const { category, categoryId, search, isFeatured, page, limit } = req.query;
 
-    // Structured controller placeholder awaiting Product service layer
+    const result = await productService.getAllProducts({
+      category,
+      categoryId,
+      search,
+      isFeatured,
+      page,
+      limit,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Products fetched successfully",
-      data: [],
+      data: {
+        products: result.products,
+        pagination: result.pagination,
+      },
     });
   } catch (error) {
     return res.status(500).json({
