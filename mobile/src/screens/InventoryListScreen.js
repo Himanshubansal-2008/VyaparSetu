@@ -42,6 +42,9 @@ const [search, setSearch] = useState('');
 const [stockFilter, setStockFilter] = useState('All');
 const [categoryFilter, setCategoryFilter] = useState('all');
 
+/**
+ * Fetches fresh inventory data from API and initializes product state.
+ */
 const loadProducts = async () => {
   try {
     setLoading(true);
