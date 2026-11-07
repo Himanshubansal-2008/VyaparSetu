@@ -132,7 +132,25 @@ const getProductById = async (req, res) => {
   }
 };
 
+// POST /api/products - Create a new product (placeholder awaiting service implementation)
+const createProduct = async (req, res) => {
+  return res.status(501).json({
+    success: false,
+    message: "createProduct controller placeholder - not implemented yet",
+  });
+};
+
+// PUT /api/products/:id - Update an existing product (placeholder awaiting service implementation)
+const updateProduct = async (req, res) => {
+  return res.status(501).json({
+    success: false,
+    message: "updateProduct controller placeholder - not implemented yet",
+  });
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
+  createProduct,
+  updateProduct,
 };
