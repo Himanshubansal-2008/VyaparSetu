@@ -132,12 +132,29 @@ const getProductById = async (req, res) => {
   }
 };
 
-// POST /api/products - Create a new product (placeholder awaiting service implementation)
+// POST /api/products - Create a new product
 const createProduct = async (req, res) => {
-  return res.status(501).json({
-    success: false,
-    message: "createProduct controller placeholder - not implemented yet",
-  });
+  try {
+    const product = await productService.createProduct(req.body);
+
+    return res.status(201).json({
+      success: true,
+      message: "Product created successfully",
+      data: product,
+    });
+  } catch (error) {
+    if (error.statusCode && error.statusCode < 500) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create product",
+    });
+  }
 };
 
 // PUT /api/products/:id - Update an existing product (placeholder awaiting service implementation)
