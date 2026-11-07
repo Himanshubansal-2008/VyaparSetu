@@ -71,6 +71,93 @@ const PRODUCT_DETAIL_SELECT = {
 };
 
 /**
+ * Helper to validate, parse, and sort bulk pricing tiers
+ * @param {Array} tiers
+ * @returns {Array<{ minQuantity: number, maxQuantity: number|null, pricePerUnit: Prisma.Decimal }>}
+ */
+const parseBulkPricingTiers = (tiers) => {
+  if (!Array.isArray(tiers)) {
+    throw new AppError("Bulk pricing tiers must be provided as an array", 400);
+  }
+
+  if (tiers.length === 0) {
+    return [];
+  }
+
+  const parsedTiers = [];
+
+  for (let i = 0; i < tiers.length; i++) {
+    const tier = tiers[i];
+    if (!tier || typeof tier !== "object") {
+      throw new AppError(`Bulk pricing tier at index ${i} must be a valid object`, 400);
+    }
+
+    const minQty = Number(tier.minQuantity);
+    if (!Number.isInteger(minQty) || minQty <= 0) {
+      throw new AppError(
+        `Bulk pricing tier at index ${i}: minQuantity must be a positive integer greater than zero`,
+        400
+      );
+    }
+
+    let maxQty = null;
+    if (tier.maxQuantity !== null && tier.maxQuantity !== undefined) {
+      maxQty = Number(tier.maxQuantity);
+      if (!Number.isInteger(maxQty) || maxQty < minQty) {
+        throw new AppError(
+          `Bulk pricing tier at index ${i}: maxQuantity must be null or an integer greater than or equal to minQuantity`,
+          400
+        );
+      }
+    }
+
+    let pricePerUnit;
+    try {
+      pricePerUnit = new Prisma.Decimal(tier.pricePerUnit);
+      if (pricePerUnit.isNaN() || !pricePerUnit.isPositive() || pricePerUnit.isZero()) {
+        throw new Error();
+      }
+    } catch {
+      throw new AppError(
+        `Bulk pricing tier at index ${i}: pricePerUnit must be a positive decimal number`,
+        400
+      );
+    }
+
+    parsedTiers.push({
+      minQuantity: minQty,
+      maxQuantity: maxQty,
+      pricePerUnit,
+    });
+  }
+
+  // Sort ascending by minQuantity to detect overlaps
+  parsedTiers.sort((a, b) => a.minQuantity - b.minQuantity);
+
+  for (let i = 0; i < parsedTiers.length; i++) {
+    const current = parsedTiers[i];
+    const next = parsedTiers[i + 1];
+
+    if (next) {
+      if (current.maxQuantity === null) {
+        throw new AppError(
+          "Bulk pricing ranges cannot overlap: an open-ended tier cannot be followed by another tier",
+          400
+        );
+      }
+      if (current.maxQuantity >= next.minQuantity) {
+        throw new AppError(
+          `Bulk pricing ranges cannot overlap: tier [${current.minQuantity}, ${current.maxQuantity}] overlaps with [${next.minQuantity}, ${next.maxQuantity !== null ? next.maxQuantity : "unlimited"}]`,
+          400
+        );
+      }
+    }
+  }
+
+  return parsedTiers;
+};
+
+/**
  * Fetch active products with filtering, pagination, and relations
  * @param {Object} filters
  * @param {string} [filters.search] - Partial product name match
@@ -318,81 +405,8 @@ const createProduct = async (productData = {}) => {
   // 11. Bulk pricing tiers validation & nested write preparation
   let bulkPricingCreate = undefined;
   if (productData.bulkPricing !== undefined && productData.bulkPricing !== null) {
-    if (!Array.isArray(productData.bulkPricing)) {
-      throw new AppError("Bulk pricing tiers must be provided as an array", 400);
-    }
-
-    if (productData.bulkPricing.length > 0) {
-      const parsedTiers = [];
-
-      for (let i = 0; i < productData.bulkPricing.length; i++) {
-        const tier = productData.bulkPricing[i];
-        if (!tier || typeof tier !== "object") {
-          throw new AppError(`Bulk pricing tier at index ${i} must be a valid object`, 400);
-        }
-
-        const minQty = Number(tier.minQuantity);
-        if (!Number.isInteger(minQty) || minQty <= 0) {
-          throw new AppError(
-            `Bulk pricing tier at index ${i}: minQuantity must be a positive integer greater than zero`,
-            400
-          );
-        }
-
-        let maxQty = null;
-        if (tier.maxQuantity !== null && tier.maxQuantity !== undefined) {
-          maxQty = Number(tier.maxQuantity);
-          if (!Number.isInteger(maxQty) || maxQty < minQty) {
-            throw new AppError(
-              `Bulk pricing tier at index ${i}: maxQuantity must be null or an integer greater than or equal to minQuantity`,
-              400
-            );
-          }
-        }
-
-        let pricePerUnit;
-        try {
-          pricePerUnit = new Prisma.Decimal(tier.pricePerUnit);
-          if (pricePerUnit.isNaN() || !pricePerUnit.isPositive() || pricePerUnit.isZero()) {
-            throw new Error();
-          }
-        } catch {
-          throw new AppError(
-            `Bulk pricing tier at index ${i}: pricePerUnit must be a positive decimal number`,
-            400
-          );
-        }
-
-        parsedTiers.push({
-          minQuantity: minQty,
-          maxQuantity: maxQty,
-          pricePerUnit,
-        });
-      }
-
-      // Check overlapping tiers: sort by minQuantity ascending
-      parsedTiers.sort((a, b) => a.minQuantity - b.minQuantity);
-
-      for (let i = 0; i < parsedTiers.length; i++) {
-        const current = parsedTiers[i];
-        const next = parsedTiers[i + 1];
-
-        if (next) {
-          if (current.maxQuantity === null) {
-            throw new AppError(
-              "Bulk pricing ranges cannot overlap: an open-ended tier cannot be followed by another tier",
-              400
-            );
-          }
-          if (current.maxQuantity >= next.minQuantity) {
-            throw new AppError(
-              `Bulk pricing ranges cannot overlap: tier [${current.minQuantity}, ${current.maxQuantity}] overlaps with [${next.minQuantity}, ${next.maxQuantity !== null ? next.maxQuantity : "unlimited"}]`,
-              400
-            );
-          }
-        }
-      }
-
+    const parsedTiers = parseBulkPricingTiers(productData.bulkPricing);
+    if (parsedTiers.length > 0) {
       bulkPricingCreate = {
         create: parsedTiers.map((t) => ({
           minQuantity: t.minQuantity,
@@ -445,10 +459,265 @@ const createProduct = async (productData = {}) => {
   }
 };
 
+/**
+ * Update an existing product and optionally replace its bulk pricing tiers atomically
+ * @param {string} id - Product UUID
+ * @param {Object} updateData - Validated product update payload
+ * @returns {Promise<Object>} Updated product with full relations
+ */
+const updateProduct = async (id, updateData = {}) => {
+  if (!id || typeof id !== "string" || !id.trim()) {
+    throw new AppError("Product ID is required", 400);
+  }
+  const productId = id.trim();
+
+  if (!updateData || typeof updateData !== "object" || Array.isArray(updateData)) {
+    throw new AppError("Update data must be provided as an object", 400);
+  }
+
+  // 1. Verify that the product exists
+  const existingProduct = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { bulkPricing: true },
+  });
+
+  if (!existingProduct) {
+    throw new AppError("Product not found", 404);
+  }
+
+  const updateFields = {};
+
+  // 2. Name
+  if (updateData.name !== undefined) {
+    if (typeof updateData.name !== "string" || !updateData.name.trim()) {
+      throw new AppError("Product name cannot be empty", 400);
+    }
+    updateFields.name = updateData.name.trim();
+  }
+
+  // 3. Description
+  if (updateData.description !== undefined) {
+    updateFields.description =
+      updateData.description !== null ? String(updateData.description).trim() : null;
+  }
+
+  // 4. Price
+  if (updateData.price !== undefined) {
+    try {
+      const p = new Prisma.Decimal(updateData.price);
+      if (p.isNaN() || !p.isPositive() || p.isZero()) {
+        throw new Error();
+      }
+      updateFields.price = p;
+    } catch {
+      throw new AppError("Invalid product price: must be a positive decimal number", 400);
+    }
+  }
+
+  // 5. Stock
+  if (updateData.stock !== undefined) {
+    const parsedStock = Number(updateData.stock);
+    if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+      throw new AppError("Stock must be a non-negative integer", 400);
+    }
+    updateFields.stock = parsedStock;
+  }
+
+  // 6. Minimum Order Quantity
+  if (updateData.minOrderQuantity !== undefined) {
+    const parsedMOQ = Number(updateData.minOrderQuantity);
+    if (!Number.isInteger(parsedMOQ) || parsedMOQ <= 0) {
+      throw new AppError("Minimum order quantity must be an integer greater than zero", 400);
+    }
+    updateFields.minOrderQuantity = parsedMOQ;
+  }
+
+  // 7. Unit
+  if (updateData.unit !== undefined) {
+    if (typeof updateData.unit !== "string" || !updateData.unit.trim()) {
+      throw new AppError("Unit must be a non-empty string", 400);
+    }
+    updateFields.unit = updateData.unit.trim();
+  }
+
+  // 8. Image URL
+  if (updateData.imageUrl !== undefined) {
+    if (updateData.imageUrl === null) {
+      updateFields.imageUrl = null;
+    } else if (typeof updateData.imageUrl === "string" && updateData.imageUrl.trim()) {
+      updateFields.imageUrl = updateData.imageUrl.trim();
+    } else {
+      throw new AppError("Image URL must be a valid string or null", 400);
+    }
+  }
+
+  // 9. Boolean flags
+  if (updateData.isActive !== undefined) {
+    updateFields.isActive = Boolean(updateData.isActive);
+  }
+  if (updateData.isFeatured !== undefined) {
+    updateFields.isFeatured = Boolean(updateData.isFeatured);
+  }
+  if (updateData.isSurplus !== undefined) {
+    updateFields.isSurplus = Boolean(updateData.isSurplus);
+  }
+
+  // 10. Surplus quantity
+  if (updateData.surplusQuantity !== undefined) {
+    const parsedSQ = Number(updateData.surplusQuantity);
+    if (!Number.isInteger(parsedSQ) || parsedSQ < 0) {
+      throw new AppError("Surplus quantity must be a non-negative integer", 400);
+    }
+    const effectiveStock =
+      updateFields.stock !== undefined ? updateFields.stock : existingProduct.stock;
+    if (parsedSQ > effectiveStock) {
+      throw new AppError("Surplus quantity cannot exceed total stock", 400);
+    }
+    updateFields.surplusQuantity = parsedSQ;
+  }
+
+  // 11. Surplus price
+  if (updateData.surplusPrice !== undefined) {
+    if (updateData.surplusPrice === null) {
+      updateFields.surplusPrice = null;
+    } else {
+      try {
+        const sp = new Prisma.Decimal(updateData.surplusPrice);
+        if (sp.isNaN() || !sp.isPositive() || sp.isZero()) {
+          throw new Error();
+        }
+        const effectivePrice =
+          updateFields.price !== undefined
+            ? updateFields.price
+            : new Prisma.Decimal(existingProduct.price);
+        if (sp.greaterThanOrEqualTo(effectivePrice)) {
+          throw new AppError("Surplus price must be lower than the regular price", 400);
+        }
+        updateFields.surplusPrice = sp;
+      } catch (err) {
+        if (err instanceof AppError) throw err;
+        throw new AppError("Invalid surplus price: must be a positive decimal number", 400);
+      }
+    }
+  }
+
+  // 12. Surplus deadline
+  if (updateData.surplusDeadline !== undefined) {
+    if (updateData.surplusDeadline === null) {
+      updateFields.surplusDeadline = null;
+    } else {
+      const deadline = new Date(updateData.surplusDeadline);
+      if (isNaN(deadline.getTime())) {
+        throw new AppError("Surplus deadline must be a valid date", 400);
+      }
+      updateFields.surplusDeadline = deadline;
+    }
+  }
+
+  // 13. Category reference verification if supplied
+  if (updateData.categoryId !== undefined) {
+    if (typeof updateData.categoryId !== "string" || !updateData.categoryId.trim()) {
+      throw new AppError("Category ID must be a non-empty string", 400);
+    }
+    const categoryId = updateData.categoryId.trim();
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true },
+    });
+    if (!category) {
+      throw new AppError("Category not found", 404);
+    }
+    updateFields.categoryId = categoryId;
+  }
+
+  // 14. Business reference verification if supplied
+  if (updateData.businessId !== undefined) {
+    if (typeof updateData.businessId !== "string" || !updateData.businessId.trim()) {
+      throw new AppError("Business ID must be a non-empty string", 400);
+    }
+    const businessId = updateData.businessId.trim();
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) {
+      throw new AppError("Business not found", 404);
+    }
+    updateFields.businessId = businessId;
+  }
+
+  // 15. Bulk pricing replacement preparation
+  let replaceBulkPricing = false;
+  let newBulkPricingTiers = [];
+
+  if (updateData.bulkPricing !== undefined) {
+    replaceBulkPricing = true;
+    if (updateData.bulkPricing !== null) {
+      newBulkPricingTiers = parseBulkPricingTiers(updateData.bulkPricing);
+    }
+  }
+
+  // 16. Execute transactional update
+  try {
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+      // Step A: Update product fields if any were supplied
+      if (Object.keys(updateFields).length > 0) {
+        await tx.product.update({
+          where: { id: productId },
+          data: updateFields,
+        });
+      }
+
+      // Step B: Replace bulk pricing tiers if explicitly supplied
+      if (replaceBulkPricing) {
+        // Remove existing tiers
+        await tx.bulkPricing.deleteMany({
+          where: { productId },
+        });
+
+        // Insert new tiers if provided
+        for (const tier of newBulkPricingTiers) {
+          await tx.bulkPricing.create({
+            data: {
+              productId,
+              minQuantity: tier.minQuantity,
+              maxQuantity: tier.maxQuantity,
+              pricePerUnit: tier.pricePerUnit,
+            },
+          });
+        }
+      }
+
+      // Step C: Fetch and return the updated product with relations
+      return await tx.product.findUnique({
+        where: { id: productId },
+        select: PRODUCT_DETAIL_SELECT,
+      });
+    });
+
+    return updatedProduct;
+  } catch (dbError) {
+    if (dbError instanceof AppError) {
+      throw dbError;
+    }
+    if (dbError.code === "P2003") {
+      throw new AppError(
+        "Foreign key constraint violation: referenced Category or Business does not exist",
+        400
+      );
+    }
+    if (dbError.code === "P2002") {
+      throw new AppError("Unique constraint violation on Product", 409);
+    }
+    throw new AppError("Failed to update product in database", 500);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
+  updateProduct,
   AppError,
   PRODUCT_DETAIL_SELECT,
 };
