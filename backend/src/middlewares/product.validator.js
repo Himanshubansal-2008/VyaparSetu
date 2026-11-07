@@ -166,6 +166,17 @@ const validateProductCreate = (req, res, next) => {
   const errors = [];
   const body = req.body || {};
 
+  // Reject unknown or restricted fields (id, createdAt, updatedAt, relations)
+  const incomingKeys = Object.keys(body);
+  for (const key of incomingKeys) {
+    if (!PERMITTED_UPDATE_FIELDS.has(key)) {
+      errors.push({
+        field: key,
+        message: `Field '${key}' is not allowed or is unknown`,
+      });
+    }
+  }
+
   // 1. name: Required, non-empty string
   if (body.name === undefined || body.name === null) {
     errors.push({ field: "name", message: "Product name is required" });
@@ -263,6 +274,12 @@ const validateProductCreate = (req, res, next) => {
       body.surplusPrice <= 0
     ) {
       errors.push({ field: "surplusPrice", message: "Surplus price must be a positive number greater than zero" });
+    } else if (
+      body.price !== undefined &&
+      typeof body.price === "number" &&
+      body.surplusPrice >= body.price
+    ) {
+      errors.push({ field: "surplusPrice", message: "Surplus price must be lower than the regular price" });
     }
   }
 
@@ -464,6 +481,12 @@ const validateProductUpdate = (req, res, next) => {
       body.surplusPrice <= 0
     ) {
       errors.push({ field: "surplusPrice", message: "Surplus price must be a positive number greater than zero" });
+    } else if (
+      body.price !== undefined &&
+      typeof body.price === "number" &&
+      body.surplusPrice >= body.price
+    ) {
+      errors.push({ field: "surplusPrice", message: "Surplus price must be lower than the regular price" });
     }
   }
 
