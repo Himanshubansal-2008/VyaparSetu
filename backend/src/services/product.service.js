@@ -1,6 +1,8 @@
 const { Prisma } = require("@prisma/client");
 const prisma = require("../lib/prisma");
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Custom Application Error class with HTTP status code and details
  */
@@ -713,11 +715,64 @@ const updateProduct = async (id, updateData = {}) => {
   }
 };
 
+/**
+ * Deactivate an active product (soft-deactivation by setting isActive to false)
+ * @param {string} id - Product UUID
+ * @returns {Promise<Object>} Deactivated product with Category, Business, and BulkPricing
+ */
+const deactivateProduct = async (id) => {
+  // 1. Validate Product ID
+  if (!id || typeof id !== "string" || !UUID_REGEX.test(id.trim())) {
+    throw new AppError("Invalid product ID format", 400);
+  }
+  const productId = id.trim();
+
+  // 2. Find product in PostgreSQL
+  const existingProduct = await prisma.product.findUnique({
+    where: { id: productId },
+    select: PRODUCT_DETAIL_SELECT,
+  });
+
+  if (!existingProduct) {
+    throw new AppError("Product not found", 404);
+  }
+
+  // 3. Handle already inactive products (avoid unnecessary DB updates)
+  if (existingProduct.isActive === false) {
+    const error = new AppError("Product is already deactivated", 400, {
+      alreadyDeactivated: true,
+      product: existingProduct,
+    });
+    error.alreadyDeactivated = true;
+    error.product = existingProduct;
+    throw error;
+  }
+
+  // 4. Update isActive to false
+  try {
+    const deactivatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: {
+        isActive: false,
+      },
+      select: PRODUCT_DETAIL_SELECT,
+    });
+
+    return deactivatedProduct;
+  } catch (dbError) {
+    if (dbError instanceof AppError) {
+      throw dbError;
+    }
+    throw new AppError("Failed to deactivate product in database", 500);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
+  deactivateProduct,
   AppError,
   PRODUCT_DETAIL_SELECT,
 };
