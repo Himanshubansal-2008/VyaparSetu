@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Add Product Screen
+ * Multi-field form for cataloging new inventory items, selecting categories,
+ * assigning business profiles, and setting baseline stock levels.
+ */
+
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
