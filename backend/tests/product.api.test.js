@@ -797,12 +797,86 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert.strictEqual(res.data.data.pagination.limit, 5);
     });
 
-    it("should search products by name", async () => {
-      const res = await getRequest("/api/products?search=Searchable%20Unique%20Drill");
+    it("should search products by complete product name", async () => {
+      const res = await getRequest("/api/products?search=Searchable%20Unique%20Drill%20Motor");
       assert.strictEqual(res.status, 200);
       const matches = res.data.data.products;
       assert(matches.length > 0);
       assert(matches.some((p) => p.id === getTestProductId));
+    });
+
+    it("should search products by partial product name", async () => {
+      const res = await getRequest("/api/products?search=Drill%20Motor");
+      assert.strictEqual(res.status, 200);
+      const matches = res.data.data.products;
+      assert(matches.length > 0);
+      assert(matches.some((p) => p.id === getTestProductId));
+    });
+
+    it("should search products with different letter casing (case-insensitive)", async () => {
+      const res = await getRequest("/api/products?search=sEaRcHaBLe%20uNiQuE");
+      assert.strictEqual(res.status, 200);
+      const matches = res.data.data.products;
+      assert(matches.length > 0);
+      assert(matches.some((p) => p.id === getTestProductId));
+    });
+
+    it("should search products with leading and trailing whitespace", async () => {
+      const res = await getRequest("/api/products?search=%20%20%20Unique%20Drill%20%20%20");
+      assert.strictEqual(res.status, 200);
+      const matches = res.data.data.products;
+      assert(matches.length > 0);
+      assert(matches.some((p) => p.id === getTestProductId));
+    });
+
+    it("should return empty list when no products match the search query", async () => {
+      const res = await getRequest("/api/products?search=UnmatchedNonExistingXYZ987654321");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.data.products.length, 0);
+      assert.strictEqual(res.data.data.pagination.totalProducts, 0);
+    });
+
+    it("should never return inactive products in search results", async () => {
+      // Create an inactive product matching the keyword
+      const inactRes = await postRequest("/api/products", {
+        name: "Searchable Inactive Drill Motor",
+        price: 280.0,
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+      });
+      const inactProdId = inactRes.data.data.id;
+      testProductIds.push(inactProdId);
+      await patchRequest(`/api/products/${inactProdId}/deactivate`);
+
+      // Search for the inactive product's name
+      const res = await getRequest("/api/products?search=Searchable%20Inactive");
+      assert.strictEqual(res.status, 200);
+      const matches = res.data.data.products;
+      assert(!matches.some((p) => p.id === inactProdId));
+    });
+
+    it("should preserve all relationships in product search results", async () => {
+      const res = await getRequest("/api/products?search=Searchable%20Unique%20Drill%20Motor");
+      assert.strictEqual(res.status, 200);
+      const prod = res.data.data.products.find((p) => p.id === getTestProductId);
+      assert(prod, "Matched product must be present");
+
+      // Verify category
+      assert(prod.category);
+      assert.strictEqual(prod.category.id, categoryAlpha.id);
+      assert.strictEqual(typeof prod.category.name, "string");
+
+      // Verify business
+      assert(prod.business);
+      assert.strictEqual(prod.business.id, businessAlpha.id);
+      assert.strictEqual(prod.business.owner, undefined);
+      assert.strictEqual(prod.business.passwordHash, undefined);
+
+      // Verify bulk pricing
+      assert(Array.isArray(prod.bulkPricing));
+      assert.strictEqual(prod.bulkPricing.length, 1);
+      assert.strictEqual(prod.bulkPricing[0].minQuantity, 10);
     });
 
     it("should accept valid search query parameters (?search=mobile)", async () => {

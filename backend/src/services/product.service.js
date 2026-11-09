@@ -169,17 +169,18 @@ const parseBulkPricingTiers = (tiers) => {
  * @param {number|string} [filters.limit=10] - Items per page (max 50)
  */
 const getAllProducts = async (filters = {}) => {
+  const search = typeof filters.search === "string" ? filters.search.trim() : "";
+
+  // Composable where clause: enforces isActive: true and optional case-insensitive substring search
   const where = {
     isActive: true,
+    ...(search && {
+      name: {
+        contains: search,
+        mode: "insensitive",
+      },
+    }),
   };
-
-  // 1. Search by product name (case-insensitive substring)
-  if (filters.search && typeof filters.search === "string" && filters.search.trim()) {
-    where.name = {
-      contains: filters.search.trim(),
-      mode: "insensitive",
-    };
-  }
 
   // 2. Filter by category ID
   const categoryId = filters.categoryId || filters.category;
