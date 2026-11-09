@@ -87,6 +87,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
   const [asyncProduct, setAsyncProduct] = useState(null);
 
+  /**
+   * Fetches category and product details asynchronously when editing or creating.
+   */
   useEffect(() => {
     if (!initialProduct && routeParams.productId && isUUID(routeParams.productId)) {
       productService
