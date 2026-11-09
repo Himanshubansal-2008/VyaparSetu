@@ -1249,7 +1249,7 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert.strictEqual(res.data.data.pagination.limit, 2);
     });
 
-    it("should combine price sorting and pagination", async () => {
+    it("should combine price sorting and pagination (ascending)", async () => {
       const res = await getRequest("/api/products?sortBy=price&sortOrder=asc&page=1&limit=3");
       assert.strictEqual(res.status, 200);
       const prods = res.data.data.products;
@@ -1259,6 +1259,46 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       }
       assert.strictEqual(res.data.data.pagination.page, 1);
       assert.strictEqual(res.data.data.pagination.limit, 3);
+    });
+
+    it("should combine price sorting and pagination (descending)", async () => {
+      const res = await getRequest("/api/products?sortBy=price&sortOrder=desc&page=1&limit=3");
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length >= 2);
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) >= Number(prods[i + 1].price));
+      }
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 3);
+    });
+
+    it("should combine search, price sorting, and pagination", async () => {
+      const res = await getRequest("/api/products?search=Unique%20Drill&sortBy=price&sortOrder=asc&page=1&limit=2");
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length >= 1);
+      assert(prods.every((p) => p.name.toLowerCase().includes("drill")));
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) <= Number(prods[i + 1].price));
+      }
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 2);
+    });
+
+    it("should combine category filtering, price sorting, and pagination", async () => {
+      const res = await getRequest(
+        `/api/products?categoryId=${categoryAlpha.id}&sortBy=price&sortOrder=desc&page=1&limit=2`
+      );
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length >= 1);
+      assert(prods.every((p) => p.category.id === categoryAlpha.id));
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) >= Number(prods[i + 1].price));
+      }
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 2);
     });
 
     it("should combine all filters together (search, categoryId, sortBy, sortOrder, page, limit)", async () => {
