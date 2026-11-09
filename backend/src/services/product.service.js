@@ -257,6 +257,59 @@ const getProductById = async (id) => {
 };
 
 /**
+ * Fetch active featured products with pagination and relations
+ * @param {Object} [options={}]
+ * @param {number|string} [options.page=1] - Current page number
+ * @param {number|string} [options.limit=10] - Items per page (max 50)
+ * @returns {Promise<{ products: Array, pagination: Object }>}
+ */
+const getFeaturedProducts = async (options = {}) => {
+  const where = {
+    isActive: true,
+    isFeatured: true,
+  };
+
+  // Pagination configuration
+  const rawPage = parseInt(options.page, 10);
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+
+  const rawLimit = parseInt(options.limit, 10);
+  let limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 10;
+  if (limit > 50) {
+    limit = 50;
+  }
+
+  const skip = (page - 1) * limit;
+  const take = limit;
+
+  // Execute query and count in parallel
+  const [totalProducts, products] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      select: PRODUCT_DETAIL_SELECT,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take,
+    }),
+  ]);
+
+  const totalPages = Math.ceil(totalProducts / limit);
+
+  return {
+    products,
+    pagination: {
+      page,
+      limit,
+      totalProducts,
+      totalPages,
+    },
+  };
+};
+
+/**
  * Create a new product with optional nested bulk pricing tiers
  * @param {Object} productData - Validated product creation payload
  * @returns {Promise<Object>} Created product record with category, business, and bulk pricing
@@ -770,6 +823,7 @@ const deactivateProduct = async (id) => {
 module.exports = {
   getAllProducts,
   getProductById,
+  getFeaturedProducts,
   createProduct,
   updateProduct,
   deactivateProduct,
