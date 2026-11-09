@@ -647,6 +647,81 @@ const validateProductQuery = (req, res, next) => {
     }
   }
 
+  // 4. Pagination Validation
+  const { page, limit } = req.query;
+
+  if (page !== undefined) {
+    if (Array.isArray(page)) {
+      return res.status(400).json({
+        success: false,
+        message: "Multiple page values are not allowed",
+      });
+    }
+
+    if (typeof page !== "string" && typeof page !== "number") {
+      return res.status(400).json({
+        success: false,
+        message: "Page must be a positive integer",
+      });
+    }
+
+    const trimmedPage = String(page).trim();
+    if (!/^\d+$/.test(trimmedPage)) {
+      return res.status(400).json({
+        success: false,
+        message: "Page must be a positive integer",
+      });
+    }
+
+    const pageNum = Number(trimmedPage);
+    if (!Number.isInteger(pageNum) || pageNum <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Page must be a positive integer",
+      });
+    }
+
+    req.query.page = pageNum;
+  } else {
+    req.query.page = 1;
+  }
+
+  if (limit !== undefined) {
+    if (Array.isArray(limit)) {
+      return res.status(400).json({
+        success: false,
+        message: "Multiple limit values are not allowed",
+      });
+    }
+
+    if (typeof limit !== "string" && typeof limit !== "number") {
+      return res.status(400).json({
+        success: false,
+        message: "Limit must be a positive integer between 1 and 100",
+      });
+    }
+
+    const trimmedLimit = String(limit).trim();
+    if (!/^\d+$/.test(trimmedLimit)) {
+      return res.status(400).json({
+        success: false,
+        message: "Limit must be a positive integer between 1 and 100",
+      });
+    }
+
+    const limitNum = Number(trimmedLimit);
+    if (!Number.isInteger(limitNum) || limitNum <= 0 || limitNum > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Limit must be a positive integer between 1 and 100",
+      });
+    }
+
+    req.query.limit = limitNum;
+  } else {
+    req.query.limit = 10;
+  }
+
   next();
 };
 

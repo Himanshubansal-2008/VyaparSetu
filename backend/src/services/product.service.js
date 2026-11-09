@@ -219,15 +219,15 @@ const getAllProducts = async (filters = {}) => {
 
   const rawLimit = parseInt(filters.limit, 10);
   let limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 10;
-  if (limit > 50) {
-    limit = 50;
+  if (limit > 100) {
+    limit = 100;
   }
 
   const skip = (page - 1) * limit;
   const take = limit;
 
   // 6. Execute query and count in parallel
-  const [totalProducts, products] = await Promise.all([
+  const [total, products] = await Promise.all([
     prisma.product.count({ where }),
     prisma.product.findMany({
       where,
@@ -238,14 +238,15 @@ const getAllProducts = async (filters = {}) => {
     }),
   ]);
 
-  const totalPages = Math.ceil(totalProducts / limit);
+  const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
 
   return {
     products,
     pagination: {
       page,
       limit,
-      totalProducts,
+      total,
+      totalProducts: total,
       totalPages,
     },
   };

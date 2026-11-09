@@ -1162,6 +1162,142 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       }
     });
 
+    // --- Pagination Test Suite ---
+    it("should return default pagination (page=1, limit=10) with metadata", async () => {
+      const res = await getRequest("/api/products");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      const meta = res.data.data.pagination;
+      assert.strictEqual(meta.page, 1);
+      assert.strictEqual(meta.limit, 10);
+      assert(typeof meta.total === "number");
+      assert(typeof meta.totalPages === "number");
+      assert.strictEqual(meta.totalPages, Math.ceil(meta.total / 10));
+      assert(res.data.data.products.length <= 10);
+    });
+
+    it("should support custom page and limit values", async () => {
+      const res = await getRequest("/api/products?page=1&limit=2");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 2);
+      assert.strictEqual(res.data.data.products.length, 2);
+    });
+
+    it("should return non-overlapping products between consecutive pages", async () => {
+      const page1Res = await getRequest("/api/products?page=1&limit=2");
+      const page2Res = await getRequest("/api/products?page=2&limit=2");
+      assert.strictEqual(page1Res.status, 200);
+      assert.strictEqual(page2Res.status, 200);
+
+      const p1Ids = new Set(page1Res.data.data.products.map((p) => p.id));
+      const p2Products = page2Res.data.data.products;
+      for (const p of p2Products) {
+        assert(!p1Ids.has(p.id), `Product ${p.id} appeared in both page 1 and page 2`);
+      }
+    });
+
+    it("should return remaining products on the last page", async () => {
+      const firstRes = await getRequest("/api/products?limit=2");
+      const totalPages = firstRes.data.data.pagination.totalPages;
+      if (totalPages > 1) {
+        const lastPageRes = await getRequest(`/api/products?page=${totalPages}&limit=2`);
+        assert.strictEqual(lastPageRes.status, 200);
+        assert(lastPageRes.data.data.products.length >= 1 && lastPageRes.data.data.products.length <= 2);
+        assert.strictEqual(lastPageRes.data.data.pagination.page, totalPages);
+      }
+    });
+
+    it("should return empty product array and totalPages=0 for zero matching products", async () => {
+      const res = await getRequest("/api/products?search=NonExistentMatchZQX9999");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.products.length, 0);
+      assert.strictEqual(res.data.data.pagination.total, 0);
+      assert.strictEqual(res.data.data.pagination.totalPages, 0);
+    });
+
+    it("should return empty array when page is beyond totalPages range", async () => {
+      const res = await getRequest("/api/products?page=99999&limit=10");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.products.length, 0);
+      assert.strictEqual(res.data.data.pagination.page, 99999);
+      assert(res.data.data.pagination.total >= 0);
+    });
+
+    it("should ensure total reflects all active products matching filters, not just the current page", async () => {
+      const res = await getRequest("/api/products?limit=1");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.products.length, 1);
+      assert(res.data.data.pagination.total > 1, "Total must reflect total matches, not limit");
+    });
+
+    it("should combine search and pagination", async () => {
+      const res = await getRequest("/api/products?search=Unique%20Drill&page=1&limit=1");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.products.length, 1);
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 1);
+      assert(res.data.data.pagination.total >= 1);
+    });
+
+    it("should combine category filtering and pagination", async () => {
+      const res = await getRequest(`/api/products?categoryId=${categoryAlpha.id}&page=1&limit=2`);
+      assert.strictEqual(res.status, 200);
+      assert(res.data.data.products.length >= 1);
+      assert(res.data.data.products.every((p) => p.category.id === categoryAlpha.id));
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 2);
+    });
+
+    it("should combine price sorting and pagination", async () => {
+      const res = await getRequest("/api/products?sortBy=price&sortOrder=asc&page=1&limit=3");
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length >= 2);
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) <= Number(prods[i + 1].price));
+      }
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 3);
+    });
+
+    it("should combine all filters together (search, categoryId, sortBy, sortOrder, page, limit)", async () => {
+      const res = await getRequest(
+        `/api/products?search=Unique%20Drill&categoryId=${categoryAlpha.id}&sortBy=price&sortOrder=asc&page=1&limit=5`
+      );
+      assert.strictEqual(res.status, 200);
+      assert(res.data.data.products.length >= 1);
+      assert(res.data.data.products.every((p) => p.category.id === categoryAlpha.id));
+      assert(res.data.data.products.every((p) => p.name.toLowerCase().includes("drill")));
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 5);
+      assert(res.data.data.pagination.total >= 1);
+    });
+
+    it("should reject invalid pagination parameters with HTTP 400", async () => {
+      const badPages = ["0", "-1", "1.5", "abc", ""];
+      for (const p of badPages) {
+        const res = await getRequest(`/api/products?page=${encodeURIComponent(p)}`);
+        assert.strictEqual(res.status, 400, `Expected 400 for page=${p}`);
+        assert.strictEqual(res.data.message, "Page must be a positive integer");
+      }
+
+      const badLimits = ["0", "-1", "101", "1.5", "xyz", ""];
+      for (const l of badLimits) {
+        const res = await getRequest(`/api/products?limit=${encodeURIComponent(l)}`);
+        assert.strictEqual(res.status, 400, `Expected 400 for limit=${l}`);
+        assert.strictEqual(res.data.message, "Limit must be a positive integer between 1 and 100");
+      }
+
+      const multiPage = await getRequest("/api/products?page=1&page=2");
+      assert.strictEqual(multiPage.status, 400);
+      assert.strictEqual(multiPage.data.message, "Multiple page values are not allowed");
+
+      const multiLimit = await getRequest("/api/products?limit=10&limit=20");
+      assert.strictEqual(multiLimit.status, 400);
+      assert.strictEqual(multiLimit.data.message, "Multiple limit values are not allowed");
+    });
+
     it("should fetch single product by ID with full relations and sanitized seller info", async () => {
       const res = await getRequest(`/api/products/${getTestProductId}`);
       assert.strictEqual(res.status, 200);

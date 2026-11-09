@@ -67,7 +67,14 @@ const getAllProducts = async (req, res) => {
 
     // 4. Validate page if provided
     if (page !== undefined) {
-      const pageNum = Number(page);
+      const trimmedPage = typeof page === "string" ? page.trim() : page;
+      if (!/^\d+$/.test(String(trimmedPage))) {
+        return res.status(400).json({
+          success: false,
+          message: "Page must be a positive integer",
+        });
+      }
+      const pageNum = Number(trimmedPage);
       if (!Number.isInteger(pageNum) || pageNum <= 0) {
         return res.status(400).json({
           success: false,
@@ -75,18 +82,29 @@ const getAllProducts = async (req, res) => {
         });
       }
       parsedFilters.page = pageNum;
+    } else {
+      parsedFilters.page = 1;
     }
 
     // 5. Validate limit if provided
     if (limit !== undefined) {
-      const limitNum = Number(limit);
-      if (!Number.isInteger(limitNum) || limitNum <= 0 || limitNum > 50) {
+      const trimmedLimit = typeof limit === "string" ? limit.trim() : limit;
+      if (!/^\d+$/.test(String(trimmedLimit))) {
         return res.status(400).json({
           success: false,
-          message: "Limit must be a positive integer between 1 and 50",
+          message: "Limit must be a positive integer between 1 and 100",
+        });
+      }
+      const limitNum = Number(trimmedLimit);
+      if (!Number.isInteger(limitNum) || limitNum <= 0 || limitNum > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Limit must be a positive integer between 1 and 100",
         });
       }
       parsedFilters.limit = limitNum;
+    } else {
+      parsedFilters.limit = 10;
     }
 
     // 6. Validate sortBy and sortOrder if provided
