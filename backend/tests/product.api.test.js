@@ -1352,6 +1352,48 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert.strictEqual(multiLimit.data.message, "Multiple limit values are not allowed");
     });
 
+    it("should return the standardized Product Listing response structure", async () => {
+      const res = await getRequest("/api/products?page=1&limit=5");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.message, "Products fetched successfully");
+      assert(res.data.data);
+      assert(Array.isArray(res.data.data.products));
+      assert(res.data.data.pagination);
+
+      // Verify pagination keys
+      const p = res.data.data.pagination;
+      assert.strictEqual(typeof p.total, "number");
+      assert.strictEqual(typeof p.page, "number");
+      assert.strictEqual(typeof p.limit, "number");
+      assert.strictEqual(typeof p.totalPages, "number");
+
+      // Verify product item keys and data isolation
+      if (res.data.data.products.length > 0) {
+        const prod = res.data.data.products[0];
+        assert.strictEqual(typeof prod.id, "string");
+        assert.strictEqual(typeof prod.name, "string");
+        assert(prod.price !== undefined);
+        assert.strictEqual(typeof prod.stock, "number");
+        assert.strictEqual(typeof prod.minOrderQuantity, "number");
+        assert.strictEqual(typeof prod.unit, "string");
+        assert.strictEqual(typeof prod.isFeatured, "boolean");
+
+        // Category relation
+        assert(prod.category && typeof prod.category.id === "string");
+        assert(typeof prod.category.name === "string");
+
+        // Business relation (sanitized, public seller details only)
+        assert(prod.business && typeof prod.business.id === "string");
+        assert(typeof prod.business.name === "string");
+        assert.strictEqual(prod.business.owner, undefined);
+        assert.strictEqual(prod.business.passwordHash, undefined);
+
+        // BulkPricing relation
+        assert(Array.isArray(prod.bulkPricing));
+      }
+    });
+
     it("should fetch single product by ID with full relations and sanitized seller info", async () => {
       const res = await getRequest(`/api/products/${getTestProductId}`);
       assert.strictEqual(res.status, 200);

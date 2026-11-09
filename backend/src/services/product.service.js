@@ -243,11 +243,11 @@ const getAllProducts = async (filters = {}) => {
   return {
     products,
     pagination: {
+      total,
       page,
       limit,
-      total,
-      totalProducts: total,
       totalPages,
+      totalProducts: total,
     },
   };
 };

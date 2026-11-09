@@ -155,6 +155,13 @@ const getAllProducts = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.statusCode && error.statusCode < 500) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch products",
