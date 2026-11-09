@@ -183,9 +183,44 @@ const updateProduct = async (req, res) => {
   }
 };
 
+// PATCH /api/products/:id/deactivate - Soft deactivate a product
+const deactivateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID format",
+      });
+    }
+
+    const deactivatedProduct = await productService.deactivateProduct(id.trim());
+
+    return res.status(200).json({
+      success: true,
+      message: "Product deactivated successfully",
+      data: deactivatedProduct,
+    });
+  } catch (error) {
+    if (error.statusCode && error.statusCode < 500) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deactivate product",
+    });
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
+  deactivateProduct,
 };

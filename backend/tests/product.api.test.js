@@ -36,6 +36,16 @@ async function putRequest(path, body) {
   return { status: res.status, data };
 }
 
+async function patchRequest(path) {
+  const url = `${baseUrl}${path}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data };
+}
+
 async function getRequest(path) {
   const url = `${baseUrl}${path}`;
   const res = await fetch(url);
@@ -817,5 +827,78 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert.strictEqual(prod.bulkPricing.length, 1);
     });
   });
+
+  // ========================================================
+  // SECTION 5: PATCH /api/products/:id/deactivate - Product Deactivation API
+  // ========================================================
+  describe("PATCH /api/products/:id/deactivate - Product Deactivation API", () => {
+    let deactProductId;
+
+    before(async () => {
+      const res = await postRequest("/api/products", {
+        name: `Deactivate Candidate ${Date.now()}`,
+        description: "Candidate for soft deactivation test",
+        price: 180.0,
+        stock: 50,
+        minOrderQuantity: 2,
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+        bulkPricing: [{ minQuantity: 5, maxQuantity: null, pricePerUnit: 160.0 }],
+      });
+      deactProductId = res.data.data.id;
+      testProductIds.push(deactProductId);
+    });
+
+    it("should successfully deactivate an active product (HTTP 200)", async () => {
+      const res = await patchRequest(`/api/products/${deactProductId}/deactivate`);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.message, "Product deactivated successfully");
+      assert.strictEqual(res.data.data.id, deactProductId);
+      assert.strictEqual(res.data.data.isActive, false);
+
+      // Verify in DB directly
+      const inDb = await prisma.product.findUnique({
+        where: { id: deactProductId },
+        include: { bulkPricing: true, category: true, business: true },
+      });
+      assert(inDb, "Product must still exist in PostgreSQL");
+      assert.strictEqual(inDb.isActive, false);
+      assert.strictEqual(inDb.bulkPricing.length, 1);
+      assert.strictEqual(inDb.categoryId, categoryAlpha.id);
+      assert.strictEqual(inDb.businessId, businessAlpha.id);
+    });
+
+    it("should reject deactivating an already inactive product (HTTP 400)", async () => {
+      const res = await patchRequest(`/api/products/${deactProductId}/deactivate`);
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Product is already deactivated");
+    });
+
+    it("should reject deactivating a nonexistent product (HTTP 404)", async () => {
+      const res = await patchRequest("/api/products/00000000-0000-0000-0000-000000000000/deactivate");
+      assert.strictEqual(res.status, 404);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Product not found");
+    });
+
+    it("should reject deactivating with malformed product ID (HTTP 400)", async () => {
+      const res = await patchRequest("/api/products/not-a-valid-uuid/deactivate");
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Invalid product ID format");
+    });
+
+    it("should verify deactivated product is excluded from GET listing and details", async () => {
+      const listRes = await getRequest("/api/products");
+      assert.strictEqual(listRes.status, 200);
+      assert.strictEqual(listRes.data.data.products.some((p) => p.id === deactProductId), false);
+
+      const singleRes = await getRequest(`/api/products/${deactProductId}`);
+      assert.strictEqual(singleRes.status, 404);
+    });
+  });
 });
+
 
