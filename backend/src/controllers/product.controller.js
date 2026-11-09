@@ -5,7 +5,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 // GET /api/products - Get all products (with optional query filters and pagination)
 const getAllProducts = async (req, res) => {
   try {
-    const { category, categoryId, search, isFeatured, page, limit } = req.query;
+    const { category, categoryId, search, isFeatured, page, limit, sortBy, sortOrder } = req.query;
 
     const parsedFilters = {};
 
@@ -87,6 +87,43 @@ const getAllProducts = async (req, res) => {
         });
       }
       parsedFilters.limit = limitNum;
+    }
+
+    // 6. Validate sortBy and sortOrder if provided
+    if (sortOrder !== undefined && sortBy === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "sortOrder cannot be provided without sortBy",
+      });
+    }
+
+    if (sortBy !== undefined) {
+      if (typeof sortBy !== "string" || sortBy.trim().toLowerCase() !== "price") {
+        return res.status(400).json({
+          success: false,
+          message: "Unsupported sortBy field. Only 'price' is supported.",
+        });
+      }
+      parsedFilters.sortBy = "price";
+
+      if (sortOrder !== undefined) {
+        if (typeof sortOrder !== "string") {
+          return res.status(400).json({
+            success: false,
+            message: "Unsupported sortOrder direction. Only 'asc' and 'desc' are supported.",
+          });
+        }
+        const normalizedSortOrder = sortOrder.trim().toLowerCase();
+        if (normalizedSortOrder !== "asc" && normalizedSortOrder !== "desc") {
+          return res.status(400).json({
+            success: false,
+            message: "Unsupported sortOrder direction. Only 'asc' and 'desc' are supported.",
+          });
+        }
+        parsedFilters.sortOrder = normalizedSortOrder;
+      } else {
+        parsedFilters.sortOrder = "asc";
+      }
     }
 
     const result = await productService.getAllProducts(parsedFilters);

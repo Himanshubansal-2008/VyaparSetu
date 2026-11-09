@@ -591,6 +591,62 @@ const validateProductQuery = (req, res, next) => {
     req.query.categoryId = rawCategoryId.trim();
   }
 
+  // 3. Sorting Validation
+  const { sortBy, sortOrder } = req.query;
+
+  if (sortOrder !== undefined && sortBy === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: "sortOrder cannot be provided without sortBy",
+    });
+  }
+
+  if (sortBy !== undefined) {
+    if (Array.isArray(sortBy)) {
+      return res.status(400).json({
+        success: false,
+        message: "Multiple sortBy values are not allowed",
+      });
+    }
+
+    if (typeof sortBy !== "string" || sortBy.trim().toLowerCase() !== "price") {
+      return res.status(400).json({
+        success: false,
+        message: "Unsupported sortBy field. Only 'price' is supported.",
+      });
+    }
+
+    req.query.sortBy = "price";
+
+    if (sortOrder !== undefined) {
+      if (Array.isArray(sortOrder)) {
+        return res.status(400).json({
+          success: false,
+          message: "Multiple sortOrder values are not allowed",
+        });
+      }
+
+      if (typeof sortOrder !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Unsupported sortOrder direction. Only 'asc' and 'desc' are supported.",
+        });
+      }
+
+      const normalizedSortOrder = sortOrder.trim().toLowerCase();
+      if (normalizedSortOrder !== "asc" && normalizedSortOrder !== "desc") {
+        return res.status(400).json({
+          success: false,
+          message: "Unsupported sortOrder direction. Only 'asc' and 'desc' are supported.",
+        });
+      }
+
+      req.query.sortOrder = normalizedSortOrder;
+    } else {
+      req.query.sortOrder = "asc";
+    }
+  }
+
   next();
 };
 

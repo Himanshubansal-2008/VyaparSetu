@@ -201,7 +201,19 @@ const getAllProducts = async (filters = {}) => {
     }
   }
 
-  // 4. Pagination configuration
+  // 4. Sorting configuration
+  let orderBy = {
+    createdAt: "desc",
+  };
+
+  if (filters.sortBy === "price") {
+    const direction = filters.sortOrder === "desc" ? "desc" : "asc";
+    orderBy = {
+      price: direction,
+    };
+  }
+
+  // 5. Pagination configuration
   const rawPage = parseInt(filters.page, 10);
   const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
 
@@ -214,15 +226,13 @@ const getAllProducts = async (filters = {}) => {
   const skip = (page - 1) * limit;
   const take = limit;
 
-  // 5. Execute query and count in parallel
+  // 6. Execute query and count in parallel
   const [totalProducts, products] = await Promise.all([
     prisma.product.count({ where }),
     prisma.product.findMany({
       where,
       select: PRODUCT_DETAIL_SELECT,
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy,
       skip,
       take,
     }),

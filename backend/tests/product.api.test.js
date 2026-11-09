@@ -1041,6 +1041,127 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert.strictEqual(res.data.message, "Multiple category IDs are not allowed");
     });
 
+    // --- Price Sorting Test Suite ---
+    it("should sort products by price in ascending order (lowest price first)", async () => {
+      const res = await getRequest("/api/products?sortBy=price&sortOrder=asc&limit=20");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      const prods = res.data.data.products;
+      assert(prods.length >= 2, "Need at least 2 products to verify sort order");
+      for (let i = 0; i < prods.length - 1; i++) {
+        const curr = Number(prods[i].price);
+        const next = Number(prods[i + 1].price);
+        assert(curr <= next, `Expected ascending price sort but ${curr} > ${next}`);
+      }
+    });
+
+    it("should sort products by price in descending order (highest price first)", async () => {
+      const res = await getRequest("/api/products?sortBy=price&sortOrder=desc&limit=20");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      const prods = res.data.data.products;
+      assert(prods.length >= 2, "Need at least 2 products to verify sort order");
+      for (let i = 0; i < prods.length - 1; i++) {
+        const curr = Number(prods[i].price);
+        const next = Number(prods[i + 1].price);
+        assert(curr >= next, `Expected descending price sort but ${curr} < ${next}`);
+      }
+    });
+
+    it("should default sortOrder to asc when sortBy=price without sortOrder", async () => {
+      const res = await getRequest("/api/products?sortBy=price&limit=20");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      const prods = res.data.data.products;
+      assert(prods.length >= 2);
+      for (let i = 0; i < prods.length - 1; i++) {
+        const curr = Number(prods[i].price);
+        const next = Number(prods[i + 1].price);
+        assert(curr <= next, `Expected ascending price sort by default but ${curr} > ${next}`);
+      }
+    });
+
+    it("should reject invalid sortBy with HTTP 400", async () => {
+      const res = await getRequest("/api/products?sortBy=invalidField");
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Unsupported sortBy field. Only 'price' is supported.");
+    });
+
+    it("should reject invalid sortOrder with HTTP 400", async () => {
+      const res = await getRequest("/api/products?sortBy=price&sortOrder=diagonal");
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Unsupported sortOrder direction. Only 'asc' and 'desc' are supported.");
+    });
+
+    it("should reject sortOrder without sortBy with HTTP 400", async () => {
+      const res = await getRequest("/api/products?sortOrder=asc");
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "sortOrder cannot be provided without sortBy");
+    });
+
+    it("should reject multiple sortBy or sortOrder values with HTTP 400", async () => {
+      const resSortBy = await getRequest("/api/products?sortBy=price&sortBy=price");
+      assert.strictEqual(resSortBy.status, 400);
+      assert.strictEqual(resSortBy.data.success, false);
+      assert.strictEqual(resSortBy.data.message, "Multiple sortBy values are not allowed");
+
+      const resSortOrder = await getRequest("/api/products?sortBy=price&sortOrder=asc&sortOrder=desc");
+      assert.strictEqual(resSortOrder.status, 400);
+      assert.strictEqual(resSortOrder.data.success, false);
+      assert.strictEqual(resSortOrder.data.message, "Multiple sortOrder values are not allowed");
+    });
+
+    it("should combine search and price sorting", async () => {
+      const res = await getRequest("/api/products?search=Unique%20Drill&sortBy=price&sortOrder=asc");
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length > 0);
+      assert(prods.every((p) => p.name.toLowerCase().includes("drill")));
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) <= Number(prods[i + 1].price));
+      }
+    });
+
+    it("should combine category filtering and price sorting", async () => {
+      const res = await getRequest(`/api/products?categoryId=${categoryAlpha.id}&sortBy=price&sortOrder=desc`);
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length > 0);
+      assert(prods.every((p) => p.category.id === categoryAlpha.id));
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) >= Number(prods[i + 1].price));
+      }
+    });
+
+    it("should combine search, category filtering, and price sorting", async () => {
+      const res = await getRequest(
+        `/api/products?search=Unique%20Drill&categoryId=${categoryAlpha.id}&sortBy=price&sortOrder=asc`
+      );
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length > 0);
+      assert(prods.every((p) => p.category.id === categoryAlpha.id));
+      assert(prods.every((p) => p.name.toLowerCase().includes("drill")));
+      for (let i = 0; i < prods.length - 1; i++) {
+        assert(Number(prods[i].price) <= Number(prods[i + 1].price));
+      }
+    });
+
+    it("should preserve default ordering (createdAt: desc) when sorting parameters are omitted", async () => {
+      const res = await getRequest("/api/products?limit=20");
+      assert.strictEqual(res.status, 200);
+      const prods = res.data.data.products;
+      assert(prods.length >= 2);
+      for (let i = 0; i < prods.length - 1; i++) {
+        const currTime = new Date(prods[i].createdAt).getTime();
+        const nextTime = new Date(prods[i + 1].createdAt).getTime();
+        assert(currTime >= nextTime, `Expected newest first createdAt ordering but ${currTime} < ${nextTime}`);
+      }
+    });
+
     it("should fetch single product by ID with full relations and sanitized seller info", async () => {
       const res = await getRequest(`/api/products/${getTestProductId}`);
       assert.strictEqual(res.status, 200);
