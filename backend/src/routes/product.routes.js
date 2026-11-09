@@ -12,10 +12,11 @@ const {
 const {
   validateProductCreate,
   validateProductUpdate,
+  validateProductQuery,
 } = require("../middlewares/product.validator");
 
 // Route mappings for /api/products
-router.get("/", getAllProducts);
+router.get("/", validateProductQuery, getAllProducts);
 router.get("/featured", getFeaturedProducts);
 router.get("/:id", getProductById);
 router.post("/", validateProductCreate, createProduct);

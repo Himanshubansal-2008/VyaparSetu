@@ -805,6 +805,59 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert(matches.some((p) => p.id === getTestProductId));
     });
 
+    it("should accept valid search query parameters (?search=mobile)", async () => {
+      const res = await getRequest("/api/products?search=mobile");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert(Array.isArray(res.data.data.products));
+    });
+
+    it("should accept valid search query parameters (?search=smartphone)", async () => {
+      const res = await getRequest("/api/products?search=smartphone");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert(Array.isArray(res.data.data.products));
+    });
+
+    it("should treat empty search query (?search=) as no search and return products", async () => {
+      const res = await getRequest("/api/products?search=");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert(Array.isArray(res.data.data.products));
+      assert(res.data.data.products.length > 0);
+    });
+
+    it("should treat whitespace-only search query (?search=   ) as no search", async () => {
+      const res = await getRequest("/api/products?search=%20%20%20");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert(Array.isArray(res.data.data.products));
+      assert(res.data.data.products.length > 0);
+    });
+
+    it("should trim leading and trailing whitespace from search parameter", async () => {
+      const res = await getRequest("/api/products?search=%20%20Searchable%20Unique%20Drill%20%20");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      const matches = res.data.data.products;
+      assert(matches.some((p) => p.id === getTestProductId));
+    });
+
+    it("should reject search query longer than 100 characters with HTTP 400", async () => {
+      const longQuery = "a".repeat(101);
+      const res = await getRequest(`/api/products?search=${longQuery}`);
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Search query cannot exceed 100 characters");
+    });
+
+    it("should reject multiple search values with HTTP 400", async () => {
+      const res = await getRequest("/api/products?search=drill&search=hammer");
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Multiple search values are not allowed");
+    });
+
     it("should filter products by categoryId and isFeatured", async () => {
       const res = await getRequest(
         `/api/products?categoryId=${categoryAlpha.id}&isFeatured=true`

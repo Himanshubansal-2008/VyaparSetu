@@ -17,7 +17,16 @@ const getAllProducts = async (req, res) => {
           message: "Search query must be a string",
         });
       }
-      parsedFilters.search = search.trim();
+      const trimmedSearch = search.trim();
+      if (trimmedSearch.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Search query cannot exceed 100 characters",
+        });
+      }
+      if (trimmedSearch) {
+        parsedFilters.search = trimmedSearch;
+      }
     }
 
     // 2. Validate categoryId if provided

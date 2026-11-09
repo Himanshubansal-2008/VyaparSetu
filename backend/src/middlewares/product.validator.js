@@ -529,9 +529,60 @@ const validateProductUpdate = (req, res, next) => {
   next();
 };
 
+/**
+ * Product Query Validation Middleware for GET /api/products
+ * Validates query parameters:
+ * - search: optional string, handles empty/whitespace gracefully, max 100 characters, trims whitespace, rejects multiple values
+ */
+const validateProductQuery = (req, res, next) => {
+  const { search } = req.query;
+
+  // 1. Optional parameter: requests without search remain valid
+  if (search === undefined) {
+    return next();
+  }
+
+  // 2. Reject multiple search parameters (e.g. ?search=a&search=b parsed as array)
+  if (Array.isArray(search)) {
+    return res.status(400).json({
+      success: false,
+      message: "Multiple search values are not allowed",
+    });
+  }
+
+  // 3. Data type must be a string
+  if (typeof search !== "string") {
+    return res.status(400).json({
+      success: false,
+      message: "Search query must be a string",
+    });
+  }
+
+  // 4. Empty or whitespace-only values: handle gracefully (treat as no search)
+  const trimmed = search.trim();
+  if (!trimmed) {
+    delete req.query.search;
+    return next();
+  }
+
+  // 5. Maximum length: 100 characters
+  if (trimmed.length > 100) {
+    return res.status(400).json({
+      success: false,
+      message: "Search query cannot exceed 100 characters",
+    });
+  }
+
+  // 6. Trim leading and trailing whitespace
+  req.query.search = trimmed;
+  next();
+};
+
 module.exports = {
   validateProductCreate,
   validateProductUpdate,
+  validateProductQuery,
+  validateProductSearchQuery: validateProductQuery,
   validateBulkPricingTiers,
   UUID_REGEX,
   isValidUrl,
