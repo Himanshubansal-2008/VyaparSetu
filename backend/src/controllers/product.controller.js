@@ -271,6 +271,53 @@ const getFeaturedProducts = async (req, res) => {
   }
 };
 
+// PATCH /api/products/:id/featured - Update product featured status
+const updateProductFeaturedStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Validate product ID format
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID format",
+      });
+    }
+
+    // 2. Validate isFeatured is explicitly provided and is a boolean
+    const { isFeatured } = req.body || {};
+    if (typeof isFeatured !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "isFeatured must be a boolean",
+      });
+    }
+
+    const updatedProduct = await productService.updateProductFeaturedStatus(
+      id.trim(),
+      isFeatured
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Product featured status updated successfully",
+      data: updatedProduct,
+    });
+  } catch (error) {
+    if (error.statusCode && error.statusCode < 500) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update product featured status",
+    });
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
@@ -278,4 +325,5 @@ module.exports = {
   createProduct,
   updateProduct,
   deactivateProduct,
+  updateProductFeaturedStatus,
 };

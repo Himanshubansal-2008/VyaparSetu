@@ -820,6 +820,53 @@ const deactivateProduct = async (id) => {
   }
 };
 
+/**
+ * Update the featured status of a product
+ * @param {string} id - Product UUID
+ * @param {boolean} isFeatured - Target featured boolean status
+ * @returns {Promise<Object>} Updated product with Category, Business, and BulkPricing
+ */
+const updateProductFeaturedStatus = async (id, isFeatured) => {
+  // 1. Validate Product ID
+  if (!id || typeof id !== "string" || !UUID_REGEX.test(id.trim())) {
+    throw new AppError("Invalid product ID format", 400);
+  }
+  const productId = id.trim();
+
+  // 2. Validate isFeatured boolean
+  if (typeof isFeatured !== "boolean") {
+    throw new AppError("isFeatured must be a boolean", 400);
+  }
+
+  // 3. Verify product exists
+  const existingProduct = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+
+  if (!existingProduct) {
+    throw new AppError("Product not found", 404);
+  }
+
+  // 4. Update isFeatured in PostgreSQL
+  try {
+    const updatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: {
+        isFeatured,
+      },
+      select: PRODUCT_DETAIL_SELECT,
+    });
+
+    return updatedProduct;
+  } catch (dbError) {
+    if (dbError instanceof AppError) {
+      throw dbError;
+    }
+    throw new AppError("Failed to update product featured status in database", 500);
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
@@ -827,6 +874,7 @@ module.exports = {
   createProduct,
   updateProduct,
   deactivateProduct,
+  updateProductFeaturedStatus,
   AppError,
   PRODUCT_DETAIL_SELECT,
 };

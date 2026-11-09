@@ -36,12 +36,16 @@ async function putRequest(path, body) {
   return { status: res.status, data };
 }
 
-async function patchRequest(path) {
+async function patchRequest(path, body) {
   const url = `${baseUrl}${path}`;
-  const res = await fetch(url, {
+  const options = {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-  });
+  };
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, options);
   const data = await res.json().catch(() => null);
   return { status: res.status, data };
 }
@@ -963,6 +967,159 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       const res = await getRequest(`/api/products/${featuredProdId}`);
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.data.data.id, featuredProdId);
+    });
+  });
+
+  // ========================================================
+  // SECTION 7: PATCH /api/products/:id/featured - Featured Status Management API
+  // ========================================================
+  describe("PATCH /api/products/:id/featured - Featured Status Management API", () => {
+    let targetProductId;
+    let inactiveProductId;
+
+    before(async () => {
+      const prodRes = await postRequest("/api/products", {
+        name: `Status Toggle Product ${Date.now()}`,
+        description: "Product for testing featured toggle endpoint",
+        price: 250.0,
+        stock: 45,
+        minOrderQuantity: 3,
+        unit: "piece",
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+        bulkPricing: [{ minQuantity: 10, maxQuantity: null, pricePerUnit: 220.0 }],
+      });
+      targetProductId = prodRes.data.data.id;
+      testProductIds.push(targetProductId);
+
+      const inactRes = await postRequest("/api/products", {
+        name: `Inactive Featured Test Product ${Date.now()}`,
+        price: 199.0,
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+      });
+      inactiveProductId = inactRes.data.data.id;
+      testProductIds.push(inactiveProductId);
+
+      // Deactivate it
+      await patchRequest(`/api/products/${inactiveProductId}/deactivate`);
+    });
+
+    it("should successfully mark an unfeatured product as featured (HTTP 200)", async () => {
+      const res = await patchRequest(`/api/products/${targetProductId}/featured`, {
+        isFeatured: true,
+      });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.message, "Product featured status updated successfully");
+      assert.strictEqual(res.data.data.id, targetProductId);
+      assert.strictEqual(res.data.data.isFeatured, true);
+    });
+
+    it("should successfully unfeature an existing featured product (HTTP 200)", async () => {
+      const res = await patchRequest(`/api/products/${targetProductId}/featured`, {
+        isFeatured: false,
+      });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.message, "Product featured status updated successfully");
+      assert.strictEqual(res.data.data.id, targetProductId);
+      assert.strictEqual(res.data.data.isFeatured, false);
+    });
+
+    it("should reject missing isFeatured field with HTTP 400", async () => {
+      const res = await patchRequest(`/api/products/${targetProductId}/featured`, {});
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "isFeatured must be a boolean");
+    });
+
+    it("should reject string values such as 'true' or 'false' with HTTP 400", async () => {
+      const resStrTrue = await patchRequest(`/api/products/${targetProductId}/featured`, {
+        isFeatured: "true",
+      });
+      assert.strictEqual(resStrTrue.status, 400);
+      assert.strictEqual(resStrTrue.data.success, false);
+
+      const resStrFalse = await patchRequest(`/api/products/${targetProductId}/featured`, {
+        isFeatured: "false",
+      });
+      assert.strictEqual(resStrFalse.status, 400);
+      assert.strictEqual(resStrFalse.data.success, false);
+    });
+
+    it("should reject other non-boolean values (numbers, null, arrays) with HTTP 400", async () => {
+      const values = [1, 0, null, [], {}];
+      for (const val of values) {
+        const res = await patchRequest(`/api/products/${targetProductId}/featured`, {
+          isFeatured: val,
+        });
+        assert.strictEqual(res.status, 400);
+        assert.strictEqual(res.data.success, false);
+      }
+    });
+
+    it("should return HTTP 404 for nonexistent product ID", async () => {
+      const res = await patchRequest("/api/products/00000000-0000-0000-0000-000000000000/featured", {
+        isFeatured: true,
+      });
+      assert.strictEqual(res.status, 404);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Product not found");
+    });
+
+    it("should return HTTP 400 for malformed product UUID", async () => {
+      const res = await patchRequest("/api/products/invalid-uuid-format/featured", {
+        isFeatured: true,
+      });
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Invalid product ID format");
+    });
+
+    it("should verify all other product fields and relations remain intact", async () => {
+      await patchRequest(`/api/products/${targetProductId}/featured`, { isFeatured: true });
+
+      const inDb = await prisma.product.findUnique({
+        where: { id: targetProductId },
+        include: { category: true, business: true, bulkPricing: true },
+      });
+
+      assert(inDb, "Product must exist in DB");
+      assert.strictEqual(inDb.isFeatured, true);
+      assert.strictEqual(inDb.description, "Product for testing featured toggle endpoint");
+      assert.strictEqual(inDb.stock, 45);
+      assert.strictEqual(inDb.minOrderQuantity, 3);
+      assert.strictEqual(inDb.unit, "piece");
+      assert.strictEqual(inDb.categoryId, categoryAlpha.id);
+      assert.strictEqual(inDb.businessId, businessAlpha.id);
+      assert.strictEqual(inDb.bulkPricing.length, 1);
+      assert.strictEqual(inDb.bulkPricing[0].minQuantity, 10);
+    });
+
+    it("should reflect updated status dynamically in GET /api/products/featured", async () => {
+      // Set to featured
+      await patchRequest(`/api/products/${targetProductId}/featured`, { isFeatured: true });
+      let featList = await getRequest("/api/products/featured");
+      assert(featList.data.data.products.some((p) => p.id === targetProductId));
+
+      // Set to unfeatured
+      await patchRequest(`/api/products/${targetProductId}/featured`, { isFeatured: false });
+      featList = await getRequest("/api/products/featured");
+      assert(!featList.data.data.products.some((p) => p.id === targetProductId));
+    });
+
+    it("should not include inactive products in featured list even when isFeatured is true", async () => {
+      // Mark inactive product as featured
+      const patchRes = await patchRequest(`/api/products/${inactiveProductId}/featured`, {
+        isFeatured: true,
+      });
+      assert.strictEqual(patchRes.status, 200);
+      assert.strictEqual(patchRes.data.data.isFeatured, true);
+
+      // Verify it does NOT appear in GET /api/products/featured
+      const featList = await getRequest("/api/products/featured");
+      assert(!featList.data.data.products.some((p) => p.id === inactiveProductId));
     });
   });
 });
