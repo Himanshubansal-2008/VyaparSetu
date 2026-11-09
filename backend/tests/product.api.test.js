@@ -942,6 +942,105 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert(prods.every((p) => p.isFeatured === true));
     });
 
+    it("should fetch products using a valid categoryId", async () => {
+      const res = await getRequest(`/api/products?categoryId=${categoryAlpha.id}`);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert(res.data.data.products.length > 0);
+      assert(res.data.data.products.every((p) => p.category.id === categoryAlpha.id));
+    });
+
+    it("should fetch products across categories when categoryId is omitted", async () => {
+      const res = await getRequest("/api/products");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert(res.data.data.products.length > 0);
+    });
+
+    it("should combine categoryId with search and exclude other categories", async () => {
+      // Create another product with the same keyword in categoryBeta
+      const betaProdRes = await postRequest("/api/products", {
+        name: "Searchable Unique Drill Motor Beta",
+        price: 320.0,
+        categoryId: categoryBeta.id,
+        businessId: businessBeta.id,
+      });
+      const betaProdId = betaProdRes.data.data.id;
+      testProductIds.push(betaProdId);
+
+      // Search with categoryAlpha filter: should match only getTestProductId and NOT betaProdId
+      const resAlpha = await getRequest(
+        `/api/products?search=Searchable%20Unique%20Drill&categoryId=${categoryAlpha.id}`
+      );
+      assert.strictEqual(resAlpha.status, 200);
+      const prodsAlpha = resAlpha.data.data.products;
+      assert(prodsAlpha.some((p) => p.id === getTestProductId));
+      assert(!prodsAlpha.some((p) => p.id === betaProdId));
+      assert(prodsAlpha.every((p) => p.category.id === categoryAlpha.id));
+
+      // Search with categoryBeta filter: should match only betaProdId and NOT getTestProductId
+      const resBeta = await getRequest(
+        `/api/products?search=Searchable%20Unique%20Drill&categoryId=${categoryBeta.id}`
+      );
+      assert.strictEqual(resBeta.status, 200);
+      const prodsBeta = resBeta.data.data.products;
+      assert(prodsBeta.some((p) => p.id === betaProdId));
+      assert(!prodsBeta.some((p) => p.id === getTestProductId));
+      assert(prodsBeta.every((p) => p.category.id === categoryBeta.id));
+    });
+
+    it("should exclude inactive products when filtering by categoryId", async () => {
+      const inactRes = await postRequest("/api/products", {
+        name: `Inactive CatProd ${Date.now()}`,
+        price: 99.0,
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+      });
+      const inactId = inactRes.data.data.id;
+      testProductIds.push(inactId);
+      await patchRequest(`/api/products/${inactId}/deactivate`);
+
+      const res = await getRequest(`/api/products?categoryId=${categoryAlpha.id}`);
+      assert.strictEqual(res.status, 200);
+      assert(!res.data.data.products.some((p) => p.id === inactId));
+    });
+
+    it("should return empty product list for valid but nonexistent categoryId", async () => {
+      const res = await getRequest(
+        "/api/products?categoryId=00000000-0000-0000-0000-000000000000"
+      );
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.data.products.length, 0);
+      assert.strictEqual(res.data.data.pagination.totalProducts, 0);
+    });
+
+    it("should reject malformed categoryId with HTTP 400", async () => {
+      const resBadUuid = await getRequest("/api/products?categoryId=not-a-valid-uuid");
+      assert.strictEqual(resBadUuid.status, 400);
+      assert.strictEqual(resBadUuid.data.success, false);
+      assert.strictEqual(resBadUuid.data.message, "Invalid category ID format");
+
+      const resEmpty = await getRequest("/api/products?categoryId=");
+      assert.strictEqual(resEmpty.status, 400);
+      assert.strictEqual(resEmpty.data.success, false);
+      assert.strictEqual(resEmpty.data.message, "Invalid category ID format");
+
+      const resWhitespace = await getRequest("/api/products?categoryId=%20%20%20");
+      assert.strictEqual(resWhitespace.status, 400);
+      assert.strictEqual(resWhitespace.data.success, false);
+      assert.strictEqual(resWhitespace.data.message, "Invalid category ID format");
+    });
+
+    it("should reject multiple categoryId values with HTTP 400", async () => {
+      const res = await getRequest(
+        `/api/products?categoryId=${categoryAlpha.id}&categoryId=${categoryBeta.id}`
+      );
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.data.success, false);
+      assert.strictEqual(res.data.message, "Multiple category IDs are not allowed");
+    });
+
     it("should fetch single product by ID with full relations and sanitized seller info", async () => {
       const res = await getRequest(`/api/products/${getTestProductId}`);
       assert.strictEqual(res.status, 200);

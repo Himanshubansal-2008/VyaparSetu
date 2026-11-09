@@ -35,7 +35,7 @@ const getAllProducts = async (req, res) => {
       if (typeof rawCategoryId !== "string" || !rawCategoryId.trim() || !UUID_REGEX.test(rawCategoryId.trim())) {
         return res.status(400).json({
           success: false,
-          message: "Invalid categoryId format",
+          message: "Invalid category ID format",
         });
       }
       parsedFilters.categoryId = rawCategoryId.trim();

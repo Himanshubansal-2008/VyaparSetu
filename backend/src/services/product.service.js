@@ -170,8 +170,10 @@ const parseBulkPricingTiers = (tiers) => {
  */
 const getAllProducts = async (filters = {}) => {
   const search = typeof filters.search === "string" ? filters.search.trim() : "";
+  const rawCategoryId = filters.categoryId || filters.category;
+  const categoryId = typeof rawCategoryId === "string" && rawCategoryId.trim() ? rawCategoryId.trim() : null;
 
-  // Composable where clause: enforces isActive: true and optional case-insensitive substring search
+  // Composable where clause: enforces isActive: true, search, and categoryId filtering
   const where = {
     isActive: true,
     ...(search && {
@@ -180,13 +182,10 @@ const getAllProducts = async (filters = {}) => {
         mode: "insensitive",
       },
     }),
+    ...(categoryId && {
+      categoryId,
+    }),
   };
-
-  // 2. Filter by category ID
-  const categoryId = filters.categoryId || filters.category;
-  if (categoryId && typeof categoryId === "string" && categoryId.trim()) {
-    where.categoryId = categoryId.trim();
-  }
 
   // 3. Filter by featured status
   if (filters.isFeatured !== undefined) {

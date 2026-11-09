@@ -533,48 +533,64 @@ const validateProductUpdate = (req, res, next) => {
  * Product Query Validation Middleware for GET /api/products
  * Validates query parameters:
  * - search: optional string, handles empty/whitespace gracefully, max 100 characters, trims whitespace, rejects multiple values
+ * - categoryId / category: optional string, must be valid non-empty UUID, rejects multiple values or malformed UUIDs
  */
 const validateProductQuery = (req, res, next) => {
-  const { search } = req.query;
+  const { search, categoryId, category } = req.query;
 
-  // 1. Optional parameter: requests without search remain valid
-  if (search === undefined) {
-    return next();
+  // 1. Search Query Validation
+  if (search !== undefined) {
+    if (Array.isArray(search)) {
+      return res.status(400).json({
+        success: false,
+        message: "Multiple search values are not allowed",
+      });
+    }
+
+    if (typeof search !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Search query must be a string",
+      });
+    }
+
+    const trimmed = search.trim();
+    if (!trimmed) {
+      delete req.query.search;
+    } else if (trimmed.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Search query cannot exceed 100 characters",
+      });
+    } else {
+      req.query.search = trimmed;
+    }
   }
 
-  // 2. Reject multiple search parameters (e.g. ?search=a&search=b parsed as array)
-  if (Array.isArray(search)) {
-    return res.status(400).json({
-      success: false,
-      message: "Multiple search values are not allowed",
-    });
+  // 2. Category ID Validation
+  const rawCategoryId = categoryId !== undefined ? categoryId : category;
+  if (rawCategoryId !== undefined) {
+    if (Array.isArray(rawCategoryId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Multiple category IDs are not allowed",
+      });
+    }
+
+    if (
+      typeof rawCategoryId !== "string" ||
+      !rawCategoryId.trim() ||
+      !UUID_REGEX.test(rawCategoryId.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid category ID format",
+      });
+    }
+
+    req.query.categoryId = rawCategoryId.trim();
   }
 
-  // 3. Data type must be a string
-  if (typeof search !== "string") {
-    return res.status(400).json({
-      success: false,
-      message: "Search query must be a string",
-    });
-  }
-
-  // 4. Empty or whitespace-only values: handle gracefully (treat as no search)
-  const trimmed = search.trim();
-  if (!trimmed) {
-    delete req.query.search;
-    return next();
-  }
-
-  // 5. Maximum length: 100 characters
-  if (trimmed.length > 100) {
-    return res.status(400).json({
-      success: false,
-      message: "Search query cannot exceed 100 characters",
-    });
-  }
-
-  // 6. Trim leading and trailing whitespace
-  req.query.search = trimmed;
   next();
 };
 
