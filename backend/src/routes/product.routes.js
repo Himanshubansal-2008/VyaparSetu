@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getAllProducts,
   getProductById,
+  getFeaturedProducts,
   createProduct,
   updateProduct,
   deactivateProduct,
@@ -14,6 +15,7 @@ const {
 
 // Route mappings for /api/products
 router.get("/", getAllProducts);
+router.get("/featured", getFeaturedProducts);
 router.get("/:id", getProductById);
 router.post("/", validateProductCreate, createProduct);
 router.put("/:id", validateProductUpdate, updateProduct);

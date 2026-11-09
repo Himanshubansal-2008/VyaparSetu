@@ -217,9 +217,64 @@ const deactivateProduct = async (req, res) => {
   }
 };
 
+// GET /api/products/featured - Return active featured products with pagination
+const getFeaturedProducts = async (req, res) => {
+  try {
+    const { page, limit } = req.query;
+    const parsedOptions = {};
+
+    // 1. Validate page if provided
+    if (page !== undefined) {
+      const pageNum = Number(page);
+      if (!Number.isInteger(pageNum) || pageNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Page must be a positive integer",
+        });
+      }
+      parsedOptions.page = pageNum;
+    }
+
+    // 2. Validate limit if provided
+    if (limit !== undefined) {
+      const limitNum = Number(limit);
+      if (!Number.isInteger(limitNum) || limitNum <= 0 || limitNum > 50) {
+        return res.status(400).json({
+          success: false,
+          message: "Limit must be a positive integer between 1 and 50",
+        });
+      }
+      parsedOptions.limit = limitNum;
+    }
+
+    const result = await productService.getFeaturedProducts(parsedOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: "Featured products fetched successfully",
+      data: {
+        products: result.products,
+        pagination: {
+          total: result.pagination.totalProducts,
+          totalProducts: result.pagination.totalProducts,
+          page: result.pagination.page,
+          limit: result.pagination.limit,
+          totalPages: result.pagination.totalPages,
+        },
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch featured products",
+    });
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
+  getFeaturedProducts,
   createProduct,
   updateProduct,
   deactivateProduct,

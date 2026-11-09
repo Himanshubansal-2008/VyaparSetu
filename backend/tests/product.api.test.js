@@ -899,6 +899,72 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
       assert.strictEqual(singleRes.status, 404);
     });
   });
+
+  // ========================================================
+  // SECTION 6: GET /api/products/featured - Featured Products API
+  // ========================================================
+  describe("GET /api/products/featured - Featured Products API", () => {
+    let featuredProdId;
+    let nonFeaturedProdId;
+
+    before(async () => {
+      const featRes = await postRequest("/api/products", {
+        name: `Featured Showcase Drill ${Date.now()}`,
+        price: 299.0,
+        isFeatured: true,
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+        bulkPricing: [{ minQuantity: 10, maxQuantity: null, pricePerUnit: 270.0 }],
+      });
+      featuredProdId = featRes.data.data.id;
+      testProductIds.push(featuredProdId);
+
+      const nonFeatRes = await postRequest("/api/products", {
+        name: `Regular Showcase Drill ${Date.now()}`,
+        price: 150.0,
+        isFeatured: false,
+        categoryId: categoryAlpha.id,
+        businessId: businessAlpha.id,
+      });
+      nonFeaturedProdId = nonFeatRes.data.data.id;
+      testProductIds.push(nonFeaturedProdId);
+    });
+
+    it("should fetch featured products and exclude non-featured products", async () => {
+      const res = await getRequest("/api/products/featured");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.success, true);
+      assert.strictEqual(res.data.message, "Featured products fetched successfully");
+      const products = res.data.data.products;
+      assert(products.some((p) => p.id === featuredProdId));
+      assert(!products.some((p) => p.id === nonFeaturedProdId));
+      assert(products.every((p) => p.isFeatured === true));
+      assert(products.every((p) => p.isActive === true));
+    });
+
+    it("should support pagination on featured endpoint", async () => {
+      const res = await getRequest("/api/products/featured?page=1&limit=1");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.products.length, 1);
+      assert.strictEqual(res.data.data.pagination.page, 1);
+      assert.strictEqual(res.data.data.pagination.limit, 1);
+      assert(res.data.data.pagination.total >= 1);
+    });
+
+    it("should reject invalid pagination parameters with HTTP 400", async () => {
+      const badPage = await getRequest("/api/products/featured?page=0");
+      assert.strictEqual(badPage.status, 400);
+
+      const badLimit = await getRequest("/api/products/featured?limit=999");
+      assert.strictEqual(badLimit.status, 400);
+    });
+
+    it("should ensure GET /api/products/:id does not conflict with /featured", async () => {
+      const res = await getRequest(`/api/products/${featuredProdId}`);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.id, featuredProdId);
+    });
+  });
 });
 
 
