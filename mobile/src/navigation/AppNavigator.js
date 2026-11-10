@@ -3,8 +3,14 @@ import { StyleSheet, View, BackHandler, Platform } from 'react-native';
 import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
+import InventoryDashboardScreen from '../screens/InventoryDashboardScreen';
 
-const VALID_ROUTES = ['Home', 'ProductListing', 'ProductDetails'];
+const VALID_ROUTES = [
+  'Home',
+  'ProductListing',
+  'ProductDetails',
+  'InventoryDashboard',
+];
 
 export default function AppNavigator() {
   const [navState, setNavState] = useState({
@@ -138,6 +144,12 @@ export default function AppNavigator() {
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
+      {/* Inventory Dashboard Screen */}
+      {currentRoute.name === 'InventoryDashboard' && (
+        <View style={styles.screen}>
+          <InventoryDashboardScreen navigation={navigation} />
+        </View>
+      )}
       <View
         style={[
           styles.screen,
