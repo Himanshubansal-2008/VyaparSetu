@@ -199,7 +199,7 @@ export default function HomeScreen({
 {/* 2.5 Inventory Management Entry */}
 <TouchableOpacity
   style={styles.inventoryEntry}
-  onPress={() => navigation?.navigate('InventoryDashboard')}
+  onPress={() => navigation?.navigate('InventoryList')}
   activeOpacity={0.8}
   accessibilityRole="button"
 >
