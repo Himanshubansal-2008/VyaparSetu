@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,6 +19,7 @@ import {
   products as defaultProducts,
   categories as defaultCategories,
 } from '../data/products';
+import { getFeaturedProducts } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -27,6 +28,7 @@ export default function HomeScreen({
   route,
   products: propProducts,
   categories: propCategories,
+  featuredProducts: propFeaturedProducts,
   onNavigateToProductListing,
   onNavigateToProductDetails,
   searchQuery: propSearchQuery,
@@ -49,6 +51,50 @@ export default function HomeScreen({
       : route?.params?.categories !== undefined
       ? route.params.categories
       : defaultCategories;
+
+  // --- Featured Products State & API Integration ---
+  const [apiFeaturedProducts, setApiFeaturedProducts] = useState([]);
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(
+    propFeaturedProducts === undefined && route?.params?.featuredProducts === undefined
+  );
+  const [featuredError, setFeaturedError] = useState(null);
+
+  const fetchFeatured = useCallback(async () => {
+    // If explicitly provided via props or route params, skip API call
+    if (propFeaturedProducts !== undefined || route?.params?.featuredProducts !== undefined) {
+      setIsLoadingFeatured(false);
+      return;
+    }
+
+    setIsLoadingFeatured(true);
+    setFeaturedError(null);
+    try {
+      const response = await getFeaturedProducts({ limit: 10 });
+      const items = Array.isArray(response?.products)
+        ? response.products
+        : Array.isArray(response?.data?.products)
+        ? response.data.products
+        : Array.isArray(response)
+        ? response
+        : [];
+      setApiFeaturedProducts(items);
+    } catch (err) {
+      console.error('[HomeScreen] Error fetching featured products:', err);
+      setFeaturedError(err?.message || 'Failed to load featured products.');
+    } finally {
+      setIsLoadingFeatured(false);
+    }
+  }, [propFeaturedProducts, route?.params?.featuredProducts]);
+
+  useEffect(() => {
+    fetchFeatured();
+  }, [fetchFeatured]);
+
+  const featuredProducts = useMemo(() => {
+    if (propFeaturedProducts !== undefined) return propFeaturedProducts;
+    if (route?.params?.featuredProducts !== undefined) return route.params.featuredProducts;
+    return apiFeaturedProducts;
+  }, [propFeaturedProducts, route?.params?.featuredProducts, apiFeaturedProducts]);
 
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
@@ -152,11 +198,6 @@ export default function HomeScreen({
     });
   }, [allProducts, hasCategory, selectedCategory, hasSearch, searchTokens]);
 
-  const featuredProducts = useMemo(
-    () => allProducts.filter((product) => product.isFeatured),
-    [allProducts]
-  );
-
   const quickSearches = [
     'Cotton Bags',
     'Bluetooth Earphones',
@@ -198,6 +239,9 @@ export default function HomeScreen({
       {/* 3. Featured Products — horizontal carousel */}
       <FeaturedProducts
         products={featuredProducts}
+        loading={isLoadingFeatured}
+        error={featuredError}
+        onRetry={fetchFeatured}
         onProductPress={handleProductPress}
         onViewAllPress={() => handleNavigateToProductListing()}
       />

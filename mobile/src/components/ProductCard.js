@@ -18,12 +18,13 @@ export default function ProductCard({
   name = product?.name,
   price = product?.price,
   originalPrice = product?.originalPrice,
-  category = product?.categoryName || product?.category,
+  category = product?.categoryName ||
+    (typeof product?.category === 'object' ? product?.category?.name : product?.category),
   sellerName = product?.sellerName,
   location = product?.location,
-  image = product?.image,
+  image = product?.imageUrl || product?.image,
   unit = product?.unit || 'piece',
-  moq = product?.moq,
+  moq = product?.minOrderQuantity !== undefined ? product?.minOrderQuantity : product?.moq,
   rating = product?.rating,
   totalReviews = product?.totalReviews,
   isSurplus = product?.isSurplus,
@@ -52,21 +53,24 @@ export default function ProductCard({
     }).start();
   };
 
+  const numPrice = typeof price === 'number' ? price : Number(price);
+  const numOrigPrice = typeof originalPrice === 'number' ? originalPrice : Number(originalPrice);
+
   const discountPercent =
-    originalPrice && price && originalPrice > price
-      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    !isNaN(numOrigPrice) && !isNaN(numPrice) && numOrigPrice > numPrice
+      ? Math.round(((numOrigPrice - numPrice) / numOrigPrice) * 100)
       : 0;
 
   const formattedPrice =
-    typeof price === 'number'
-      ? price.toLocaleString('en-IN')
+    !isNaN(numPrice) && price !== '' && price !== null && price !== undefined
+      ? numPrice.toLocaleString('en-IN')
       : price !== undefined && price !== null
       ? String(price)
       : '0';
 
   const formattedOriginalPrice =
-    typeof originalPrice === 'number'
-      ? originalPrice.toLocaleString('en-IN')
+    !isNaN(numOrigPrice) && originalPrice !== '' && originalPrice !== null && originalPrice !== undefined
+      ? numOrigPrice.toLocaleString('en-IN')
       : originalPrice !== undefined && originalPrice !== null
       ? String(originalPrice)
       : null;
