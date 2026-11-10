@@ -1,4 +1,10 @@
 
+/**
+ * @fileoverview Edit Product Screen
+ * Allows sellers to modify product details, change categories, update description,
+ * and adjust pricing or units for existing inventory items.
+ */
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
