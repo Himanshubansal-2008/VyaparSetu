@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-import { products, categories } from '../data/products';
+import { getProducts } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -28,37 +27,74 @@ const getStockStatus = (stock) => {
 };
 
 export default function InventoryListScreen({ navigation }) {
-  const [search, setSearch] = useState('');
-  const [stockFilter, setStockFilter] = useState('All');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+const [products, setProducts] = useState([]);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState('');
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const stock = Number(product.stock) || 0;
+const [search, setSearch] = useState('');
+const [stockFilter, setStockFilter] = useState('All');
+const [categoryFilter, setCategoryFilter] = useState('all');
 
-      const matchesSearch = [
-        product.name,
-        product.categoryName,
-        product.brand,
-        product.sellerName,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(search.trim().toLowerCase());
+const loadProducts = async () => {
+  try {
+    setLoading(true);
+    setError('');
 
-      const matchesStock =
-        stockFilter === 'All' ||
-        (stockFilter === 'In Stock' && stock > 20) ||
-        (stockFilter === 'Low Stock' && stock > 0 && stock <= 20) ||
-        (stockFilter === 'Out of Stock' && stock === 0);
+    const data = await getProducts();
+    setProducts(data);
+  } catch (err) {
+    setError('Unable to load products. Please try again.');
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
-      const matchesCategory =
-        categoryFilter === 'all' || product.categoryId === categoryFilter;
+useEffect(() => {
+  loadProducts();
+}, []);
 
-      return matchesSearch && matchesStock && matchesCategory;
-    });
-  }, [search, stockFilter, categoryFilter]);
+const categories = useMemo(() => {
+  const uniqueCategories = new Map();
+
+  products.forEach((product) => {
+    if (product.category) {
+      uniqueCategories.set(product.category.id, product.category);
+    }
+  });
+
+  return Array.from(uniqueCategories.values());
+}, [products]);
+
+
+const filteredProducts = useMemo(() => {
+  return products.filter((product) => {
+    const stock = Number(product.stock) || 0;
+
+    const matchesSearch = [
+      product.name,
+      product.category?.name,
+      product.business?.name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(search.trim().toLowerCase());
+
+    const matchesStock =
+      stockFilter === 'All' ||
+      (stockFilter === 'In Stock' && stock > 20) ||
+      (stockFilter === 'Low Stock' && stock > 0 && stock <= 20) ||
+      (stockFilter === 'Out of Stock' && stock === 0);
+
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      product.category?.id === categoryFilter;
+
+    return matchesSearch && matchesStock && matchesCategory;
+  });
+}, [products, search, stockFilter, categoryFilter]);
+
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -121,10 +157,30 @@ export default function InventoryListScreen({ navigation }) {
         </View>
       </ScrollView>
 
+
       <Text style={styles.filterTitle}>Product Category</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.filterRow}>
+          {/* All Categories */}
+          <TouchableOpacity
+            onPress={() => setCategoryFilter('all')}
+            style={[
+              styles.filterChip,
+              categoryFilter === 'all' && styles.activeFilterChip,
+            ]}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                categoryFilter === 'all' && styles.activeFilterText,
+              ]}
+            >
+              All Categories
+            </Text>
+          </TouchableOpacity>
+
+          {/* Dynamic Categories from API */}
           {categories.map((category) => (
             <TouchableOpacity
               key={category.id}
@@ -147,6 +203,7 @@ export default function InventoryListScreen({ navigation }) {
         </View>
       </ScrollView>
 
+
       <View style={styles.resultsHeader}>
         <Text style={styles.sectionTitle}>Products</Text>
         <Text style={styles.resultCount}>
@@ -154,72 +211,86 @@ export default function InventoryListScreen({ navigation }) {
         </Text>
       </View>
 
-      {filteredProducts.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No products found</Text>
-          <Text style={styles.emptyText}>
-            Try changing your search or filters.
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              setSearch('');
-              setStockFilter('All');
-              setCategoryFilter('all');
-            }}
-          >
-            <Text style={styles.resetText}>Clear all filters</Text>
-          </TouchableOpacity>
+      
+{loading ? (
+  <Text style={styles.emptyText}>Loading products...</Text>
+) : error ? (
+  <View style={styles.emptyCard}>
+    <Text style={styles.emptyTitle}>Something went wrong</Text>
+    <Text style={styles.emptyText}>{error}</Text>
+
+    <TouchableOpacity onPress={loadProducts}>
+      <Text style={styles.resetText}>Try Again</Text>
+    </TouchableOpacity>
+  </View>
+) : filteredProducts.length === 0 ? (
+  <View style={styles.emptyCard}>
+    <Text style={styles.emptyTitle}>No products found</Text>
+    <Text style={styles.emptyText}>
+      Try changing your search or filters.
+    </Text>
+
+    <TouchableOpacity
+      onPress={() => {
+        setSearch('');
+        setStockFilter('All');
+        setCategoryFilter('all');
+      }}
+    >
+      <Text style={styles.resetText}>Clear all filters</Text>
+    </TouchableOpacity>
+  </View>
+) : (
+  filteredProducts.map((product) => {
+    const stock = Number(product.stock) || 0;
+    const status = getStockStatus(stock);
+
+    return (
+      <View key={product.id} style={styles.productCard}>
+        <View style={styles.productTop}>
+          <View style={styles.productInfo}>
+            <Text style={styles.productName}>{product.name}</Text>
+            <Text style={styles.productCategory}>
+              {product.category?.name || 'Uncategorized'}
+            </Text>
+            <Text style={styles.sellerName}>
+              {product.business?.name || 'Unknown Seller'}
+            </Text>
+          </View>
+
+          <View style={[styles.statusBadge, { backgroundColor: status.background }]}>
+            <Text style={[styles.statusText, { color: status.color }]}>
+              {status.label}
+            </Text>
+          </View>
         </View>
-      ) : (
-        filteredProducts.map((product) => {
-          const stock = Number(product.stock) || 0;
-          const status = getStockStatus(stock);
 
-          return (
-            <View key={product.id} style={styles.productCard}>
-              <View style={styles.productTop}>
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName}>{product.name}</Text>
-                  <Text style={styles.productCategory}>
-                    {product.categoryName}
-                  </Text>
-                  <Text style={styles.sellerName}>
-                    {product.sellerName}
-                  </Text>
-                </View>
+        <View style={styles.productBottom}>
+          <View>
+            <Text style={styles.stockLabel}>Available Stock</Text>
+            <Text style={styles.stockValue}>
+              {stock.toLocaleString()} {product.unit || 'units'}
+            </Text>
+          </View>
 
-                <View style={[styles.statusBadge, { backgroundColor: status.background }]}>
-                  <Text style={[styles.statusText, { color: status.color }]}>
-                    {status.label}
-                  </Text>
-                </View>
-              </View>
+          <View style={styles.priceContainer}>
+            <Text style={styles.stockLabel}>Price</Text>
+            <Text style={styles.priceValue}>
+              ₹{Number(product.price).toLocaleString('en-IN')}
+            </Text>
+          </View>
+        </View>
 
-              <View style={styles.productBottom}>
-                <View>
-                  <Text style={styles.stockLabel}>Available Stock</Text>
-                  <Text style={styles.stockValue}>
-                    {stock.toLocaleString()} {product.unit || 'units'}
-                  </Text>
-                </View>
+        {product.isSurplus && (
+          <View style={styles.surplusTag}>
+            <Text style={styles.surplusText}>♻ Surplus Product</Text>
+          </View>
+        )}
+      </View>
+    );
+  })
+)}
 
-                <View style={styles.priceContainer}>
-                  <Text style={styles.stockLabel}>Price</Text>
-                  <Text style={styles.priceValue}>
-                    ₹{Number(product.price).toLocaleString('en-IN')}
-                  </Text>
-                </View>
-              </View>
-
-              {product.isSurplus && (
-                <View style={styles.surplusTag}>
-                  <Text style={styles.surplusText}>♻ Surplus Product</Text>
-                </View>
-              )}
-            </View>
-          );
-        })
-      )}
     </ScrollView>
   );
 }

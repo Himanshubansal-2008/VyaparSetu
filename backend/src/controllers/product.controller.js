@@ -155,18 +155,20 @@ const getAllProducts = async (req, res) => {
       },
     });
   } catch (error) {
-    if (error.statusCode && error.statusCode < 500) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-    }
+  console.error("GET PRODUCTS ERROR:", error);
 
-    return res.status(500).json({
+  if (error.statusCode && error.statusCode < 500) {
+    return res.status(error.statusCode).json({
       success: false,
-      message: "Failed to fetch products",
+      message: error.message,
     });
   }
+
+  return res.status(500).json({
+    success: false,
+    message: "Failed to fetch products",
+  });
+}
 };
 
 // GET /api/products/:id - Get product by ID
