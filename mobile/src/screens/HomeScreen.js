@@ -20,6 +20,7 @@ import {
   categories as defaultCategories,
 } from '../data/products';
 import { getFeaturedProducts } from '../services/productService';
+import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -45,12 +46,52 @@ export default function HomeScreen({
       ? route.params.products
       : defaultProducts;
 
-  const allCategories =
-    propCategories !== undefined
-      ? propCategories
-      : route?.params?.categories !== undefined
-      ? route.params.categories
-      : defaultCategories;
+  // --- Categories State & API Integration ---
+  const [apiCategories, setApiCategories] = useState([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(
+    propCategories === undefined && route?.params?.categories === undefined
+  );
+  const [categoriesError, setCategoriesError] = useState(null);
+
+  const fetchCategoriesList = useCallback(async () => {
+    // If explicitly provided via props or route params, skip API call
+    if (propCategories !== undefined || route?.params?.categories !== undefined) {
+      setIsLoadingCategories(false);
+      return;
+    }
+
+    setIsLoadingCategories(true);
+    setCategoriesError(null);
+    try {
+      const response = await getCategories();
+      const rawList = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.categories)
+        ? response.categories
+        : [];
+
+      // Filter only active categories (isActive !== false)
+      const activeList = rawList.filter((cat) => cat && cat.isActive !== false);
+      setApiCategories(activeList);
+    } catch (err) {
+      console.error('[HomeScreen] Error fetching categories:', err);
+      setCategoriesError(err?.message || 'Failed to load categories.');
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [propCategories, route?.params?.categories]);
+
+  useEffect(() => {
+    fetchCategoriesList();
+  }, [fetchCategoriesList]);
+
+  const allCategories = useMemo(() => {
+    if (propCategories !== undefined) return propCategories;
+    if (route?.params?.categories !== undefined) return route.params.categories;
+    return apiCategories;
+  }, [propCategories, route?.params?.categories, apiCategories]);
 
   // --- Featured Products State & API Integration ---
   const [apiFeaturedProducts, setApiFeaturedProducts] = useState([]);
@@ -116,6 +157,11 @@ export default function HomeScreen({
     } else {
       setInternalSelectedCategory(catId);
     }
+    // Navigate to Product Listing screen passing categoryId
+    handleNavigateToProductListing({
+      selectedCategory: catId,
+      categoryId: catId,
+    });
   };
 
   const handleClearFilters = () => {
@@ -127,6 +173,8 @@ export default function HomeScreen({
     const listingParams = {
       selectedCategory:
         selectedCategory !== 'all' ? selectedCategory : 'all',
+      categoryId:
+        selectedCategory !== 'all' ? selectedCategory : undefined,
       searchQuery: searchQuery || '',
       ...params,
     };
@@ -234,6 +282,9 @@ export default function HomeScreen({
         categories={allCategories}
         selectedCategory={selectedCategory}
         onSelectCategory={handleSelectCategory}
+        loading={isLoadingCategories}
+        error={categoriesError}
+        onRetry={fetchCategoriesList}
       />
 
       {/* 3. Featured Products — horizontal carousel */}

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,12 +16,13 @@ import { spacing, borderRadius } from '../theme/spacing';
  * CategoryCard — a single category pill rendered inside a horizontal list.
  *
  * Props:
- *   category   – { id, name, icon, image }  (from mock data)
+ *   category   – { id, name, imageUrl, image, icon, description }
  *   isSelected – boolean
  *   onPress    – (category) => void
  */
 export default function CategoryCard({ category, isSelected, onPress }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [imageError, setImageError] = useState(false);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -41,16 +42,18 @@ export default function CategoryCard({ category, isSelected, onPress }) {
     }).start();
   };
 
+  const imageUri = category?.imageUrl || category?.image;
+
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
         style={[styles.card, isSelected && styles.cardSelected]}
-        onPress={() => onPress(category)}
+        onPress={() => onPress?.(category)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={category.name}
+        accessibilityLabel={category?.name || 'Category'}
         accessibilityState={{ selected: isSelected }}
       >
         <View
@@ -59,14 +62,15 @@ export default function CategoryCard({ category, isSelected, onPress }) {
             isSelected && styles.iconContainerSelected,
           ]}
         >
-          {category.image ? (
+          {imageUri && !imageError ? (
             <Image
-              source={{ uri: category.image }}
+              source={{ uri: imageUri }}
               style={styles.categoryImage}
+              onError={() => setImageError(true)}
             />
           ) : (
             <Ionicons
-              name={category.icon || 'grid-outline'}
+              name={category?.icon || 'grid-outline'}
               size={20}
               color={isSelected ? colors.textInverse : colors.primary}
             />
@@ -76,7 +80,7 @@ export default function CategoryCard({ category, isSelected, onPress }) {
           style={[styles.label, isSelected && styles.labelSelected]}
           numberOfLines={1}
         >
-          {category.name}
+          {category?.name}
         </Text>
       </TouchableOpacity>
     </Animated.View>
