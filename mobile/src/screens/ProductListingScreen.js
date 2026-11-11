@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,15 +10,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Keyboard,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
-import {
-  products as defaultProducts,
-  categories as defaultCategories,
-} from '../data/products';
+import { getProducts } from '../services/productService';
+import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -32,29 +31,39 @@ export default function ProductListingScreen({
   onNotificationPress,
   onCartPress,
 }) {
-  const allProducts =
-    propProducts !== undefined
-      ? propProducts
-      : route?.params?.products !== undefined
-      ? route.params.products
-      : defaultProducts;
-
-  const allCategories =
-    propCategories !== undefined
-      ? propCategories
-      : route?.params?.categories !== undefined
-      ? route.params.categories
-      : defaultCategories;
-
+  // Navigation / Route Parameters
   const initialCategory =
     route?.params?.selectedCategory ||
     route?.params?.categoryId ||
     'all';
+  const initialSearch = route?.params?.searchQuery || '';
+
+  // Filter & Search State
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [searchQuery, setSearchQuery] = useState(
-    route?.params?.searchQuery || ''
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
+
+  // Sorting State: null (Default) | 'price_asc' | 'price_desc'
+  const [sortOption, setSortOption] = useState(null);
+
+  // Categories API State
+  const [apiCategories, setApiCategories] = useState([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(
+    propCategories === undefined && route?.params?.categories === undefined
   );
 
+  // Products API State
+  const [products, setProducts] = useState(propProducts || []);
+  const [pagination, setPagination] = useState(null);
+  const [isLoading, setIsLoading] = useState(
+    propProducts === undefined && route?.params?.products === undefined
+  );
+  const [error, setError] = useState(null);
+
+  // Active request tracker to prevent stale responses
+  const activeRequestIdRef = useRef(0);
+
+  // Synchronize route param changes (e.g., navigating with new category from Home)
   useEffect(() => {
     const nextCategory =
       route?.params?.selectedCategory || route?.params?.categoryId;
@@ -69,6 +78,133 @@ export default function ProductListingScreen({
     }
   }, [route?.params?.searchQuery]);
 
+  // Debounce search query input (350ms)
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setDebouncedSearch('');
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDebouncedSearch(trimmed);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch Categories from Backend API
+  const fetchCategoriesList = useCallback(async () => {
+    if (propCategories !== undefined || route?.params?.categories !== undefined) {
+      setIsLoadingCategories(false);
+      return;
+    }
+
+    setIsLoadingCategories(true);
+    try {
+      const response = await getCategories();
+      const rawList = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.categories)
+        ? response.categories
+        : [];
+
+      const activeList = rawList.filter((cat) => cat && cat.isActive !== false);
+      setApiCategories(activeList);
+    } catch (err) {
+      console.error('[ProductListingScreen] Error fetching categories:', err);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [propCategories, route?.params?.categories]);
+
+  useEffect(() => {
+    fetchCategoriesList();
+  }, [fetchCategoriesList]);
+
+  // Memoized categories list with 'All' at the start
+  const categoriesList = useMemo(() => {
+    const baseList =
+      propCategories !== undefined
+        ? propCategories
+        : route?.params?.categories !== undefined
+        ? route.params.categories
+        : apiCategories;
+
+    const hasAll = baseList.some((c) => c.id === 'all');
+    if (!hasAll) {
+      return [{ id: 'all', name: 'All' }, ...baseList];
+    }
+    return baseList;
+  }, [propCategories, route?.params?.categories, apiCategories]);
+
+  // Fetch Products from Backend API with Combined Search, Category, and Sorting
+  const fetchProductsList = useCallback(async () => {
+    if (propProducts !== undefined || route?.params?.products !== undefined) {
+      setIsLoading(false);
+      return;
+    }
+
+    const requestId = ++activeRequestIdRef.current;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const params = {
+        page: 1,
+        limit: 20,
+      };
+
+      if (debouncedSearch) {
+        params.search = debouncedSearch;
+      }
+
+      if (selectedCategory && selectedCategory !== 'all') {
+        params.categoryId = selectedCategory;
+      }
+
+      if (sortOption === 'price_asc') {
+        params.sortBy = 'price';
+        params.sortOrder = 'asc';
+      } else if (sortOption === 'price_desc') {
+        params.sortBy = 'price';
+        params.sortOrder = 'desc';
+      }
+
+      const response = await getProducts(params);
+
+      // Only apply state if this request is still the active one
+      if (requestId === activeRequestIdRef.current) {
+        const items = Array.isArray(response?.products)
+          ? response.products
+          : Array.isArray(response?.data?.products)
+          ? response.data.products
+          : Array.isArray(response)
+          ? response
+          : [];
+        setProducts(items);
+        setPagination(response?.pagination || null);
+      }
+    } catch (err) {
+      if (requestId === activeRequestIdRef.current) {
+        console.error('[ProductListingScreen] Error fetching products:', err);
+        setError(err?.message || 'Failed to load products. Please check your connection.');
+        setProducts([]);
+      }
+    } finally {
+      if (requestId === activeRequestIdRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [debouncedSearch, selectedCategory, sortOption, propProducts, route?.params?.products]);
+
+  useEffect(() => {
+    fetchProductsList();
+  }, [fetchProductsList]);
+
+  // Navigation handlers
   const handleBack = () => {
     if (onBackPress) {
       onBackPress();
@@ -91,52 +227,14 @@ export default function ProductListingScreen({
     }
   };
 
-  const trimmedQuery = searchQuery.trim();
-  const searchTokens = useMemo(() => {
-    return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
-  }, [trimmedQuery]);
-
-  const hasSearch = searchTokens.length > 0;
+  const hasSearch = debouncedSearch.length > 0;
   const hasCategory = selectedCategory !== 'all';
-  const categoryName =
-    allCategories.find((c) => c.id === selectedCategory)?.name || 'this category';
 
-  // Filter products matching BOTH search query (multi-token, case-insensitive, whitespace-safe) and selected category
-  const filteredProducts = useMemo(() => {
-    return allProducts.filter((product) => {
-      if (!product) return false;
-
-      const matchesCategory =
-        selectedCategory === 'all' ||
-        product.categoryId === selectedCategory ||
-        product.category === selectedCategory;
-
-      if (!matchesCategory) return false;
-
-      if (hasSearch) {
-        const searchableText = [
-          product.name,
-          product.categoryName,
-          product.category,
-          product.brand,
-          product.manufacturer,
-          product.sellerName,
-          product.location,
-          ...(Array.isArray(product.tags) ? product.tags : []),
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-
-        const allTokensMatch = searchTokens.every((token) =>
-          searchableText.includes(token)
-        );
-        if (!allTokensMatch) return false;
-      }
-
-      return true;
-    });
-  }, [allProducts, selectedCategory, hasSearch, searchTokens]);
+  const categoryName = useMemo(() => {
+    if (selectedCategory === 'all') return 'All Categories';
+    const found = categoriesList.find((c) => c.id === selectedCategory);
+    return found ? found.name : 'this category';
+  }, [selectedCategory, categoriesList]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -161,7 +259,7 @@ export default function ProductListingScreen({
 
       {/* Product Grid List */}
       <FlatList
-        data={filteredProducts}
+        data={products}
         keyExtractor={(item) => item.id}
         numColumns={2}
         renderItem={({ item }) => (
@@ -176,7 +274,7 @@ export default function ProductListingScreen({
           <View style={styles.headerSection}>
             <Text style={styles.pageTitle}>Explore Products</Text>
             <Text style={styles.pageSubtitle}>
-              Discover products from businesses across India.
+              Discover wholesale products from verified businesses across India.
             </Text>
 
             {/* Category Filter Chips */}
@@ -186,7 +284,7 @@ export default function ProductListingScreen({
               style={styles.categoryScrollWrapper}
               contentContainerStyle={styles.categoryScroll}
             >
-              {allCategories.map((category) => {
+              {categoriesList.map((category) => {
                 const isSelected = selectedCategory === category.id;
                 const label = category.id === 'all' ? 'All' : category.name;
 
@@ -199,6 +297,8 @@ export default function ProductListingScreen({
                     ]}
                     onPress={() => setSelectedCategory(category.id)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Filter by ${label}`}
                   >
                     <Text
                       style={[
@@ -215,66 +315,176 @@ export default function ProductListingScreen({
               })}
             </ScrollView>
 
+            {/* Price Sorting Options */}
+            <View style={styles.sortSection}>
+              <View style={styles.sortHeader}>
+                <Ionicons name="swap-vertical" size={13} color={colors.textSecondary} />
+                <Text style={styles.sortLabel}>Sort:</Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sortScroll}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.sortChip,
+                    sortOption === null ? styles.sortChipSelected : styles.sortChipUnselected,
+                  ]}
+                  onPress={() => setSortOption(null)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Default sorting"
+                >
+                  <Text
+                    style={[
+                      styles.sortChipText,
+                      sortOption === null ? styles.sortChipTextSelected : styles.sortChipTextUnselected,
+                    ]}
+                  >
+                    Default
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.sortChip,
+                    sortOption === 'price_asc' ? styles.sortChipSelected : styles.sortChipUnselected,
+                  ]}
+                  onPress={() => setSortOption('price_asc')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sort by Price: Low to High"
+                >
+                  <Ionicons
+                    name="arrow-up"
+                    size={11}
+                    color={sortOption === 'price_asc' ? colors.textInverse : colors.primary}
+                    style={{ marginRight: 2 }}
+                  />
+                  <Text
+                    style={[
+                      styles.sortChipText,
+                      sortOption === 'price_asc' ? styles.sortChipTextSelected : styles.sortChipTextUnselected,
+                    ]}
+                  >
+                    Price: Low to High
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.sortChip,
+                    sortOption === 'price_desc' ? styles.sortChipSelected : styles.sortChipUnselected,
+                  ]}
+                  onPress={() => setSortOption('price_desc')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sort by Price: High to Low"
+                >
+                  <Ionicons
+                    name="arrow-down"
+                    size={11}
+                    color={sortOption === 'price_desc' ? colors.textInverse : colors.primary}
+                    style={{ marginRight: 2 }}
+                  />
+                  <Text
+                    style={[
+                      styles.sortChipText,
+                      sortOption === 'price_desc' ? styles.sortChipTextSelected : styles.sortChipTextUnselected,
+                    ]}
+                  >
+                    Price: High to Low
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+
             {/* Results count & active filter summary */}
             <View style={styles.metaRow}>
               <Text style={styles.resultsCount}>
-                {filteredProducts.length} product
-                {filteredProducts.length !== 1 ? 's' : ''} available
+                {isLoading
+                  ? 'Loading products...'
+                  : `${products.length} product${products.length !== 1 ? 's' : ''} available`}
               </Text>
-              {selectedCategory !== 'all' && (
-                <TouchableOpacity
-                  style={styles.resetCategoryChip}
-                  onPress={() => setSelectedCategory('all')}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.resetCategoryText}>Clear Category</Text>
-                  <Ionicons name="close" size={13} color={colors.primary} />
-                </TouchableOpacity>
-              )}
+              <View style={styles.activeFiltersRow}>
+                {selectedCategory !== 'all' && (
+                  <TouchableOpacity
+                    style={styles.resetCategoryChip}
+                    onPress={() => setSelectedCategory('all')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.resetCategoryText}>Clear Category</Text>
+                    <Ionicons name="close" size={12} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+                {sortOption !== null && (
+                  <TouchableOpacity
+                    style={styles.resetCategoryChip}
+                    onPress={() => setSortOption(null)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.resetCategoryText}>Reset Sort</Text>
+                    <Ionicons name="close" size={12} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
         }
         ListEmptyComponent={
-          !allProducts || allProducts.length === 0 ? (
-            <EmptyState
-              icon="cube-outline"
-              title="No products available yet"
-              description="Wholesale listings will appear here once suppliers list their products."
-            />
-          ) : hasSearch && hasCategory ? (
-            <EmptyState
-              icon="search-outline"
-              title="No products found in this category"
-              description={`No products in ${categoryName} match "${trimmedQuery}". Try clearing your search or filters.`}
-              actionText="Clear Search"
-              onActionPress={() => setSearchQuery('')}
-              secondaryActionText="Clear Filters"
-              onSecondaryActionPress={() => {
-                setSelectedCategory('all');
-                setSearchQuery('');
-              }}
-            />
-          ) : hasSearch ? (
+          isLoading ? (
+            <View style={styles.centerContainer} testID="products-loading">
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Fetching products...</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer} testID="products-error">
+              <Ionicons name="alert-circle-outline" size={32} color={colors.error || '#EF4444'} />
+              <Text style={styles.errorTitle}>Failed to load products</Text>
+              <Text style={styles.errorSubtitle}>{error}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={fetchProductsList}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Retry fetching products"
+              >
+                <Ionicons name="refresh" size={14} color={colors.textInverse} />
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <EmptyState
               icon="search-outline"
               title="No products found"
-              description={`No products found matching "${trimmedQuery}". Try searching with a different term.`}
-              actionText="Clear Search"
-              onActionPress={() => setSearchQuery('')}
-            />
-          ) : hasCategory ? (
-            <EmptyState
-              icon="file-tray-outline"
-              title="No products available in this category"
-              description={`There are currently no products in ${categoryName}. Try exploring other categories or view all products.`}
-              actionText="All Categories"
-              onActionPress={() => setSelectedCategory('all')}
-            />
-          ) : (
-            <EmptyState
-              icon="cube-outline"
-              title="No products available yet"
-              description="Wholesale listings will appear here once suppliers list their products."
+              description={
+                hasSearch && hasCategory
+                  ? `No products in ${categoryName} match "${debouncedSearch}". Try clearing your search or category filter.`
+                  : hasSearch
+                  ? `No products found matching "${debouncedSearch}". Try searching with another term.`
+                  : hasCategory
+                  ? `There are currently no products in ${categoryName}. Try exploring other categories.`
+                  : 'Wholesale listings will appear here once suppliers add their products.'
+              }
+              actionText={hasSearch ? 'Clear Search' : hasCategory ? 'All Categories' : undefined}
+              onActionPress={
+                hasSearch
+                  ? () => setSearchQuery('')
+                  : hasCategory
+                  ? () => setSelectedCategory('all')
+                  : undefined
+              }
+              secondaryActionText={hasSearch && hasCategory ? 'Clear All Filters' : undefined}
+              onSecondaryActionPress={
+                hasSearch && hasCategory
+                  ? () => {
+                      setSearchQuery('');
+                      setSelectedCategory('all');
+                      setSortOption(null);
+                    }
+                  : undefined
+              }
             />
           )
         }
@@ -346,6 +556,58 @@ const styles = StyleSheet.create({
   chipTextUnselected: {
     color: colors.textSecondary,
   },
+  sortSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm + 2,
+    marginHorizontal: -(spacing.xs + 2),
+  },
+  sortHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: spacing.xs + 2,
+    paddingRight: spacing.xs,
+    gap: 3,
+  },
+  sortLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  sortScroll: {
+    paddingRight: spacing.xs + 2,
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+  },
+  sortChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.xs + 2,
+  },
+  sortChipSelected: {
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  sortChipUnselected: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sortChipText: {
+    fontSize: 11.5,
+    fontWeight: '500',
+  },
+  sortChipTextSelected: {
+    color: colors.textInverse,
+    fontWeight: '700',
+  },
+  sortChipTextUnselected: {
+    color: colors.textSecondary,
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -357,6 +619,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.textMuted,
+  },
+  activeFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   resetCategoryChip: {
     flexDirection: 'row',
@@ -374,54 +641,52 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  centerContainer: {
     paddingVertical: spacing.xxxl * 1.5,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyIconBox: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.sm,
   },
-  emptyTitle: {
+  loadingText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  errorContainer: {
+    marginVertical: spacing.xxxl,
+    marginHorizontal: spacing.lg,
+    padding: spacing.xl,
+    backgroundColor: '#FEF2F2',
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    gap: spacing.xs + 2,
+  },
+  errorTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: colors.error || '#DC2626',
     textAlign: 'center',
   },
-  emptySubtitle: {
+  errorSubtitle: {
     fontSize: 13,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xs,
   },
-  resetButton: {
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm + 2,
     borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    marginTop: spacing.xs,
   },
-  resetButtonText: {
+  retryButtonText: {
     color: colors.textInverse,
     fontSize: 13,
     fontWeight: '700',
