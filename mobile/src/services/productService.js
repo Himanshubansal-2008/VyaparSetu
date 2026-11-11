@@ -17,3 +17,42 @@ export const getProducts = async () => {
     throw error;
   }
 };
+export const getCategories = async () => {
+  const response = await fetch("http://localhost:5050/api/categories");
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Failed to fetch categories");
+  }
+
+  return result.data;
+};
+
+export const getBusinesses = async () => {
+  const response = await fetch("http://localhost:5050/api/businesses");
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Failed to fetch businesses");
+  }
+
+  return result.data;
+};
+
+export const createProduct = async (productData) => {
+  const response = await fetch("http://localhost:5050/api/products", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(productData),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Failed to create product");
+  }
+
+  return result.data;
+};

@@ -119,6 +119,15 @@ const filteredProducts = useMemo(() => {
   </Text>
 </View>
 
+<TouchableOpacity
+  style={styles.addProductButton}
+  onPress={() => navigation.navigate('AddProduct')}
+>
+  <Text style={styles.addProductButtonText}>
+    + Add Product
+  </Text>
+</TouchableOpacity>
+
 
       <View style={styles.searchBox}>
         <Text style={styles.searchIcon}>⌕</Text>
@@ -505,6 +514,20 @@ const styles = StyleSheet.create({
 dashboardButtonText: {
   color: colors.textInverse,
   fontSize: 13,
+  fontWeight: '700',
+},
+addProductButton: {
+  backgroundColor: colors.primary,
+  paddingVertical: spacing.md,
+  paddingHorizontal: spacing.lg,
+  borderRadius: borderRadius.md,
+  alignItems: 'center',
+  marginTop: spacing.md,
+},
+
+addProductButtonText: {
+  color: colors.textInverse,
+  fontSize: 15,
   fontWeight: '700',
 },
 });

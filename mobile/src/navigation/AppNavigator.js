@@ -5,6 +5,7 @@ import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import InventoryDashboardScreen from '../screens/InventoryDashboardScreen';
 import InventoryListScreen from '../screens/InventoryListScreen';
+import AddProductScreen from '../screens/AddProductScreen';
 
 const VALID_ROUTES = [
   'Home',
@@ -12,6 +13,7 @@ const VALID_ROUTES = [
   'ProductDetails',
   'InventoryDashboard',
   'InventoryList',
+  'AddProduct',
 ];
 
 export default function AppNavigator() {
@@ -152,10 +154,16 @@ export default function AppNavigator() {
           <InventoryDashboardScreen navigation={navigation} />
         </View>
       )}
-
+      
       {currentRoute.name === 'InventoryList' && (
         <View style={styles.screen}>
           <InventoryListScreen navigation={navigation} />
+        </View>
+      )}
+
+      {currentRoute.name === 'AddProduct' && (
+        <View style={styles.screen}>
+          <AddProductScreen navigation={navigation} />
         </View>
       )}
 
