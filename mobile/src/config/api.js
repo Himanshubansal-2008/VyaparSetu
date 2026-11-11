@@ -41,12 +41,33 @@ export const getDefaultBaseUrl = () => {
 
 const rawEnvUrl = process.env.EXPO_PUBLIC_API_URL;
 
-export const BASE_URL = rawEnvUrl
-  ? normalizeBaseUrl(rawEnvUrl)
-  : getDefaultBaseUrl();
+/**
+ * Resolves the active base URL, adapting for LAN/hostname access in browser environments
+ */
+export const resolveBaseUrl = () => {
+  let url = rawEnvUrl ? normalizeBaseUrl(rawEnvUrl) : getDefaultBaseUrl();
+
+  // If running in a web browser environment accessed via LAN IP or hostname (not localhost)
+  if (
+    typeof window !== 'undefined' &&
+    window.location &&
+    window.location.hostname &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1' &&
+    url.includes('localhost')
+  ) {
+    url = url.replace('localhost', window.location.hostname);
+  }
+
+  return url;
+};
+
+export const BASE_URL = resolveBaseUrl();
 
 export const API_CONFIG = {
-  BASE_URL,
+  get BASE_URL() {
+    return resolveBaseUrl();
+  },
   TIMEOUT_MS: 15000,
   DEFAULT_HEADERS: {
     'Content-Type': 'application/json',

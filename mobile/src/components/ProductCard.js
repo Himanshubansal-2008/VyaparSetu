@@ -20,8 +20,8 @@ export default function ProductCard({
   originalPrice = product?.originalPrice,
   category = product?.categoryName ||
     (typeof product?.category === 'object' ? product?.category?.name : product?.category),
-  sellerName = product?.sellerName,
-  location = product?.location,
+  sellerName,
+  location,
   image = product?.imageUrl || product?.image,
   unit = product?.unit || 'piece',
   moq = product?.minOrderQuantity !== undefined ? product?.minOrderQuantity : product?.moq,
@@ -34,6 +34,19 @@ export default function ProductCard({
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [imageError, setImageError] = useState(false);
+
+  // Correctly resolve seller/business name and location from database or props
+  const resolvedSellerName =
+    sellerName ||
+    product?.sellerName ||
+    product?.business?.name ||
+    product?.businessName ||
+    null;
+
+  const resolvedLocation =
+    location ||
+    product?.location ||
+    ([product?.business?.city, product?.business?.state].filter(Boolean).join(', ') || null);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -120,8 +133,8 @@ export default function ProductCard({
               price,
               originalPrice,
               category,
-              sellerName,
-              location,
+              sellerName: resolvedSellerName,
+              location: resolvedLocation,
               image,
               unit,
               moq,
@@ -194,7 +207,7 @@ export default function ProductCard({
             </Text>
           ) : null}
 
-          {(rating || location) && (
+          {(rating || resolvedLocation) && (
             <View style={styles.metaRow}>
               {rating ? (
                 <View style={styles.ratingChip}>
@@ -208,7 +221,7 @@ export default function ProductCard({
                 <View />
               )}
 
-              {location ? (
+              {resolvedLocation ? (
                 <View style={styles.locationChip}>
                   <Ionicons
                     name="location-outline"
@@ -216,14 +229,14 @@ export default function ProductCard({
                     color={colors.textMuted}
                   />
                   <Text style={styles.locationText} numberOfLines={1}>
-                    {location}
+                    {resolvedLocation}
                   </Text>
                 </View>
               ) : null}
             </View>
           )}
 
-          {sellerName ? (
+          {resolvedSellerName ? (
             <View style={styles.sellerRow}>
               <Ionicons
                 name="storefront-outline"
@@ -231,7 +244,7 @@ export default function ProductCard({
                 color={colors.success}
               />
               <Text style={styles.sellerName} numberOfLines={1}>
-                {sellerName}
+                {resolvedSellerName}
               </Text>
             </View>
           ) : null}

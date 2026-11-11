@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,10 +11,11 @@ import {
   Platform,
   Pressable,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
-import { products as defaultProducts } from '../data/products';
+import { getProductById } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -74,49 +75,95 @@ export default function ProductDetailsScreen({
       ? propProducts
       : route?.params?.products !== undefined
       ? route.params.products
-      : defaultProducts;
+      : [];
 
-  const routeProductId =
+  const targetProductId =
     route?.params?.productId ||
     route?.params?.id ||
-    route?.params?.product?.id;
+    route?.params?.product?.id ||
+    propProduct?.id;
 
-  // Retrieve matching product dynamically from catalog using product ID as primary reference
+  // --- Real API Data Fetching ---
+  const [apiProduct, setApiProduct] = useState(null);
+  const [isLoading, setIsLoading] = useState(
+    Boolean(targetProductId) && !propProduct
+  );
+  const [error, setError] = useState(null);
+
+  const fetchProductDetails = useCallback(async () => {
+    // If a full product object was passed as direct prop (e.g. testing) without route ID, skip fetch
+    if (propProduct && !route?.params?.productId && !route?.params?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (!targetProductId) {
+      setIsLoading(false);
+      // If product object is present in route params, we can use it
+      if (route?.params?.product) {
+        return;
+      }
+      setError('Product ID is required.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await getProductById(targetProductId);
+      const data = response?.data || response;
+      if (!data || !data.id) {
+        setError('Product not found.');
+        setApiProduct(null);
+      } else {
+        setApiProduct(data);
+      }
+    } catch (err) {
+      console.error('[ProductDetailsScreen] Error fetching product details:', err);
+      setError(err?.message || 'Failed to load product details.');
+      setApiProduct(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [targetProductId, propProduct, route?.params?.productId, route?.params?.id, route?.params?.product]);
+
+  useEffect(() => {
+    fetchProductDetails();
+  }, [fetchProductDetails]);
+
+  // Retrieve active product dynamically: API data takes priority over mock fallbacks
   const product = useMemo(() => {
-    if (routeProductId) {
+    if (apiProduct) {
+      return apiProduct;
+    }
+
+    if (propProduct) {
+      return propProduct;
+    }
+
+    if (targetProductId) {
       const found = allProducts.find(
-        (p) => String(p.id) === String(routeProductId)
+        (p) => String(p.id) === String(targetProductId)
       );
       if (found) {
         return found;
       }
     }
 
-    if (propProduct?.id) {
-      const found = allProducts.find(
-        (p) => String(p.id) === String(propProduct.id)
-      );
-      if (found) {
-        return found;
-      }
-      return propProduct;
-    }
-
-    if (propProduct && propProduct.name) {
-      return propProduct;
-    }
-
-    if (route?.params?.product && route.params.product.name) {
+    if (route?.params?.product && !isLoading && !error) {
       return route.params.product;
     }
 
     return null;
-  }, [allProducts, propProduct, routeProductId, route?.params?.product]);
+  }, [apiProduct, propProduct, targetProductId, allProducts, route?.params?.product, isLoading, error]);
 
-  // Extract images array from product data
+  // Extract images array from product data (supporting images array, imageUrl, and image)
   const productImages = useMemo(() => {
     if (Array.isArray(product?.images) && product.images.length > 0) {
       return product.images;
+    }
+    if (product?.imageUrl) {
+      return [product.imageUrl];
     }
     if (product?.image) {
       return [product.image];
@@ -157,7 +204,67 @@ export default function ProductDetailsScreen({
         )
       : 0;
 
-  const categoryName = product?.categoryName || product?.category || 'General';
+  const categoryName = useMemo(() => {
+    if (typeof product?.category === 'object' && product?.category?.name) {
+      return product.category.name;
+    }
+    return product?.categoryName || (typeof product?.category === 'string' ? product.category : 'General');
+  }, [product?.category, product?.categoryName]);
+
+  const categoryImageUrl = useMemo(() => {
+    return typeof product?.category === 'object' && product?.category?.imageUrl
+      ? product.category.imageUrl
+      : null;
+  }, [product?.category]);
+
+  const sellerBusiness = useMemo(() => {
+    if (product?.business && typeof product.business === 'object') {
+      const b = product.business;
+      const locationParts = [b.city, b.state].filter(Boolean);
+      return {
+        name: b.name || product?.sellerName || product?.businessName || null,
+        description: b.description || null,
+        city: b.city || null,
+        state: b.state || null,
+        location: locationParts.length > 0 ? locationParts.join(', ') : null,
+      };
+    }
+    if (product?.sellerName || product?.businessName) {
+      const locationParts = [product?.city, product?.state].filter(Boolean);
+      return {
+        name: product.sellerName || product.businessName,
+        description: product?.sellerDescription || null,
+        city: product?.city || null,
+        state: product?.state || null,
+        location: product?.location || (locationParts.length > 0 ? locationParts.join(', ') : null),
+      };
+    }
+    return null;
+  }, [
+    product?.business,
+    product?.sellerName,
+    product?.businessName,
+    product?.city,
+    product?.state,
+    product?.location,
+    product?.sellerDescription,
+  ]);
+
+  const resolvedMoq = useMemo(() => {
+    const raw =
+      product?.minOrderQuantity !== undefined
+        ? product.minOrderQuantity
+        : product?.moq;
+    if (raw !== undefined && raw !== null && !isNaN(raw) && Number(raw) > 0) {
+      return Math.max(1, Math.floor(Number(raw)));
+    }
+    return 1;
+  }, [product?.minOrderQuantity, product?.moq]);
+
+  const rawMoqDisplay =
+    product?.minOrderQuantity !== undefined
+      ? product.minOrderQuantity
+      : product?.moq;
 
   // Pluralized / readable unit label
   const unitPlural = useMemo(() => {
@@ -206,13 +313,14 @@ export default function ProductDetailsScreen({
   // Resolve brand or manufacturer label and value
   const brandValue = product?.brand || null;
   const manufacturerValue = product?.manufacturer || null;
+  const sellerNameValue = sellerBusiness?.name || product?.sellerName || null;
   const brandOrMaker =
-    brandValue || manufacturerValue || product?.sellerName || null;
+    brandValue || manufacturerValue || sellerNameValue || null;
   const brandLabel = brandValue
     ? 'Brand'
     : manufacturerValue
     ? 'Manufacturer'
-    : 'Manufacturer / Seller';
+    : 'Seller / Business';
 
   // Resolve stock quantity (using stock property or availableQuantity fallback)
   const stockValue = useMemo(() => {
@@ -254,13 +362,6 @@ export default function ProductDetailsScreen({
         icon: 'close-circle',
       };
     }
-    const resolvedMoq =
-      product?.moq !== undefined &&
-      product?.moq !== null &&
-      !isNaN(product.moq) &&
-      Number(product.moq) > 0
-        ? Math.max(1, Math.floor(Number(product.moq)))
-        : 1;
 
     if (stockValue < resolvedMoq) {
       return {
@@ -290,7 +391,7 @@ export default function ProductDetailsScreen({
       borderColor: colors.success,
       icon: 'checkmark-circle',
     };
-  }, [stockValue, product?.moq]);
+  }, [stockValue, resolvedMoq]);
 
   // Build key details list dynamically from available basic product properties
   const keyDetails = useMemo(() => {
@@ -305,10 +406,10 @@ export default function ProductDetailsScreen({
     if (product?.unit) {
       details.push({ label: 'Sold By', value: `Per ${product.unit}` });
     }
-    if (product?.moq !== undefined && product?.moq !== null) {
+    if (rawMoqDisplay !== undefined && rawMoqDisplay !== null) {
       details.push({
         label: 'Min. Order Qty (MOQ)',
-        value: `${product.moq} ${unitPlural}`,
+        value: `${rawMoqDisplay} ${unitPlural}`,
       });
     }
     if (stockValue !== null && !isNaN(stockValue)) {
@@ -322,48 +423,43 @@ export default function ProductDetailsScreen({
     }
     if (manufacturerValue) {
       details.push({ label: 'Manufacturer', value: manufacturerValue });
-    } else if (product?.sellerName && !brandValue) {
-      details.push({ label: 'Manufacturer / Seller', value: product.sellerName });
+    } else if (sellerBusiness?.name) {
+      details.push({ label: 'Seller / Business', value: sellerBusiness.name });
     }
 
     return details;
   }, [
-    product,
+    product?.id,
+    product?.unit,
     categoryName,
-    brandValue,
-    manufacturerValue,
+    rawMoqDisplay,
     unitPlural,
     stockValue,
     stockStatus,
+    brandValue,
+    manufacturerValue,
+    sellerBusiness?.name,
   ]);
 
-  // Extract and validate bulk pricing tiers from product data
+  // Extract and validate bulk pricing tiers from product data (sorted ascending by minQuantity)
   const bulkTiers = useMemo(() => {
     if (!Array.isArray(product?.bulkPricing) || product.bulkPricing.length === 0) {
       return [];
     }
-    return product.bulkPricing.filter(
-      (tier) =>
-        tier &&
-        tier.minQuantity !== undefined &&
-        tier.minQuantity !== null &&
-        tier.pricePerUnit !== undefined &&
-        tier.pricePerUnit !== null
-    );
-  }, [product]);
+    return product.bulkPricing
+      .filter(
+        (tier) =>
+          tier &&
+          tier.minQuantity !== undefined &&
+          tier.minQuantity !== null &&
+          tier.pricePerUnit !== undefined &&
+          tier.pricePerUnit !== null
+      )
+      .sort((a, b) => Number(a.minQuantity) - Number(b.minQuantity));
+  }, [product?.bulkPricing]);
 
   // Minimum Order Quantity bound (defaults to 1 if missing, invalid, or non-positive)
-  const minQty = useMemo(() => {
-    if (
-      product?.moq !== undefined &&
-      product?.moq !== null &&
-      !isNaN(product.moq) &&
-      Number(product.moq) > 0
-    ) {
-      return Math.max(1, Math.floor(Number(product.moq)));
-    }
-    return 1;
-  }, [product?.moq]);
+  const minQty = resolvedMoq;
 
   // Maximum quantity bound (based on available stock)
   const maxQty = useMemo(() => {
@@ -667,6 +763,84 @@ export default function ProductDetailsScreen({
     return extracted;
   }, [product]);
 
+  // Loading State
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Product Details</Text>
+          <View style={styles.headerRightSpacer} />
+        </View>
+
+        <View style={styles.centerContainer} testID="product-details-loading">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading product details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error State with Retry
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Product Details</Text>
+          <View style={styles.headerRightSpacer} />
+        </View>
+
+        <View style={styles.centerContainer} testID="product-details-error">
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color={colors.error || '#EF4444'}
+          />
+          <Text style={styles.errorTitle}>Failed to load product</Text>
+          <Text style={styles.errorSubtitle}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchProductDetails}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading product details"
+          >
+            <Ionicons
+              name="refresh"
+              size={15}
+              color={colors.textInverse}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!product) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -799,12 +973,19 @@ export default function ProductDetailsScreen({
             {/* Badges: Category Name & Product ID */}
             <View style={styles.tagsRow}>
               <View style={styles.categoryBadge}>
-                <Ionicons
-                  name="pricetag-outline"
-                  size={12}
-                  color={colors.info}
-                  style={styles.categoryIcon}
-                />
+                {categoryImageUrl ? (
+                  <Image
+                    source={{ uri: categoryImageUrl }}
+                    style={styles.categoryBadgeImage}
+                  />
+                ) : (
+                  <Ionicons
+                    name="pricetag-outline"
+                    size={12}
+                    color={colors.info}
+                    style={styles.categoryIcon}
+                  />
+                )}
                 <Text style={styles.categoryText}>{categoryName}</Text>
               </View>
 
@@ -1441,10 +1622,57 @@ export default function ProductDetailsScreen({
             </View>
           )}
 
-          {/*
-            Layout ready for upcoming sections:
-            - Seller & Business Information
-          */}
+          {/* Seller & Business Information Section */}
+          {sellerBusiness && (sellerBusiness.name || sellerBusiness.location || sellerBusiness.description) ? (
+            <View style={styles.sellerCard} testID="product-seller-info">
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="storefront-outline"
+                  size={18}
+                  color={colors.primary}
+                  style={styles.sectionHeaderIcon}
+                />
+                <Text style={styles.sectionTitle}>Seller Information</Text>
+              </View>
+
+              <View style={styles.sellerContent}>
+                {sellerBusiness.name ? (
+                  <View style={styles.sellerNameRow}>
+                    <Text style={styles.sellerBusinessName}>
+                      {sellerBusiness.name}
+                    </Text>
+                    <View style={styles.verifiedBadge}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={12}
+                        color={colors.success}
+                      />
+                      <Text style={styles.verifiedText}>Verified</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {sellerBusiness.description ? (
+                  <Text style={styles.sellerDescription}>
+                    {sellerBusiness.description}
+                  </Text>
+                ) : null}
+
+                {sellerBusiness.location ? (
+                  <View style={styles.sellerLocationRow}>
+                    <Ionicons
+                      name="location-outline"
+                      size={14}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.sellerLocationText}>
+                      {sellerBusiness.location}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -2516,5 +2744,134 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontSize: 14,
     fontWeight: '700',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxxl * 2,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxxl * 2,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+    lineHeight: 20,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  retryButtonText: {
+    color: colors.textInverse,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  categoryBadgeImage: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    marginRight: 4,
+  },
+  sellerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sellerContent: {
+    gap: spacing.sm,
+  },
+  sellerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  sellerBusinessName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.successLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  verifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  sellerDescription: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  sellerLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  sellerLocationText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
 });
