@@ -35,6 +35,11 @@ export default function ProductCard({
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [imageError, setImageError] = useState(false);
 
+  // Reset image error state whenever product image URI changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [image]);
+
   // Correctly resolve seller/business name and location from database or props
   const resolvedSellerName =
     sellerName ||

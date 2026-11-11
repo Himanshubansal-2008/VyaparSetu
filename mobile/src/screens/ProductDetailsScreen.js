@@ -29,6 +29,10 @@ function ThumbnailItem({
 }) {
   const [hasError, setHasError] = useState(false);
 
+  useEffect(() => {
+    setHasError(false);
+  }, [uri]);
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -69,6 +73,7 @@ export default function ProductDetailsScreen({
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [categoryImageError, setCategoryImageError] = useState(false);
 
   const allProducts =
     propProducts !== undefined
@@ -179,6 +184,15 @@ export default function ProductDetailsScreen({
   }, [product?.id]);
 
   const currentImage = productImages[selectedImageIndex] || null;
+
+  // Reset image error state whenever selected image or category image changes
+  useEffect(() => {
+    setImageError(false);
+  }, [currentImage]);
+
+  useEffect(() => {
+    setCategoryImageError(false);
+  }, [categoryImageUrl]);
 
   const handleSelectImage = (index) => {
     if (index !== selectedImageIndex) {
@@ -973,10 +987,11 @@ export default function ProductDetailsScreen({
             {/* Badges: Category Name & Product ID */}
             <View style={styles.tagsRow}>
               <View style={styles.categoryBadge}>
-                {categoryImageUrl ? (
+                {categoryImageUrl && !categoryImageError ? (
                   <Image
                     source={{ uri: categoryImageUrl }}
                     style={styles.categoryBadgeImage}
+                    onError={() => setCategoryImageError(true)}
                   />
                 ) : (
                   <Ionicons
@@ -1046,6 +1061,18 @@ export default function ProductDetailsScreen({
                 Wholesale base price
                 {product?.unit ? ` (per ${product.unit})` : ''}
               </Text>
+
+              {rawMoqDisplay !== undefined && rawMoqDisplay !== null ? (
+                <View style={styles.moqBannerRow}>
+                  <Ionicons name="cart-outline" size={13} color={colors.primary} />
+                  <Text style={styles.moqBannerText}>
+                    Minimum Order Quantity:{' '}
+                    <Text style={styles.moqBannerBold}>
+                      {rawMoqDisplay} {unitPlural}
+                    </Text>
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -1977,6 +2004,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  moqBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    gap: 4,
+    backgroundColor: colors.surfaceSubtle,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+  },
+  moqBannerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  moqBannerBold: {
+    color: colors.textPrimary,
+    fontWeight: '700',
   },
   bulkPricingCard: {
     backgroundColor: colors.surface,

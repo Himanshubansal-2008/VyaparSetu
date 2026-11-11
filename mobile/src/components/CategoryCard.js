@@ -24,6 +24,12 @@ export default function CategoryCard({ category, isSelected, onPress }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [imageError, setImageError] = useState(false);
 
+  const imageUri = category?.imageUrl || category?.image;
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [imageUri]);
+
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.93,
@@ -41,8 +47,6 @@ export default function CategoryCard({ category, isSelected, onPress }) {
       bounciness: 4,
     }).start();
   };
-
-  const imageUri = category?.imageUrl || category?.image;
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
