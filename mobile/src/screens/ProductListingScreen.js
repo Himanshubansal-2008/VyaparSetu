@@ -21,6 +21,8 @@ import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
+const PAGE_LIMIT = 10;
+
 export default function ProductListingScreen({
   navigation,
   route,
@@ -46,6 +48,10 @@ export default function ProductListingScreen({
   // Sorting State: null (Default) | 'price_asc' | 'price_desc'
   const [sortOption, setSortOption] = useState(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
+
   // Categories API State
   const [apiCategories, setApiCategories] = useState([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(
@@ -54,7 +60,6 @@ export default function ProductListingScreen({
 
   // Products API State
   const [products, setProducts] = useState(propProducts || []);
-  const [pagination, setPagination] = useState(null);
   const [isLoading, setIsLoading] = useState(
     propProducts === undefined && route?.params?.products === undefined
   );
@@ -67,27 +72,30 @@ export default function ProductListingScreen({
   useEffect(() => {
     const nextCategory =
       route?.params?.selectedCategory || route?.params?.categoryId;
-    if (nextCategory !== undefined && nextCategory !== null) {
+    if (nextCategory !== undefined && nextCategory !== null && nextCategory !== selectedCategory) {
       setSelectedCategory(nextCategory || 'all');
+      setCurrentPage(1);
     }
   }, [route?.params?.selectedCategory, route?.params?.categoryId]);
 
   useEffect(() => {
-    if (route?.params?.searchQuery !== undefined) {
+    if (route?.params?.searchQuery !== undefined && route.params.searchQuery !== searchQuery) {
       setSearchQuery(route.params.searchQuery);
     }
   }, [route?.params?.searchQuery]);
 
-  // Debounce search query input (350ms)
+  // Debounce search query input (350ms) and reset page to 1
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (!trimmed) {
       setDebouncedSearch('');
+      setCurrentPage(1);
       return;
     }
 
     const timer = setTimeout(() => {
       setDebouncedSearch(trimmed);
+      setCurrentPage(1);
     }, 350);
 
     return () => clearTimeout(timer);
@@ -140,7 +148,44 @@ export default function ProductListingScreen({
     return baseList;
   }, [propCategories, route?.params?.categories, apiCategories]);
 
-  // Fetch Products from Backend API with Combined Search, Category, and Sorting
+  // Filter change handlers that reset page to 1
+  const handleCategoryPress = (catId) => {
+    if (catId !== selectedCategory) {
+      setSelectedCategory(catId);
+      setCurrentPage(1);
+    }
+  };
+
+  const handleSortPress = (newSort) => {
+    if (newSort !== sortOption) {
+      setSortOption(newSort);
+      setCurrentPage(1);
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setDebouncedSearch('');
+    setSelectedCategory('all');
+    setSortOption(null);
+    setCurrentPage(1);
+  };
+
+  // Pagination navigation controls
+  const handlePreviousPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      setCurrentPage((prev) => Math.max(1, prev - 1));
+    }
+  };
+
+  const handleNextPage = () => {
+    const totalPages = pagination?.totalPages || 1;
+    if (currentPage < totalPages && !isLoading) {
+      setCurrentPage((prev) => prev + 1);
+    }
+  };
+
+  // Fetch Products from Backend API with Combined Search, Category, Sorting, and Pagination
   const fetchProductsList = useCallback(async () => {
     if (propProducts !== undefined || route?.params?.products !== undefined) {
       setIsLoading(false);
@@ -153,8 +198,8 @@ export default function ProductListingScreen({
 
     try {
       const params = {
-        page: 1,
-        limit: 20,
+        page: currentPage,
+        limit: PAGE_LIMIT,
       };
 
       if (debouncedSearch) {
@@ -185,20 +230,53 @@ export default function ProductListingScreen({
           ? response
           : [];
         setProducts(items);
-        setPagination(response?.pagination || null);
+
+        // Normalize pagination data from backend response
+        const rawPagination = response?.pagination || response?.data?.pagination || null;
+        if (rawPagination) {
+          const total = Number(rawPagination.total ?? rawPagination.totalProducts ?? 0);
+          const limit = Number(rawPagination.limit) || PAGE_LIMIT;
+          const totalPages = Number(rawPagination.totalPages) || (total === 0 ? 0 : Math.ceil(total / limit));
+          const page = Number(rawPagination.page) || currentPage;
+
+          setPagination({
+            total,
+            limit,
+            page,
+            totalPages,
+            hasNextPage:
+              rawPagination.hasNextPage !== undefined
+                ? Boolean(rawPagination.hasNextPage)
+                : page < totalPages,
+            hasPrevPage:
+              rawPagination.hasPrevPage !== undefined
+                ? Boolean(rawPagination.hasPrevPage)
+                : page > 1,
+          });
+        } else {
+          setPagination(null);
+        }
       }
     } catch (err) {
       if (requestId === activeRequestIdRef.current) {
         console.error('[ProductListingScreen] Error fetching products:', err);
         setError(err?.message || 'Failed to load products. Please check your connection.');
         setProducts([]);
+        setPagination(null);
       }
     } finally {
       if (requestId === activeRequestIdRef.current) {
         setIsLoading(false);
       }
     }
-  }, [debouncedSearch, selectedCategory, sortOption, propProducts, route?.params?.products]);
+  }, [
+    currentPage,
+    debouncedSearch,
+    selectedCategory,
+    sortOption,
+    propProducts,
+    route?.params?.products,
+  ]);
 
   useEffect(() => {
     fetchProductsList();
@@ -295,7 +373,7 @@ export default function ProductListingScreen({
                       styles.chip,
                       isSelected ? styles.chipSelected : styles.chipUnselected,
                     ]}
-                    onPress={() => setSelectedCategory(category.id)}
+                    onPress={() => handleCategoryPress(category.id)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={`Filter by ${label}`}
@@ -331,7 +409,7 @@ export default function ProductListingScreen({
                     styles.sortChip,
                     sortOption === null ? styles.sortChipSelected : styles.sortChipUnselected,
                   ]}
-                  onPress={() => setSortOption(null)}
+                  onPress={() => handleSortPress(null)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Default sorting"
@@ -351,7 +429,7 @@ export default function ProductListingScreen({
                     styles.sortChip,
                     sortOption === 'price_asc' ? styles.sortChipSelected : styles.sortChipUnselected,
                   ]}
-                  onPress={() => setSortOption('price_asc')}
+                  onPress={() => handleSortPress('price_asc')}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Sort by Price: Low to High"
@@ -377,7 +455,7 @@ export default function ProductListingScreen({
                     styles.sortChip,
                     sortOption === 'price_desc' ? styles.sortChipSelected : styles.sortChipUnselected,
                   ]}
-                  onPress={() => setSortOption('price_desc')}
+                  onPress={() => handleSortPress('price_desc')}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Sort by Price: High to Low"
@@ -405,13 +483,15 @@ export default function ProductListingScreen({
               <Text style={styles.resultsCount}>
                 {isLoading
                   ? 'Loading products...'
+                  : pagination?.total !== undefined
+                  ? `${pagination.total} product${pagination.total !== 1 ? 's' : ''} available`
                   : `${products.length} product${products.length !== 1 ? 's' : ''} available`}
               </Text>
               <View style={styles.activeFiltersRow}>
                 {selectedCategory !== 'all' && (
                   <TouchableOpacity
                     style={styles.resetCategoryChip}
-                    onPress={() => setSelectedCategory('all')}
+                    onPress={() => handleCategoryPress('all')}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.resetCategoryText}>Clear Category</Text>
@@ -421,7 +501,7 @@ export default function ProductListingScreen({
                 {sortOption !== null && (
                   <TouchableOpacity
                     style={styles.resetCategoryChip}
-                    onPress={() => setSortOption(null)}
+                    onPress={() => handleSortPress(null)}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.resetCategoryText}>Reset Sort</Text>
@@ -431,6 +511,86 @@ export default function ProductListingScreen({
               </View>
             </View>
           </View>
+        }
+        ListFooterComponent={
+          !isLoading && !error && products.length > 0 && pagination && pagination.total > 0 ? (
+            <View style={styles.paginationContainer} testID="pagination-controls">
+              {/* Page items summary */}
+              <Text style={styles.paginationSummary}>
+                Showing {Math.min((currentPage - 1) * PAGE_LIMIT + 1, pagination.total)}–
+                {Math.min(currentPage * PAGE_LIMIT, pagination.total)} of {pagination.total} products
+              </Text>
+
+              {/* Previous and Next Controls */}
+              <View style={styles.paginationControlsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.paginationButton,
+                    (currentPage <= 1 || isLoading) && styles.paginationButtonDisabled,
+                  ]}
+                  onPress={handlePreviousPage}
+                  disabled={currentPage <= 1 || isLoading}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous Page"
+                  testID="pagination-prev"
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={16}
+                    color={currentPage <= 1 || isLoading ? colors.textMuted : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.paginationButtonText,
+                      (currentPage <= 1 || isLoading) && styles.paginationButtonTextDisabled,
+                    ]}
+                  >
+                    Previous
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.pageBadge}>
+                  <Text style={styles.pageBadgeText}>
+                    Page {currentPage} of {Math.max(1, pagination.totalPages)}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paginationButton,
+                    (currentPage >= pagination.totalPages || isLoading) &&
+                      styles.paginationButtonDisabled,
+                  ]}
+                  onPress={handleNextPage}
+                  disabled={currentPage >= pagination.totalPages || isLoading}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next Page"
+                  testID="pagination-next"
+                >
+                  <Text
+                    style={[
+                      styles.paginationButtonText,
+                      (currentPage >= pagination.totalPages || isLoading) &&
+                        styles.paginationButtonTextDisabled,
+                    ]}
+                  >
+                    Next
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={
+                      currentPage >= pagination.totalPages || isLoading
+                        ? colors.textMuted
+                        : colors.primary
+                    }
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           isLoading ? (
@@ -456,35 +616,49 @@ export default function ProductListingScreen({
             </View>
           ) : (
             <EmptyState
-              icon="search-outline"
-              title="No products found"
+              icon={hasSearch ? 'search-outline' : hasCategory ? 'file-tray-outline' : 'cube-outline'}
+              title={
+                hasSearch && hasCategory
+                  ? 'No products found'
+                  : hasSearch
+                  ? 'No products found matching your search'
+                  : hasCategory
+                  ? 'No products found in this category'
+                  : currentPage > 1
+                  ? 'No more products'
+                  : 'No products available right now.'
+              }
               description={
                 hasSearch && hasCategory
                   ? `No products in ${categoryName} match "${debouncedSearch}". Try clearing your search or category filter.`
                   : hasSearch
-                  ? `No products found matching "${debouncedSearch}". Try searching with another term.`
+                  ? `No products match "${debouncedSearch}". Try searching with another term or clear your search.`
                   : hasCategory
                   ? `There are currently no products in ${categoryName}. Try exploring other categories.`
+                  : currentPage > 1
+                  ? `Page ${currentPage} has no products. Return to page 1 to browse available items.`
                   : 'Wholesale listings will appear here once suppliers add their products.'
               }
-              actionText={hasSearch ? 'Clear Search' : hasCategory ? 'All Categories' : undefined}
+              actionText={
+                currentPage > 1
+                  ? 'Back to First Page'
+                  : hasSearch
+                  ? 'Clear Search'
+                  : hasCategory
+                  ? 'All Categories'
+                  : undefined
+              }
               onActionPress={
-                hasSearch
+                currentPage > 1
+                  ? () => setCurrentPage(1)
+                  : hasSearch
                   ? () => setSearchQuery('')
                   : hasCategory
-                  ? () => setSelectedCategory('all')
+                  ? () => handleCategoryPress('all')
                   : undefined
               }
               secondaryActionText={hasSearch && hasCategory ? 'Clear All Filters' : undefined}
-              onSecondaryActionPress={
-                hasSearch && hasCategory
-                  ? () => {
-                      setSearchQuery('');
-                      setSelectedCategory('all');
-                      setSortOption(null);
-                    }
-                  : undefined
-              }
+              onSecondaryActionPress={hasSearch && hasCategory ? handleClearFilters : undefined}
             />
           )
         }
@@ -640,6 +814,63 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: colors.primary,
+  },
+  paginationContainer: {
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    marginTop: spacing.lg,
+  },
+  paginationSummary: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textMuted,
+  },
+  paginationControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+  },
+  paginationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.xs + 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: colors.surfaceSubtle,
+    borderColor: colors.borderLight,
+    opacity: 0.6,
+  },
+  paginationButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  paginationButtonTextDisabled: {
+    color: colors.textMuted,
+  },
+  pageBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 3,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  pageBadgeText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: colors.textPrimary,
   },
   centerContainer: {
     paddingVertical: spacing.xxxl * 1.5,
