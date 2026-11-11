@@ -1,4 +1,10 @@
 
+/**
+ * @fileoverview Update Stock Screen
+ * Dedicated quick-entry screen for updating stock levels with validation,
+ * preventing negative stock entries and displaying confirmation feedback.
+ */
+
 import React, { useState } from 'react';
 import {
   View,
