@@ -552,12 +552,14 @@ export default function ProductDetailsScreen({
     if (isOutOfStock || isStockBelowMoq) return;
     setInputError(null);
     setQuantity((prev) => {
-      const current = prev < minQty ? minQty : prev;
+      const parsedInput = parseInt(quantityInputText.replace(/[^0-9]/g, ''), 10);
+      const current = !isNaN(parsedInput) ? parsedInput : prev;
       if (current >= maxQty) {
         setInputError(
           `Cannot exceed available stock of ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
         );
-        return current;
+        setQuantityInputText(String(maxQty));
+        return maxQty;
       }
       const next = current + 1;
       setQuantityInputText(String(next));
@@ -569,12 +571,14 @@ export default function ProductDetailsScreen({
     if (isOutOfStock || isStockBelowMoq) return;
     setInputError(null);
     setQuantity((prev) => {
-      if (prev <= minQty) {
+      const parsedInput = parseInt(quantityInputText.replace(/[^0-9]/g, ''), 10);
+      const current = !isNaN(parsedInput) ? parsedInput : prev;
+      if (current <= minQty) {
         setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
         setQuantityInputText(String(minQty));
         return minQty;
       }
-      const next = prev - 1;
+      const next = current - 1;
       setQuantityInputText(String(next));
       return next;
     });
@@ -583,46 +587,31 @@ export default function ProductDetailsScreen({
   const handleQuantityInputChange = (text) => {
     if (isOutOfStock || isStockBelowMoq) return;
 
-    if (text === '') {
+    // Filter out non-numeric characters (negatives, decimals, letters, symbols)
+    const cleanDigits = text.replace(/[^0-9]/g, '');
+
+    // Allow user to clear text to backspace and type freely
+    if (cleanDigits === '') {
       setQuantityInputText('');
-      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-      setQuantity(0);
+      setInputError(null);
       return;
     }
 
-    // Check if input contains non-digit characters (decimals, negatives, symbols, letters)
-    const hasNonDigits = /[^0-9]/.test(text);
-    if (hasNonDigits) {
-      setQuantityInputText(text);
-      setInputError('Please enter a valid positive whole number');
-      const parsedFloat = parseFloat(text);
-      const val = !isNaN(parsedFloat)
-        ? Math.floor(parsedFloat)
-        : parseInt(text.replace(/[^0-9]/g, ''), 10);
-      if (!isNaN(val) && val > 0) {
-        setQuantity(Math.min(Math.max(val, minQty), maxQty));
-      } else {
-        setQuantity(minQty);
-      }
-      return;
-    }
-
-    setQuantityInputText(text);
-    const val = parseInt(text, 10);
+    setQuantityInputText(cleanDigits);
+    const val = parseInt(cleanDigits, 10);
     if (isNaN(val) || val <= 0) {
-      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-      setQuantity(0);
+      setInputError(null);
       return;
     }
 
-    if (val < minQty) {
-      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-      setQuantity(val);
-    } else if (val > maxQty) {
+    if (val > maxQty) {
       setInputError(
         `Cannot exceed available stock of ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
       );
       setQuantity(maxQty);
+    } else if (val < minQty) {
+      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+      // Keep input text for typing, do not clamp prematurely
     } else {
       setInputError(null);
       setQuantity(val);
@@ -631,14 +620,16 @@ export default function ProductDetailsScreen({
 
   const handleQuantityInputBlur = () => {
     if (isOutOfStock || isStockBelowMoq) return;
-    if (quantityInputText === '') {
+
+    const cleanDigits = quantityInputText.replace(/[^0-9]/g, '');
+    if (cleanDigits === '') {
       setQuantity(minQty);
       setQuantityInputText(String(minQty));
       setInputError(null);
       return;
     }
 
-    const val = parseInt(quantityInputText, 10);
+    const val = parseInt(cleanDigits, 10);
     if (isNaN(val) || val < minQty) {
       setQuantity(minQty);
       setQuantityInputText(String(minQty));

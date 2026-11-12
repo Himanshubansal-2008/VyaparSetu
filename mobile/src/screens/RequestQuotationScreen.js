@@ -17,7 +17,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { submitQuotationRequest } from '../data/quotations';
-import { getProductMoq, getApplicableUnitPrice } from '../context/CartContext';
+import {
+  getProductMoq,
+  getProductStock,
+  getApplicableUnitPrice,
+} from '../context/CartContext';
 import { loadPersistedAddress, getSavedAddress } from '../data/orders';
 import { getSessionBusinessProfile } from '../data/businessProfileData';
 
@@ -54,6 +58,7 @@ export default function RequestQuotationScreen({
   }, [route?.params?.quantity, product]);
 
   const moq = useMemo(() => getProductMoq(product), [product]);
+  const stock = useMemo(() => getProductStock(product), [product]);
   const catalogPrice = useMemo(() => Number(product.price) || 0, [product]);
 
   const [quantity, setQuantity] = useState(initialQty);
@@ -121,31 +126,56 @@ export default function RequestQuotationScreen({
   }, [onBackPress, navigation]);
 
   const handleQuantityTextChange = (text) => {
-    setQuantityText(text);
-    const parsed = parseInt(text.replace(/[^0-9]/g, ''), 10);
-    if (!isNaN(parsed)) {
-      setQuantity(parsed);
+    // Sanitize non-digits
+    const cleanDigits = text.replace(/[^0-9]/g, '');
+
+    // Allow user to clear text to type freely
+    if (cleanDigits === '') {
+      setQuantityText('');
+      return;
+    }
+
+    setQuantityText(cleanDigits);
+    const parsed = parseInt(cleanDigits, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      if (stock !== Infinity && parsed > stock) {
+        setQuantity(stock);
+      } else if (parsed >= moq) {
+        setQuantity(parsed);
+      }
     }
   };
 
   const handleQuantityBlur = () => {
-    let clean = parseInt(quantityText.replace(/[^0-9]/g, ''), 10);
+    const cleanDigits = quantityText.replace(/[^0-9]/g, '');
+    let clean = parseInt(cleanDigits, 10);
     if (isNaN(clean) || clean < moq) {
       clean = moq;
+    } else if (stock !== Infinity && clean > stock) {
+      clean = stock;
     }
     setQuantity(clean);
     setQuantityText(String(clean));
   };
 
   const handleIncrement = () => {
-    const next = quantity + 1;
+    if (stock !== Infinity && quantity >= stock) {
+      Alert.alert(
+        'Maximum Available Stock Reached',
+        `Only ${stock} ${product.unit || 'units'} are available in inventory for this product.`
+      );
+      return;
+    }
+    const current = Number(quantityText) || quantity;
+    const next = stock !== Infinity ? Math.min(stock, current + 1) : current + 1;
     setQuantity(next);
     setQuantityText(String(next));
   };
 
   const handleDecrement = () => {
-    if (quantity > moq) {
-      const next = quantity - 1;
+    const current = Number(quantityText) || quantity;
+    if (current > moq) {
+      const next = Math.max(moq, current - 1);
       setQuantity(next);
       setQuantityText(String(next));
     }
@@ -329,7 +359,9 @@ export default function RequestQuotationScreen({
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
               <Text style={styles.inputLabel}>Required Quantity ({product.unit || 'units'}) *</Text>
-              <Text style={styles.helperLabel}>Min: {moq}</Text>
+              <Text style={styles.helperLabel}>
+                Min: {moq}{stock !== Infinity ? ` · Stock: ${stock}` : ''}
+              </Text>
             </View>
             <View style={styles.stepperContainer}>
               <TouchableOpacity
@@ -337,25 +369,46 @@ export default function RequestQuotationScreen({
                 onPress={handleDecrement}
                 disabled={quantity <= moq}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Decrease quantity"
               >
                 <Ionicons name="remove" size={18} color={quantity <= moq ? colors.textMuted : colors.textPrimary} />
               </TouchableOpacity>
 
               <TextInput
                 style={styles.stepperInput}
-                keyboardType="numeric"
+                keyboardType="number-pad"
+                returnKeyType="done"
                 value={quantityText}
                 onChangeText={handleQuantityTextChange}
                 onBlur={handleQuantityBlur}
+                onSubmitEditing={handleQuantityBlur}
                 selectTextOnFocus
+                accessibilityRole="spinbutton"
+                accessibilityLabel="Required quantity"
+                accessibilityValue={{ min: moq, max: stock === Infinity ? undefined : stock, now: quantity }}
               />
 
               <TouchableOpacity
-                style={styles.stepperButton}
+                style={[
+                  styles.stepperButton,
+                  stock !== Infinity && quantity >= stock && styles.stepperButtonDisabled,
+                ]}
                 onPress={handleIncrement}
+                disabled={stock !== Infinity && quantity >= stock}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Increase quantity"
               >
-                <Ionicons name="add" size={18} color={colors.textPrimary} />
+                <Ionicons
+                  name="add"
+                  size={18}
+                  color={
+                    stock !== Infinity && quantity >= stock
+                      ? colors.textMuted
+                      : colors.textPrimary
+                  }
+                />
               </TouchableOpacity>
             </View>
           </View>

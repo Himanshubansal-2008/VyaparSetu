@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   Image,
@@ -38,11 +39,14 @@ export default function CartScreen({
     subtotal,
     totalSavings,
     totalAmount,
+    updateQuantity,
     increaseQuantity,
     decreaseQuantity,
     removeFromCart,
     clearCart,
   } = useCart();
+
+  const [editingQuantities, setEditingQuantities] = useState({});
 
   const handleBack = () => {
     if (onBackPress) {
@@ -107,9 +111,84 @@ export default function CartScreen({
     );
   };
 
+  const handleQuantityChange = (itemId, text) => {
+    // Keep only numbers while typing
+    const clean = text.replace(/[^0-9]/g, '');
+    setEditingQuantities((prev) => ({
+      ...prev,
+      [itemId]: clean,
+    }));
+  };
+
+  const handleQuantityBlur = (item) => {
+    const raw = editingQuantities[item.id];
+    setEditingQuantities((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+
+    if (raw === undefined) return;
+
+    const moq = getProductMoq(item.product);
+    const stock = getProductStock(item.product);
+    const unitSingular = item.product?.unit || 'unit';
+    const unitPlural = `${unitSingular}s`;
+
+    if (raw === '') {
+      updateQuantity(item.id, moq);
+      Alert.alert(
+        'Quantity Required',
+        `Quantity cannot be empty. Reset to minimum order quantity (${moq} ${unitPlural}).`
+      );
+      return;
+    }
+
+    const val = parseInt(raw, 10);
+    if (isNaN(val) || val <= 0) {
+      updateQuantity(item.id, moq);
+      Alert.alert(
+        'Invalid Quantity',
+        `Please enter a valid positive quantity. Reset to minimum order quantity (${moq} ${unitPlural}).`
+      );
+      return;
+    }
+
+    if (val < moq) {
+      updateQuantity(item.id, moq);
+      Alert.alert(
+        'Minimum Order Quantity',
+        `The minimum wholesale order quantity for "${item.product?.name || 'this item'}" is ${moq} ${unitPlural}. Quantity set to ${moq}.`
+      );
+      return;
+    }
+
+    if (stock !== Infinity && val > stock) {
+      updateQuantity(item.id, stock);
+      Alert.alert(
+        'Maximum Stock Exceeded',
+        `Only ${stock.toLocaleString('en-IN')} ${unitPlural} are available in inventory for "${item.product?.name || 'this item'}". Quantity set to maximum available (${stock}).`
+      );
+      return;
+    }
+
+    // Valid quantity within bounds
+    updateQuantity(item.id, val);
+  };
+
   const handleDecrement = (item) => {
     const moq = getProductMoq(item.product);
     const unit = item.product?.unit || 'units';
+
+    setEditingQuantities((prev) => {
+      if (prev[item.id] !== undefined) {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      }
+      return prev;
+    });
+
     if (item.quantity <= moq) {
       Alert.alert(
         'Minimum Order Quantity Reached',
@@ -131,6 +210,16 @@ export default function CartScreen({
   const handleIncrement = (item) => {
     const stock = getProductStock(item.product);
     const unit = item.product?.unit || 'units';
+
+    setEditingQuantities((prev) => {
+      if (prev[item.id] !== undefined) {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      }
+      return prev;
+    });
+
     if (stock !== Infinity && item.quantity >= stock) {
       Alert.alert(
         'Maximum Available Stock Reached',
@@ -486,10 +575,30 @@ export default function CartScreen({
                         />
                       </TouchableOpacity>
 
-                      <View style={styles.quantityDisplay}>
-                        <Text style={styles.quantityNumber}>
-                          {item.quantity}
-                        </Text>
+                      <View style={styles.quantityInputContainer}>
+                        <TextInput
+                          style={styles.quantityInput}
+                          value={
+                            editingQuantities[item.id] !== undefined
+                              ? editingQuantities[item.id]
+                              : String(item.quantity)
+                          }
+                          onChangeText={(text) =>
+                            handleQuantityChange(item.id, text)
+                          }
+                          onBlur={() => handleQuantityBlur(item)}
+                          onSubmitEditing={() => handleQuantityBlur(item)}
+                          keyboardType="number-pad"
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          accessibilityRole="spinbutton"
+                          accessibilityLabel={`Quantity for ${product.name || 'product'}`}
+                          accessibilityValue={{
+                            min: moq,
+                            max: stock === Infinity ? undefined : stock,
+                            now: item.quantity,
+                          }}
+                        />
                         <Text style={styles.quantityUnitLabel}>
                           {unitSingular}
                         </Text>
@@ -1113,6 +1222,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
+  },
+  quantityInputContainer: {
+    minWidth: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.sm,
+    marginHorizontal: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 1,
+  },
+  quantityInput: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    minWidth: 38,
+    paddingVertical: Platform.OS === 'ios' ? 2 : 0,
+    paddingHorizontal: 2,
   },
   quantityNumber: {
     fontSize: 15,
