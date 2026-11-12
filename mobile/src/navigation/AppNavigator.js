@@ -10,6 +10,7 @@ import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
 } from '../data/businessProfileData';
+import { loadPersistedProducts } from '../data/products';
 
 const VALID_ROUTES = [
   'Home',
@@ -114,9 +115,12 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     return () => backHandler.remove();
   }, [history.length, goBack]);
 
-  // Load persisted business profile data from AsyncStorage on app launch
+  // Load persisted business profile and products data from AsyncStorage on app launch
   useEffect(() => {
-    loadPersistedBusinessProfile().finally(() => {
+    Promise.all([
+      loadPersistedBusinessProfile(),
+      loadPersistedProducts(),
+    ]).finally(() => {
       setIsLoaded(true);
     });
   }, []);

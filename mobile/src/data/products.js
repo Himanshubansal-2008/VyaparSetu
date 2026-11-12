@@ -1,4 +1,6 @@
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export const categories = [
   { id: "all", name: "All Products", icon: "grid-outline" },
   { id: "clothing", name: "Clothing", icon: "shirt-outline" },
@@ -562,4 +564,147 @@ export const searchProducts = (query) => {
 
     return tokens.every((token) => searchableText.includes(token));
   });
+};
+
+export const STORAGE_KEY_CUSTOM_PRODUCTS = '@vyaparsetu_custom_products';
+
+const storage =
+  AsyncStorage && typeof AsyncStorage.setItem === 'function'
+    ? AsyncStorage
+    : (AsyncStorage && AsyncStorage.default) || AsyncStorage;
+
+const productListeners = new Set();
+
+export const subscribeProducts = (listener) => {
+  if (typeof listener !== 'function') return () => {};
+  productListeners.add(listener);
+  return () => {
+    productListeners.delete(listener);
+  };
+};
+
+const notifyProductListeners = () => {
+  productListeners.forEach((listener) => {
+    try {
+      listener(products);
+    } catch (e) {
+      console.warn('[products] Listener error:', e);
+    }
+  });
+};
+
+const persistCustomProducts = async () => {
+  try {
+    const customProducts = products.filter(
+      (p) =>
+        p &&
+        (p.isCustom ||
+          (p.id && String(p.id).startsWith('prod-custom-')) ||
+          (p.id && String(p.id).startsWith('prod-submitted-')) ||
+          (p.id && !p.id.startsWith('prod-00')))
+    );
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(
+        STORAGE_KEY_CUSTOM_PRODUCTS,
+        JSON.stringify(customProducts)
+      );
+    }
+  } catch (error) {
+    console.warn('[products] Failed to persist custom products:', error);
+  }
+};
+
+export const loadPersistedProducts = async () => {
+  try {
+    if (storage && typeof storage.getItem === 'function') {
+      const json = await storage.getItem(STORAGE_KEY_CUSTOM_PRODUCTS);
+      if (json) {
+        const customProducts = JSON.parse(json);
+        if (Array.isArray(customProducts)) {
+          customProducts.forEach((cp) => {
+            if (!cp || !cp.id) return;
+            const cleanId = String(cp.id).trim().toLowerCase();
+            const index = products.findIndex(
+              (p) => p && String(p.id).trim().toLowerCase() === cleanId
+            );
+            if (index !== -1) {
+              products[index] = { ...products[index], ...cp };
+            } else {
+              products.unshift(cp);
+            }
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[products] Failed to load persisted products:', error);
+  }
+  notifyProductListeners();
+  return products;
+};
+
+export const addProduct = (productData) => {
+  if (!productData) return null;
+  const newProduct = {
+    ...productData,
+    id: productData.id || `prod-custom-${Date.now()}`,
+    isCustom: true,
+    createdAt: productData.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Prepend to products array so it appears at top of lists
+  products.unshift(newProduct);
+  notifyProductListeners();
+  persistCustomProducts();
+  return newProduct;
+};
+
+export const updateProduct = (updatedProduct) => {
+  if (!updatedProduct || !updatedProduct.id) return null;
+  const cleanId = String(updatedProduct.id).trim().toLowerCase();
+  const index = products.findIndex(
+    (p) => p && String(p.id).trim().toLowerCase() === cleanId
+  );
+
+  const productPayload = {
+    ...updatedProduct,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (index !== -1) {
+    products[index] = { ...products[index], ...productPayload };
+  } else {
+    products.unshift(productPayload);
+  }
+
+  notifyProductListeners();
+  persistCustomProducts();
+  return productPayload;
+};
+
+export const saveProduct = (productData) => {
+  if (!productData) return null;
+  if (productData.id) {
+    const existing = products.find(
+      (p) =>
+        p &&
+        String(p.id).trim().toLowerCase() ===
+          String(productData.id).trim().toLowerCase()
+    );
+    if (existing) {
+      return updateProduct(productData);
+    }
+  }
+  return addProduct(productData);
+};
+
+export const getProductById = (id) => {
+  if (!id) return null;
+  const cleanId = String(id).trim().toLowerCase();
+  return (
+    products.find(
+      (p) => p && String(p.id).trim().toLowerCase() === cleanId
+    ) || null
+  );
 };

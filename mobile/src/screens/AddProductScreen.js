@@ -19,7 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { categories } from '../data/products';
+import { categories, saveProduct } from '../data/products';
+import { getSessionBusinessProfile } from '../data/businessProfileData';
 
 // Extract product categories (excluding filter-only 'all')
 const PRODUCT_CATEGORIES = categories
@@ -59,11 +60,20 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     ? formData.productImages
     : [];
 
+  const [errors, setErrors] = useState({});
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Field change helper
   const handleFieldChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
   // Image Picker Logic (Multiple Images, Gallery Only, Non-destructive)
@@ -207,6 +217,190 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     }
     return 0;
   }, [formData.price, formData.originalPrice]);
+
+  // Form Validation
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.productName.trim()) {
+      newErrors.productName = 'Product name is required';
+    }
+
+    if (!formData.category) {
+      newErrors.category = 'Product category is required';
+    }
+
+    const priceNum = parseFloat(formData.price);
+    if (!formData.price.trim() || isNaN(priceNum) || priceNum <= 0) {
+      newErrors.price = 'Enter a valid price (greater than ₹0)';
+    }
+
+    if (formData.originalPrice.trim()) {
+      const origNum = parseFloat(formData.originalPrice);
+      if (isNaN(origNum) || origNum <= 0) {
+        newErrors.originalPrice = 'Enter a valid original price';
+      } else if (!isNaN(priceNum) && origNum < priceNum) {
+        newErrors.originalPrice =
+          'Original price should be greater than or equal to product price';
+      }
+    }
+
+    if (!formData.unit.trim()) {
+      newErrors.unit = 'Selling unit is required';
+    }
+
+    const moqNum = parseInt(formData.moq, 10);
+    if (!formData.moq.trim() || isNaN(moqNum) || moqNum < 1) {
+      newErrors.moq = 'MOQ must be at least 1';
+    }
+
+    const stockNum = parseInt(formData.stock, 10);
+    if (!formData.stock.trim() || isNaN(stockNum) || stockNum < 0) {
+      newErrors.stock = 'Available stock is required';
+    } else if (!isNaN(moqNum) && stockNum < moqNum) {
+      newErrors.stock = `Available stock (${stockNum}) cannot be less than MOQ (${moqNum})`;
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Form Submission & Persistence
+  const handleSubmitProduct = () => {
+    if (!validateForm()) {
+      Alert.alert(
+        'Required Fields Missing',
+        'Please complete all required fields marked with * and correct any highlighted errors.'
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const routeParams = route?.params || {};
+      const sessionProfile = getSessionBusinessProfile();
+      const resolvedBusiness =
+        routeParams.business ||
+        sessionProfile ||
+        null;
+
+      const businessId =
+        routeParams.businessId ||
+        routeParams.sellerId ||
+        resolvedBusiness?.id ||
+        'biz-submitted-001';
+
+      const sellerId =
+        routeParams.sellerId ||
+        routeParams.businessId ||
+        resolvedBusiness?.sellerId ||
+        resolvedBusiness?.id ||
+        businessId;
+
+      const sellerName =
+        resolvedBusiness?.businessName ||
+        'My Business';
+
+      const location =
+        resolvedBusiness?.location ||
+        [resolvedBusiness?.city, resolvedBusiness?.state]
+          .filter(Boolean)
+          .join(', ') ||
+        'India';
+
+      // Match category
+      const matchedCat = categories.find(
+        (c) => c.name.toLowerCase() === formData.category.toLowerCase()
+      );
+      const categoryId = matchedCat
+        ? matchedCat.id
+        : formData.category.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+      // Clean and format bulk pricing tiers
+      const cleanBulkTiers = formData.bulkPricing
+        .filter((t) => t.minQuantity && t.pricePerUnit)
+        .map((t) => ({
+          minQuantity: parseInt(t.minQuantity, 10),
+          maxQuantity: t.maxQuantity ? parseInt(t.maxQuantity, 10) : null,
+          pricePerUnit: parseFloat(t.pricePerUnit),
+        }))
+        .filter((t) => !isNaN(t.minQuantity) && !isNaN(t.pricePerUnit));
+
+      const priceVal = parseFloat(formData.price);
+      const originalPriceVal = formData.originalPrice.trim()
+        ? parseFloat(formData.originalPrice)
+        : undefined;
+
+      const primaryImage =
+        productImages.length > 0
+          ? productImages[0]
+          : null;
+
+      const productId = `prod-custom-${Date.now()}`;
+
+      const savedPayload = {
+        id: productId,
+        name: formData.productName.trim(),
+        brand: formData.brand.trim() || undefined,
+        manufacturer: formData.manufacturer.trim() || undefined,
+        description: formData.description.trim(),
+        categoryId,
+        categoryName: formData.category,
+        category: formData.category,
+        price: priceVal,
+        originalPrice: originalPriceVal,
+        unit: formData.unit.trim().toLowerCase(),
+        moq: parseInt(formData.moq, 10),
+        availableQuantity: parseInt(formData.stock, 10),
+        stock: parseInt(formData.stock, 10),
+        image: primaryImage,
+        images:
+          productImages.length > 0
+            ? productImages
+            : primaryImage
+            ? [primaryImage]
+            : [],
+        sellerId,
+        businessId,
+        sellerName,
+        location,
+        bulkPricing: cleanBulkTiers,
+        rating: 4.8,
+        totalReviews: 0,
+        isFeatured: false,
+        isSurplus: false,
+        tags: [
+          formData.category.toLowerCase(),
+          ...formData.productName.toLowerCase().split(/\s+/).filter(Boolean),
+        ],
+      };
+
+      saveProduct(savedPayload);
+
+      Alert.alert(
+        'Success',
+        'Product added successfully to your catalog.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (onBackPress) {
+                onBackPress();
+              } else if (navigation?.goBack) {
+                navigation.goBack();
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.warn('[AddProductScreen] Save product error:', error);
+      Alert.alert('Error', 'Could not save product. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Back Navigation
   const handleBack = () => {
@@ -354,8 +548,15 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
             {/* 1. Product Name */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Product Name</Text>
-              <View style={styles.inputWrapper}>
+              <Text style={styles.label}>
+                Product Name <Text style={styles.requiredAsterisk}>*</Text>
+              </Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  errors.productName && styles.inputWrapperError,
+                ]}
+              >
                 <TextInput
                   style={styles.input}
                   value={formData.productName}
@@ -364,6 +565,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   placeholderTextColor={colors.textMuted}
                 />
               </View>
+              {errors.productName && (
+                <Text style={styles.errorText}>{errors.productName}</Text>
+              )}
             </View>
 
             {/* 2. Brand */}
@@ -415,9 +619,15 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
             {/* 5. Product Category */}
             <View style={[styles.inputGroup, styles.inputGroupLast]}>
-              <Text style={styles.label}>Product Category</Text>
+              <Text style={styles.label}>
+                Product Category <Text style={styles.requiredAsterisk}>*</Text>
+              </Text>
               <TouchableOpacity
-                style={[styles.inputWrapper, styles.dropdownWrapper]}
+                style={[
+                  styles.inputWrapper,
+                  styles.dropdownWrapper,
+                  errors.category && styles.inputWrapperError,
+                ]}
                 onPress={() => setIsCategoryModalVisible(true)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
@@ -438,6 +648,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   color={colors.textSecondary}
                 />
               </TouchableOpacity>
+              {errors.category && (
+                <Text style={styles.errorText}>{errors.category}</Text>
+              )}
             </View>
           </View>
 
@@ -449,8 +662,15 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             <View style={styles.rowInputs}>
               {/* Product Price (Wholesale) */}
               <View style={[styles.inputGroup, styles.inputHalf]}>
-                <Text style={styles.label}>Product Price (₹)</Text>
-                <View style={styles.inputWrapper}>
+                <Text style={styles.label}>
+                  Product Price (₹) <Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    errors.price && styles.inputWrapperError,
+                  ]}
+                >
                   <Text style={styles.currencyPrefix}>₹</Text>
                   <TextInput
                     style={styles.input}
@@ -461,6 +681,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                     keyboardType="numeric"
                   />
                 </View>
+                {errors.price && (
+                  <Text style={styles.errorText}>{errors.price}</Text>
+                )}
               </View>
 
               {/* Original Price / MRP */}
@@ -468,7 +691,12 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                 style={[styles.inputGroup, styles.inputHalf, styles.inputHalfLast]}
               >
                 <Text style={styles.label}>Original Price / MRP (₹)</Text>
-                <View style={styles.inputWrapper}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    errors.originalPrice && styles.inputWrapperError,
+                  ]}
+                >
                   <Text style={styles.currencyPrefix}>₹</Text>
                   <TextInput
                     style={styles.input}
@@ -481,6 +709,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                     keyboardType="numeric"
                   />
                 </View>
+                {errors.originalPrice && (
+                  <Text style={styles.errorText}>{errors.originalPrice}</Text>
+                )}
               </View>
             </View>
 
@@ -500,7 +731,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
             {/* Selling Unit */}
             <View style={[styles.inputGroup, styles.inputGroupLast, { marginTop: spacing.sm }]}>
-              <Text style={styles.label}>Selling Unit</Text>
+              <Text style={styles.label}>
+                Selling Unit <Text style={styles.requiredAsterisk}>*</Text>
+              </Text>
 
               {/* Common Unit Preset Chips */}
               <View style={styles.unitChipsWrapper}>
@@ -531,7 +764,12 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               </View>
 
               {/* Editable Unit Input */}
-              <View style={styles.inputWrapper}>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  errors.unit && styles.inputWrapperError,
+                ]}
+              >
                 <TextInput
                   style={styles.input}
                   value={formData.unit}
@@ -540,6 +778,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   placeholderTextColor={colors.textMuted}
                 />
               </View>
+              {errors.unit && (
+                <Text style={styles.errorText}>{errors.unit}</Text>
+              )}
             </View>
           </View>
 
@@ -551,8 +792,15 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             <View style={styles.rowInputs}>
               {/* MOQ */}
               <View style={[styles.inputGroup, styles.inputHalf]}>
-                <Text style={styles.label}>MOQ</Text>
-                <View style={styles.inputWrapper}>
+                <Text style={styles.label}>
+                  MOQ <Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    errors.moq && styles.inputWrapperError,
+                  ]}
+                >
                   <TextInput
                     style={styles.input}
                     value={formData.moq}
@@ -562,6 +810,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                     keyboardType="number-pad"
                   />
                 </View>
+                {errors.moq && (
+                  <Text style={styles.errorText}>{errors.moq}</Text>
+                )}
                 <Text style={styles.inputHint}>Minimum order quantity</Text>
               </View>
 
@@ -569,8 +820,15 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               <View
                 style={[styles.inputGroup, styles.inputHalf, styles.inputHalfLast]}
               >
-                <Text style={styles.label}>Available Stock</Text>
-                <View style={styles.inputWrapper}>
+                <Text style={styles.label}>
+                  Available Stock <Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    errors.stock && styles.inputWrapperError,
+                  ]}
+                >
                   <TextInput
                     style={styles.input}
                     value={formData.stock}
@@ -580,6 +838,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                     keyboardType="number-pad"
                   />
                 </View>
+                {errors.stock && (
+                  <Text style={styles.errorText}>{errors.stock}</Text>
+                )}
                 <Text style={styles.inputHint}>Total units in stock</Text>
               </View>
             </View>
@@ -696,6 +957,26 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               </View>
             )}
           </View>
+
+          {/* Submit Action Button */}
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              isSubmitting && styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmitProduct}
+            activeOpacity={0.8}
+            disabled={isSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel="Add Product"
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={22}
+              color={colors.textInverse}
+            />
+            <Text style={styles.submitButtonText}>Add Product</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -799,6 +1080,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.lg,
+    paddingBottom: spacing.xxxl * 1.5,
   },
   sectionCard: {
     backgroundColor: colors.surface,
@@ -958,6 +1240,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: spacing.xs,
   },
+  requiredAsterisk: {
+    color: colors.error,
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -967,6 +1252,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSubtle,
     paddingHorizontal: spacing.md,
     minHeight: 46,
+  },
+  inputWrapperError: {
+    borderColor: colors.error,
+    backgroundColor: '#fff5f5',
   },
   currencyPrefix: {
     fontSize: 15,
@@ -984,6 +1273,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 3,
+  },
+  errorText: {
+    fontSize: 11,
+    color: colors.error,
+    marginTop: 3,
+    fontWeight: '500',
   },
   multilineWrapper: {
     minHeight: 100,
@@ -1155,6 +1450,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     flex: 1,
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md + 2,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textInverse,
   },
   modalOverlay: {
     flex: 1,

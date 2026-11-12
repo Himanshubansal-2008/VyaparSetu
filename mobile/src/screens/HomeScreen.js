@@ -21,6 +21,7 @@ import EmptyState from '../components/EmptyState';
 import {
   products as defaultProducts,
   categories as defaultCategories,
+  subscribeProducts,
 } from '../data/products';
 import {
   getSessionBusinessProfile,
@@ -47,12 +48,20 @@ export default function HomeScreen({
   onNotificationPress,
   onCartPress,
 }) {
+  const [productList, setProductList] = useState(defaultProducts);
+
+  useEffect(() => {
+    return subscribeProducts((updated) => {
+      setProductList([...updated]);
+    });
+  }, []);
+
   const allProducts =
     propProducts !== undefined
       ? propProducts
       : route?.params?.products !== undefined
       ? route.params.products
-      : defaultProducts;
+      : productList;
 
   const allCategories =
     propCategories !== undefined

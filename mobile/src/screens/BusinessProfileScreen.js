@@ -22,7 +22,7 @@ import {
   getSessionBusinessProfile,
   subscribeBusinessProfile,
 } from '../data/businessProfileData';
-import { products as defaultProducts } from '../data/products';
+import { products as defaultProducts, subscribeProducts } from '../data/products';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
 
@@ -36,11 +36,18 @@ export default function BusinessProfileScreen({
   onNavigateToAddProduct,
 }) {
   const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+  const [productList, setProductList] = useState(defaultProducts);
 
   useEffect(() => {
     setSessionProfile(getSessionBusinessProfile());
     return subscribeBusinessProfile((updated) => {
       setSessionProfile(updated);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeProducts((updated) => {
+      setProductList([...updated]);
     });
   }, []);
 
@@ -162,7 +169,7 @@ export default function BusinessProfileScreen({
       ? propProducts
       : route?.params?.products !== undefined
       ? route.params.products
-      : defaultProducts;
+      : productList;
 
   const businessProducts = useMemo(() => {
     if (!Array.isArray(allProducts) || !resolvedBusiness) return [];
