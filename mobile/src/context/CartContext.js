@@ -10,6 +10,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const CART_STORAGE_KEY = '@vyaparsetu_cart';
 
+export function getProductMoq(product) {
+  if (!product) return 1;
+  const parsed = Number(product.moq);
+  return !isNaN(parsed) && parsed > 0 ? parsed : 1;
+}
+
 export const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
@@ -68,11 +74,17 @@ export function CartProvider({ children }) {
       }
 
       const existingItem = cartItems.find((item) => item.id === product.id);
-      const targetQuantity = options.replace
-        ? (Number(requestedQuantity) || 1)
+      const moq = getProductMoq(product);
+      let targetQuantity = options.replace
+        ? (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq)
         : existingItem
-        ? existingItem.quantity + (Number(requestedQuantity) || 1)
-        : (Number(requestedQuantity) || 1);
+        ? existingItem.quantity + (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq)
+        : (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq);
+
+      targetQuantity = Math.round(targetQuantity);
+      if (targetQuantity < moq) {
+        targetQuantity = moq;
+      }
 
       const unitPrice = Number(product.price) || 0;
       const newItem = {
@@ -133,8 +145,15 @@ export function CartProvider({ children }) {
       const item = prevItems.find((i) => i.id === productId);
       if (!item) return prevItems;
 
+      const moq = getProductMoq(item.product);
+      if (item.quantity <= moq) {
+        return prevItems; // Cannot decrease below MOQ
+      }
       const decrement = Math.max(1, Math.round(Number(step) || 1));
-      const nextQty = Math.max(1, item.quantity - decrement);
+      let nextQty = item.quantity - decrement;
+      if (nextQty < moq) {
+        nextQty = moq;
+      }
       const unitPrice = item.unitPrice || Number(item.product?.price) || 0;
 
       return prevItems.map((i) =>

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { useCart } from '../context/CartContext';
+import { useCart, getProductMoq } from '../context/CartContext';
 
 export default function CartScreen({
   navigation,
@@ -57,6 +57,23 @@ export default function CartScreen({
   };
 
   const handleDecrement = (item) => {
+    const moq = getProductMoq(item.product);
+    const unit = item.product?.unit || 'units';
+    if (item.quantity <= moq) {
+      Alert.alert(
+        'Minimum Order Quantity Reached',
+        `The minimum wholesale order quantity for this item is ${moq} ${unit}. To remove it from your cart, tap the Remove button.`,
+        [
+          { text: 'Keep Item', style: 'cancel' },
+          {
+            text: 'Remove Item',
+            style: 'destructive',
+            onPress: () => removeFromCart(item.id),
+          },
+        ]
+      );
+      return;
+    }
     decreaseQuantity(item.id);
   };
 
@@ -138,7 +155,9 @@ export default function CartScreen({
         <View style={styles.itemsListContainer}>
           {cartItems.map((item, index) => {
             const product = item.product || {};
+            const moq = getProductMoq(product);
             const unitSingular = product.unit || 'unit';
+            const isAtMoq = item.quantity <= moq;
             const imageUri =
               product.image ||
               (Array.isArray(product.images) && product.images[0]) ||
@@ -232,15 +251,18 @@ export default function CartScreen({
                 <View style={styles.controlsRow}>
                   <View style={styles.stepperWrapper}>
                     <TouchableOpacity
-                      style={styles.stepperBtn}
+                      style={[
+                        styles.stepperBtn,
+                        isAtMoq && styles.stepperBtnMoq,
+                      ]}
                       onPress={() => handleDecrement(item)}
                       activeOpacity={0.7}
                       accessibilityLabel="Decrease quantity"
                     >
                       <Ionicons
-                        name="remove"
-                        size={18}
-                        color={colors.primary}
+                        name={isAtMoq ? 'alert-circle-outline' : 'remove'}
+                        size={isAtMoq ? 16 : 18}
+                        color={isAtMoq ? colors.warning : colors.primary}
                       />
                     </TouchableOpacity>
 
@@ -365,6 +387,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.error,
+  },
+  stepperBtnMoq: {
+    backgroundColor: colors.warningLight,
+    borderColor: colors.warning + '55',
   },
   removeButton: {
     flexDirection: 'row',
