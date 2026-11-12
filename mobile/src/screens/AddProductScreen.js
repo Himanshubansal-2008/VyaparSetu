@@ -4,6 +4,7 @@ import {
   View,
   Text,
   TextInput,
+  Image,
   ScrollView,
   SafeAreaView,
   StatusBar,
@@ -12,8 +13,10 @@ import {
   KeyboardAvoidingView,
   Modal,
   FlatList,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { categories } from '../data/products';
@@ -31,13 +34,80 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     manufacturer: '',
     description: '',
     category: '',
+    productImages: [],
   });
+
+  const productImages = Array.isArray(formData.productImages)
+    ? formData.productImages
+    : [];
 
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
 
   // Field change helper
   const handleFieldChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Image Picker Logic (Multiple Images, Gallery Only, Non-destructive)
+  const handlePickImages = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Permission to access your photo gallery is required to select product images.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+
+      // If the seller cancels the picker, do not modify existing selections
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const newUris = result.assets
+        .map((asset) => asset?.uri)
+        .filter((uri) => typeof uri === 'string' && uri.trim().length > 0);
+
+      if (newUris.length === 0) {
+        return;
+      }
+
+      // Append newly selected images while avoiding duplicate URIs
+      setFormData((prev) => {
+        const existing = Array.isArray(prev.productImages)
+          ? prev.productImages
+          : [];
+        const uniqueUris = newUris.filter((uri) => !existing.includes(uri));
+        return {
+          ...prev,
+          productImages: [...existing, ...uniqueUris],
+        };
+      });
+    } catch (error) {
+      console.warn('[AddProductScreen] Image pick error:', error);
+      Alert.alert(
+        'Image Selection Error',
+        'Could not select images from gallery. Please try again.'
+      );
+    }
+  };
+
+  const handleRemoveImage = (indexToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      productImages: (prev.productImages || []).filter(
+        (_, index) => index !== indexToRemove
+      ),
+    }));
   };
 
   // Back Navigation
@@ -79,6 +149,77 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Section: Product Images */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Product Images</Text>
+              {productImages.length > 0 && (
+                <View style={styles.badgeContainer}>
+                  <Text style={styles.badgeText}>
+                    {productImages.length}{' '}
+                    {productImages.length === 1 ? 'image' : 'images'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.imagePickerDottedBox}
+              onPress={handlePickImages}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Select product images from device gallery"
+            >
+              <View style={styles.uploadIconCircle}>
+                <Ionicons
+                  name="images-outline"
+                  size={26}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.imagePickerTitle}>
+                {productImages.length > 0
+                  ? 'Add More Product Images'
+                  : 'Select Product Images'}
+              </Text>
+              <Text style={styles.imagePickerSubtext}>
+                Tap to choose multiple images from your photo gallery
+              </Text>
+            </TouchableOpacity>
+
+            {productImages.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.imageThumbnailsScroll}
+                contentContainerStyle={styles.imageThumbnailsContainer}
+              >
+                {productImages.map((uri, index) => (
+                  <View
+                    key={`product-image-${uri}-${index}`}
+                    style={styles.thumbnailWrapper}
+                  >
+                    <Image source={{ uri }} style={styles.thumbnailImage} />
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={() => handleRemoveImage(index)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove image ${index + 1}`}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={13}
+                        color={colors.textInverse}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
           {/* Section: Basic Product Information */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Basic Product Information</Text>
@@ -286,6 +427,91 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    marginBottom: spacing.lg,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  badgeContainer: {
+    backgroundColor: colors.infoLight,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  imagePickerDottedBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.primaryLight,
+    borderStyle: 'dashed',
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  uploadIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.infoLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs + 2,
+  },
+  imagePickerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  imagePickerSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  imageThumbnailsScroll: {
+    marginTop: spacing.md,
+  },
+  imageThumbnailsContainer: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  thumbnailWrapper: {
+    position: 'relative',
+    width: 76,
+    height: 76,
+  },
+  thumbnailImage: {
+    width: 76,
+    height: 76,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.surface,
   },
   sectionTitle: {
     fontSize: 16,
