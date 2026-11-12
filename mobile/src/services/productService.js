@@ -75,3 +75,21 @@ export const updateProduct = async (productId, productData) => {
 
   return result.data;
 };
+
+export const updateProductStock = async (productId, stock) => {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ stock }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Failed to update stock");
+  }
+
+  return result.data;
+};

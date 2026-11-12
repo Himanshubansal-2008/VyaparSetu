@@ -296,13 +296,20 @@ const filteredProducts = useMemo(() => {
           </View>
         )}
         <View style={styles.actionRow}>
-            <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => navigation.navigate('EditProduct', { product })}
-            >
-                <Text style={styles.editButtonText}>✏ Edit Product</Text>
-            </TouchableOpacity>
-        </View>
+  <TouchableOpacity
+    style={styles.editButton}
+    onPress={() => navigation.navigate('EditProduct', { product })}
+  >
+    <Text style={styles.editButtonText}>✏ Edit Product</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    style={styles.stockButton}
+    onPress={() => navigation.navigate('UpdateStock', { product })}
+  >
+    <Text style={styles.stockButtonText}>📦 Update Stock</Text>
+  </TouchableOpacity>
+</View>
       </View>
     );
   })
@@ -553,6 +560,20 @@ editButton: {
 
 editButtonText: {
   color: colors.textInverse,
+  fontWeight: '700',
+  fontSize: 13,
+},
+stockButton: {
+  flex: 1,
+  backgroundColor: '#0F766E',
+  paddingVertical: spacing.sm,
+  borderRadius: borderRadius.md,
+  alignItems: 'center',
+  marginLeft: spacing.sm,
+},
+
+stockButtonText: {
+  color: '#FFFFFF',
   fontWeight: '700',
   fontSize: 13,
 },

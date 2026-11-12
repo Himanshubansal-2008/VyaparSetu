@@ -7,6 +7,7 @@ import InventoryDashboardScreen from '../screens/InventoryDashboardScreen';
 import InventoryListScreen from '../screens/InventoryListScreen';
 import AddProductScreen from '../screens/AddProductScreen';
 import EditProductScreen from '../screens/EditProductScreen';
+import UpdateStockScreen from '../screens/UpdateStockScreen';
 
 const VALID_ROUTES = [
   'Home',
@@ -16,6 +17,7 @@ const VALID_ROUTES = [
   'InventoryList',
   'AddProduct',
   'EditProduct',
+  'UpdateStock',
 ];
 
 export default function AppNavigator() {
@@ -172,6 +174,15 @@ export default function AppNavigator() {
       {currentRoute.name === 'EditProduct' && (
         <View style={styles.screen}>
           <EditProductScreen
+            navigation={navigation}
+            route={currentRoute}
+          />
+        </View>
+      )}
+
+      {currentRoute.name === 'UpdateStock' && (
+        <View style={styles.screen}>
+          <UpdateStockScreen
             navigation={navigation}
             route={currentRoute}
           />
