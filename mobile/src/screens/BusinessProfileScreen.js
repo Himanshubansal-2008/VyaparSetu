@@ -34,6 +34,7 @@ export default function BusinessProfileScreen({
   products: propProducts,
   onNavigateToProductDetails,
   onNavigateToAddProduct,
+  onNavigateToEditProduct,
 }) {
   const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
   const [productList, setProductList] = useState(defaultProducts);
@@ -258,6 +259,19 @@ export default function BusinessProfileScreen({
         business: resolvedBusiness,
         businessId: resolvedBusiness?.id,
         sellerId: resolvedBusiness?.sellerId || resolvedBusiness?.id,
+      });
+    }
+  };
+
+  const handleEditProduct = (product) => {
+    if (onNavigateToEditProduct) {
+      onNavigateToEditProduct(product);
+    } else if (navigation?.navigate) {
+      navigation.navigate('EditProduct', {
+        product,
+        productId: product?.id,
+        isEdit: true,
+        business: resolvedBusiness,
       });
     }
   };
@@ -750,6 +764,7 @@ export default function BusinessProfileScreen({
                   key={item.id}
                   product={item}
                   onPress={handleProductPress}
+                  onEditPress={handleEditProduct}
                   style={styles.productCardCol}
                 />
               ))}

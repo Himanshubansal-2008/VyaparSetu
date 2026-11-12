@@ -20,6 +20,7 @@ const VALID_ROUTES = [
   'CreateBusinessProfile',
   'EditBusinessProfile',
   'AddProduct',
+  'EditProduct',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -219,6 +220,27 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToEditProduct = useCallback(
+    (itemOrParams) => {
+      if (itemOrParams && typeof itemOrParams === 'object') {
+        navigate('EditProduct', {
+          ...itemOrParams,
+          product: itemOrParams.product || itemOrParams,
+          productId:
+            itemOrParams.productId ||
+            itemOrParams.id ||
+            itemOrParams.product?.id,
+          isEdit: true,
+        });
+      } else if (typeof itemOrParams === 'string') {
+        navigate('EditProduct', { productId: itemOrParams, isEdit: true });
+      } else {
+        navigate('EditProduct', { isEdit: true });
+      }
+    },
+    [navigate]
+  );
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -240,6 +262,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           }
           onNavigateToProductDetails={handleNavigateToProductDetails}
           onNavigateToAddProduct={handleNavigateToAddProduct}
+          onNavigateToEditProduct={handleNavigateToEditProduct}
         />
       </View>
 
@@ -278,6 +301,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={detailsRoute}
             onBackPress={goBack}
             onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+            onNavigateToEditProduct={handleNavigateToEditProduct}
           />
         </View>
       )}
@@ -303,6 +327,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
             onNavigateToAddProduct={handleNavigateToAddProduct}
+            onNavigateToEditProduct={handleNavigateToEditProduct}
           />
         </View>
       )}
@@ -324,10 +349,16 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         </View>
       )}
 
-      {/* Add Product Screen */}
-      {currentRoute.name === 'AddProduct' && (
+      {/* Add / Edit Product Screen */}
+      {(currentRoute.name === 'AddProduct' ||
+        currentRoute.name === 'EditProduct') && (
         <View style={styles.screen}>
           <AddProductScreen
+            key={
+              currentRoute.params?.product?.id ||
+              currentRoute.params?.productId ||
+              currentRoute.name
+            }
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}

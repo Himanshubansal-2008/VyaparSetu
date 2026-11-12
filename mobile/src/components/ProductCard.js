@@ -29,6 +29,7 @@ export default function ProductCard({
   isSurplus = product?.isSurplus,
   isFeatured = product?.isFeatured,
   onPress,
+  onEditPress,
   style,
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -231,6 +232,40 @@ export default function ProductCard({
               </Text>
             </View>
           ) : null}
+
+          {onEditPress && (
+            <TouchableOpacity
+              style={styles.editCardButton}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                onEditPress(
+                  product || {
+                    id,
+                    name,
+                    price,
+                    originalPrice,
+                    category,
+                    sellerName,
+                    location,
+                    image,
+                    unit,
+                    moq,
+                    rating,
+                    totalReviews,
+                    isSurplus,
+                    isFeatured,
+                  }
+                );
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${product?.name || name || 'product'}`}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="create-outline" size={13} color={colors.primary} />
+              <Text style={styles.editCardButtonText}>Edit</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -426,5 +461,22 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
     flexShrink: 1,
+  },
+  editCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    marginTop: spacing.xs + 2,
+    gap: 4,
+  },
+  editCardButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });

@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
-import { products as defaultProducts } from '../data/products';
+import { products as defaultProducts, subscribeProducts } from '../data/products';
+import { getSessionBusinessProfile } from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -65,17 +66,25 @@ export default function ProductDetailsScreen({
   product: propProduct,
   products: propProducts,
   onNavigateToBusinessProfile,
+  onNavigateToEditProduct,
 }) {
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [productList, setProductList] = useState(defaultProducts);
+
+  useEffect(() => {
+    return subscribeProducts((updated) => {
+      setProductList([...updated]);
+    });
+  }, []);
 
   const allProducts =
     propProducts !== undefined
       ? propProducts
       : route?.params?.products !== undefined
       ? route.params.products
-      : defaultProducts;
+      : productList;
 
   const routeProductId =
     route?.params?.productId ||
@@ -233,6 +242,31 @@ export default function ProductDetailsScreen({
       onNavigateToBusinessProfile(navParams);
     } else if (navigation?.navigate) {
       navigation.navigate('BusinessProfile', navParams);
+    }
+  };
+
+  const isOwner = useMemo(() => {
+    const session = getSessionBusinessProfile();
+    if (!session || !product) return false;
+    const sId = String(session.id || '').trim().toLowerCase();
+    const sSellerId = String(session.sellerId || '').trim().toLowerCase();
+    const pBizId = String(product.businessId || '').trim().toLowerCase();
+    const pSellerId = String(product.sellerId || '').trim().toLowerCase();
+    return Boolean(
+      (sId && (sId === pBizId || sId === pSellerId)) ||
+      (sSellerId && (sSellerId === pBizId || sSellerId === pSellerId))
+    );
+  }, [product]);
+
+  const handleEditProduct = () => {
+    if (onNavigateToEditProduct) {
+      onNavigateToEditProduct(product);
+    } else if (navigation?.navigate) {
+      navigation.navigate('EditProduct', {
+        product,
+        productId: product?.id,
+        isEdit: true,
+      });
     }
   };
 
@@ -742,7 +776,20 @@ export default function ProductDetailsScreen({
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Product Details</Text>
-        <View style={styles.headerRightSpacer} />
+        {isOwner ? (
+          <TouchableOpacity
+            style={styles.headerEditButton}
+            onPress={handleEditProduct}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Edit Product"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="create-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerRightSpacer} />
+        )}
       </View>
 
       {/* Scrollable Content Container */}
@@ -1537,6 +1584,16 @@ const styles = StyleSheet.create({
   },
   headerRightSpacer: {
     width: 38,
+  },
+  headerEditButton: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   scrollView: {
     flex: 1,

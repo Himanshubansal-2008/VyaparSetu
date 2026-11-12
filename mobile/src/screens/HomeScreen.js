@@ -47,6 +47,7 @@ export default function HomeScreen({
   onSelectCategory: propOnSelectCategory,
   onNotificationPress,
   onCartPress,
+  onNavigateToEditProduct,
 }) {
   const [productList, setProductList] = useState(defaultProducts);
 
@@ -364,12 +365,40 @@ export default function HomeScreen({
       {/* 4. Product Grid — filtered by search query */}
       <FlatList
         data={filteredProducts}
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            onPress={handleProductPress}
-          />
-        )}
+        renderItem={({ item }) => {
+          const isOwnProduct =
+            hasSavedProfile &&
+            savedProfile?.id &&
+            (String(item?.businessId || '').toLowerCase() ===
+              String(savedProfile.id).toLowerCase() ||
+              String(item?.sellerId || '').toLowerCase() ===
+                String(savedProfile.id).toLowerCase() ||
+              String(item?.sellerId || '').toLowerCase() ===
+                String(savedProfile.sellerId || '').toLowerCase());
+
+          return (
+            <ProductCard
+              product={item}
+              onPress={handleProductPress}
+              onEditPress={
+                isOwnProduct
+                  ? (prod) => {
+                      if (onNavigateToEditProduct) {
+                        onNavigateToEditProduct(prod);
+                      } else if (navigation?.navigate) {
+                        navigation.navigate('EditProduct', {
+                          product: prod,
+                          productId: prod?.id,
+                          isEdit: true,
+                          business: savedProfile,
+                        });
+                      }
+                    }
+                  : undefined
+              }
+            />
+          );
+        }}
         keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={styles.gridContainer}

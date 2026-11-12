@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { categories, saveProduct } from '../data/products';
+import { categories, saveProduct, getProductById } from '../data/products';
 import { getSessionBusinessProfile } from '../data/businessProfileData';
 
 // Extract product categories (excluding filter-only 'all')
@@ -40,29 +40,88 @@ const COMMON_UNITS = [
 ];
 
 export default function AddProductScreen({ navigation, route, onBackPress }) {
-  // 1. Form State
-  const [formData, setFormData] = useState({
-    productName: '',
-    brand: '',
-    manufacturer: '',
-    description: '',
-    category: '',
-    productImages: [],
-    price: '',
-    originalPrice: '',
-    unit: 'piece',
-    moq: '1',
-    stock: '',
-    bulkPricing: [],
-  });
+  const routeParams = route?.params || {};
 
-  const productImages = Array.isArray(formData.productImages)
-    ? formData.productImages
-    : [];
+  // Resolve initial product if editing
+  const initialProduct = useMemo(() => {
+    if (routeParams.product && typeof routeParams.product === 'object') {
+      return routeParams.product;
+    }
+    if (routeParams.productId) {
+      return getProductById(routeParams.productId);
+    }
+    return null;
+  }, [routeParams.product, routeParams.productId]);
+
+  const isEditMode = Boolean(
+    routeParams.isEdit ||
+    route?.name === 'EditProduct' ||
+    Boolean(initialProduct)
+  );
+
+  // Initialize form state
+  const [formData, setFormData] = useState(() => {
+    const p = initialProduct;
+
+    // Existing images
+    let initialImages = [];
+    if (Array.isArray(p?.images) && p.images.length > 0) {
+      initialImages = [...p.images];
+    } else if (p?.image) {
+      initialImages = [p.image];
+    }
+
+    // Existing bulk pricing tiers
+    let initialBulkTiers = [];
+    if (Array.isArray(p?.bulkPricing) && p.bulkPricing.length > 0) {
+      initialBulkTiers = p.bulkPricing.map((tier) => ({
+        minQuantity:
+          tier.minQuantity !== undefined && tier.minQuantity !== null
+            ? String(tier.minQuantity)
+            : '',
+        maxQuantity:
+          tier.maxQuantity !== undefined && tier.maxQuantity !== null
+            ? String(tier.maxQuantity)
+            : '',
+        pricePerUnit:
+          tier.pricePerUnit !== undefined && tier.pricePerUnit !== null
+            ? String(tier.pricePerUnit)
+            : '',
+      }));
+    }
+
+    return {
+      productName: p?.name || '',
+      brand: p?.brand || '',
+      manufacturer: p?.manufacturer || '',
+      description: p?.description || '',
+      category: p?.categoryName || p?.category || '',
+      productImages: initialImages,
+      price:
+        p?.price !== undefined && p?.price !== null ? String(p.price) : '',
+      originalPrice:
+        p?.originalPrice !== undefined && p?.originalPrice !== null
+          ? String(p.originalPrice)
+          : '',
+      unit: p?.unit || 'piece',
+      moq: p?.moq !== undefined && p?.moq !== null ? String(p.moq) : '1',
+      stock:
+        p?.stock !== undefined && p?.stock !== null
+          ? String(p.stock)
+          : p?.availableQuantity !== undefined && p?.availableQuantity !== null
+          ? String(p.availableQuantity)
+          : '',
+      bulkPricing: initialBulkTiers,
+    };
+  });
 
   const [errors, setErrors] = useState({});
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const productImages = Array.isArray(formData.productImages)
+    ? formData.productImages
+    : [];
 
   // Field change helper
   const handleFieldChange = (field, value) => {
@@ -76,7 +135,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     }
   };
 
-  // Image Picker Logic (Multiple Images, Gallery Only, Non-destructive)
+  // Image Selection: Multiple Gallery Images (Append unique)
   const handlePickImages = async () => {
     try {
       const permissionResult =
@@ -96,7 +155,6 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         quality: 0.8,
       });
 
-      // If the seller cancels the picker, do not modify existing selections
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return;
       }
@@ -105,11 +163,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         .map((asset) => asset?.uri)
         .filter((uri) => typeof uri === 'string' && uri.trim().length > 0);
 
-      if (newUris.length === 0) {
-        return;
-      }
+      if (newUris.length === 0) return;
 
-      // Append newly selected images while avoiding duplicate URIs
       setFormData((prev) => {
         const existing = Array.isArray(prev.productImages)
           ? prev.productImages
@@ -129,6 +184,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     }
   };
 
+  // Image Removal
   const handleRemoveImage = (indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
@@ -278,7 +334,6 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     try {
       setIsSubmitting(true);
 
-      const routeParams = route?.params || {};
       const sessionProfile = getSessionBusinessProfile();
       const resolvedBusiness =
         routeParams.business ||
@@ -286,12 +341,14 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         null;
 
       const businessId =
+        (isEditMode && initialProduct?.businessId) ||
         routeParams.businessId ||
         routeParams.sellerId ||
         resolvedBusiness?.id ||
         'biz-submitted-001';
 
       const sellerId =
+        (isEditMode && initialProduct?.sellerId) ||
         routeParams.sellerId ||
         routeParams.businessId ||
         resolvedBusiness?.sellerId ||
@@ -299,10 +356,12 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         businessId;
 
       const sellerName =
+        (isEditMode && initialProduct?.sellerName) ||
         resolvedBusiness?.businessName ||
         'My Business';
 
       const location =
+        (isEditMode && initialProduct?.location) ||
         resolvedBusiness?.location ||
         [resolvedBusiness?.city, resolvedBusiness?.state]
           .filter(Boolean)
@@ -335,11 +394,16 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
       const primaryImage =
         productImages.length > 0
           ? productImages[0]
+          : isEditMode
+          ? initialProduct?.image || null
           : null;
 
-      const productId = `prod-custom-${Date.now()}`;
+      const productId = isEditMode
+        ? initialProduct?.id || routeParams.productId || `prod-custom-${Date.now()}`
+        : `prod-custom-${Date.now()}`;
 
       const savedPayload = {
+        ...(isEditMode && initialProduct ? initialProduct : {}),
         id: productId,
         name: formData.productName.trim(),
         brand: formData.brand.trim() || undefined,
@@ -366,10 +430,10 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         sellerName,
         location,
         bulkPricing: cleanBulkTiers,
-        rating: 4.8,
-        totalReviews: 0,
-        isFeatured: false,
-        isSurplus: false,
+        rating: isEditMode ? initialProduct?.rating || 4.8 : 4.8,
+        totalReviews: isEditMode ? initialProduct?.totalReviews || 0 : 0,
+        isFeatured: isEditMode ? Boolean(initialProduct?.isFeatured) : false,
+        isSurplus: isEditMode ? Boolean(initialProduct?.isSurplus) : false,
         tags: [
           formData.category.toLowerCase(),
           ...formData.productName.toLowerCase().split(/\s+/).filter(Boolean),
@@ -380,7 +444,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
       Alert.alert(
         'Success',
-        'Product added successfully to your catalog.',
+        isEditMode
+          ? 'Product details updated successfully.'
+          : 'Product added successfully to your catalog.',
         [
           {
             text: 'OK',
@@ -427,7 +493,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         >
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Product</Text>
+        <Text style={styles.headerTitle}>
+          {isEditMode ? 'Edit Product' : 'Add Product'}
+        </Text>
         <View style={styles.headerRightSpacer} />
       </View>
 
@@ -441,7 +509,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Section: Product Images */}
+          {/* Section 1: Product Images */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <View>
@@ -542,11 +610,11 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             )}
           </View>
 
-          {/* Section: Basic Product Information */}
+          {/* Section 2: Basic Product Information */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Basic Product Information</Text>
 
-            {/* 1. Product Name */}
+            {/* Product Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
                 Product Name <Text style={styles.requiredAsterisk}>*</Text>
@@ -570,7 +638,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               )}
             </View>
 
-            {/* 2. Brand */}
+            {/* Brand */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Brand</Text>
               <View style={styles.inputWrapper}>
@@ -578,13 +646,13 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   style={styles.input}
                   value={formData.brand}
                   onChangeText={(val) => handleFieldChange('brand', val)}
-                  placeholder="Enter brand name"
+                  placeholder="Enter brand name (optional)"
                   placeholderTextColor={colors.textMuted}
                 />
               </View>
             </View>
 
-            {/* 3. Manufacturer */}
+            {/* Manufacturer */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Manufacturer</Text>
               <View style={styles.inputWrapper}>
@@ -594,13 +662,13 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   onChangeText={(val) =>
                     handleFieldChange('manufacturer', val)
                   }
-                  placeholder="Enter manufacturer name"
+                  placeholder="Enter manufacturer name (optional)"
                   placeholderTextColor={colors.textMuted}
                 />
               </View>
             </View>
 
-            {/* 4. Product Description */}
+            {/* Product Description */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Product Description</Text>
               <View style={[styles.inputWrapper, styles.multilineWrapper]}>
@@ -608,7 +676,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   style={[styles.input, styles.multilineInput]}
                   value={formData.description}
                   onChangeText={(val) => handleFieldChange('description', val)}
-                  placeholder="Describe your product"
+                  placeholder="Describe your product, materials, sizing, and details"
                   placeholderTextColor={colors.textMuted}
                   multiline
                   numberOfLines={4}
@@ -617,7 +685,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               </View>
             </View>
 
-            {/* 5. Product Category */}
+            {/* Product Category */}
             <View style={[styles.inputGroup, styles.inputGroupLast]}>
               <Text style={styles.label}>
                 Product Category <Text style={styles.requiredAsterisk}>*</Text>
@@ -968,14 +1036,16 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             activeOpacity={0.8}
             disabled={isSubmitting}
             accessibilityRole="button"
-            accessibilityLabel="Add Product"
+            accessibilityLabel={isEditMode ? 'Save Changes' : 'Add Product'}
           >
             <Ionicons
-              name="add-circle-outline"
+              name={isEditMode ? 'checkmark-circle-outline' : 'add-circle-outline'}
               size={22}
               color={colors.textInverse}
             />
-            <Text style={styles.submitButtonText}>Add Product</Text>
+            <Text style={styles.submitButtonText}>
+              {isEditMode ? 'Save Changes' : 'Add Product'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1221,12 +1291,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: colors.surface,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: spacing.lg,
   },
   inputGroup: {
     marginBottom: spacing.md,
