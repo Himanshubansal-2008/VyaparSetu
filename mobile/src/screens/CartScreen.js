@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Alert,
   Platform,
   StatusBar,
 } from 'react-native';
@@ -22,7 +23,38 @@ export default function CartScreen({
   onNavigateToProductDetails,
   onNavigateToHome,
 }) {
-  const { cartItems, cartItemCount, increaseQuantity, decreaseQuantity } = useCart();
+  const { cartItems, cartItemCount, increaseQuantity, decreaseQuantity, removeFromCart, clearCart } = useCart();
+
+  const handleClearCartPress = () => {
+    Alert.alert(
+      'Clear Wholesale Cart',
+      'Are you sure you want to remove all wholesale items from your cart?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: () => clearCart(),
+        },
+      ]
+    );
+  };
+
+  const handleRemoveItem = (item) => {
+    const productName = item.product?.name || 'this item';
+    Alert.alert(
+      'Remove Product',
+      `Remove "${productName}" from your cart?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => removeFromCart(item.id),
+        },
+      ]
+    );
+  };
 
   const handleDecrement = (item) => {
     decreaseQuantity(item.id);
@@ -81,7 +113,20 @@ export default function CartScreen({
           )}
         </View>
 
-        <View style={styles.headerSpacer} />
+        {cartItemCount > 0 ? (
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={handleClearCartPress}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Clear cart"
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.error} />
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
       {/* 2. Main Content */}
@@ -221,6 +266,21 @@ export default function CartScreen({
                       />
                     </TouchableOpacity>
                   </View>
+
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemoveItem(item)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${product.name} from cart`}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={15}
+                      color={colors.error}
+                    />
+                    <Text style={styles.removeButtonText}>Remove</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -291,6 +351,32 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 38,
+  },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.errorLight,
+  },
+  clearButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.error,
+  },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  removeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.error,
   },
   scrollView: {
     flex: 1,
