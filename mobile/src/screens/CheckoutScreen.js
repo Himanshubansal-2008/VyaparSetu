@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   Image,
@@ -14,6 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
+import {
+  loadPersistedAddress,
+  getSavedAddress,
+} from '../data/orders';
 import EmptyState from '../components/EmptyState';
 
 export default function CheckoutScreen({
@@ -23,6 +28,49 @@ export default function CheckoutScreen({
   onNavigateToHome,
 }) {
   const { cartItems, cartItemCount, totalUnits } = useCart();
+
+  const [addressForm, setAddressForm] = useState({
+    name: '',
+    phone: '',
+    businessName: '',
+    street: '',
+    city: '',
+    state: '',
+    pincode: '',
+    gstin: '',
+  });
+
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadAddress() {
+      const cached = getSavedAddress();
+      if (cached && isMounted) {
+        setAddressForm((prev) => ({ ...prev, ...cached }));
+        return;
+      }
+      const loaded = await loadPersistedAddress();
+      if (loaded && isMounted) {
+        setAddressForm((prev) => ({ ...prev, ...loaded }));
+      }
+    }
+    loadAddress();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleInputChange = (field, value) => {
+    setAddressForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -93,8 +141,178 @@ export default function CheckoutScreen({
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          {/* Order Summary (Items List) */}
+          {/* 1. Delivery Address Card */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionTitleLeft}>
+                <Ionicons
+                  name="location-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.sectionTitle}>Delivery Address</Text>
+              </View>
+              <View style={styles.b2bTag}>
+                <Text style={styles.b2bTagText}>Warehouse / Premises</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionDescription}>
+              Enter the delivery destination for your wholesale cargo freight.
+            </Text>
+
+            {/* Form Fields */}
+            <View style={styles.formContainer}>
+              {/* Contact Name & Phone Row */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>
+                  Contact Person Name <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, errors.name && styles.inputError]}
+                  placeholder="e.g. Ramesh Kumar"
+                  value={addressForm.name}
+                  onChangeText={(val) => handleInputChange('name', val)}
+                  placeholderTextColor={colors.textMuted}
+                />
+                {errors.name && (
+                  <Text style={styles.errorText}>{errors.name}</Text>
+                )}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>
+                  Mobile Number <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.phoneInputWrapper,
+                    errors.phone && styles.inputError,
+                  ]}
+                >
+                  <Text style={styles.phonePrefix}>+91</Text>
+                  <TextInput
+                    style={styles.phoneInput}
+                    placeholder="9876543210"
+                    value={addressForm.phone}
+                    onChangeText={(val) => handleInputChange('phone', val)}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+                {errors.phone && (
+                  <Text style={styles.errorText}>{errors.phone}</Text>
+                )}
+              </View>
+
+              {/* Company / Business Name (Optional) */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>
+                  Company / Trade Name <Text style={styles.optionalText}>(Optional)</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Kumar Retail & Distribution Ltd."
+                  value={addressForm.businessName}
+                  onChangeText={(val) => handleInputChange('businessName', val)}
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
+
+              {/* Street Address */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>
+                  Street Address / Warehouse Unit <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, errors.street && styles.inputError]}
+                  placeholder="e.g. Plot No. 18, Industrial Area, Phase II"
+                  value={addressForm.street}
+                  onChangeText={(val) => handleInputChange('street', val)}
+                  placeholderTextColor={colors.textMuted}
+                />
+                {errors.street && (
+                  <Text style={styles.errorText}>{errors.street}</Text>
+                )}
+              </View>
+
+              {/* City & State Row */}
+              <View style={styles.twoColRow}>
+                <View style={[styles.fieldGroup, styles.flexOne]}>
+                  <Text style={styles.fieldLabel}>
+                    City / Town <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={[styles.input, errors.city && styles.inputError]}
+                    placeholder="e.g. Jaipur"
+                    value={addressForm.city}
+                    onChangeText={(val) => handleInputChange('city', val)}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  {errors.city && (
+                    <Text style={styles.errorText}>{errors.city}</Text>
+                  )}
+                </View>
+
+                <View style={[styles.fieldGroup, styles.flexOne]}>
+                  <Text style={styles.fieldLabel}>
+                    State <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={[styles.input, errors.state && styles.inputError]}
+                    placeholder="e.g. Rajasthan"
+                    value={addressForm.state}
+                    onChangeText={(val) => handleInputChange('state', val)}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  {errors.state && (
+                    <Text style={styles.errorText}>{errors.state}</Text>
+                  )}
+                </View>
+              </View>
+
+              {/* PIN Code & GSTIN Row */}
+              <View style={styles.twoColRow}>
+                <View style={[styles.fieldGroup, styles.flexOne]}>
+                  <Text style={styles.fieldLabel}>
+                    PIN Code <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={[styles.input, errors.pincode && styles.inputError]}
+                    placeholder="302022"
+                    value={addressForm.pincode}
+                    onChangeText={(val) => handleInputChange('pincode', val)}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  {errors.pincode && (
+                    <Text style={styles.errorText}>{errors.pincode}</Text>
+                  )}
+                </View>
+
+                <View style={[styles.fieldGroup, styles.flexOne]}>
+                  <Text style={styles.fieldLabel}>
+                    GSTIN <Text style={styles.optionalText}>(Tax Invoicing)</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="08AAAAA0000A1Z5"
+                    value={addressForm.gstin}
+                    onChangeText={(val) => handleInputChange('gstin', val.toUpperCase())}
+                    autoCapitalize="characters"
+                    maxLength={15}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* 2. Order Summary (Items List) */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <View style={styles.sectionTitleLeft}>
@@ -289,6 +507,90 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: colors.textPrimary,
+  },
+  b2bTag: {
+    backgroundColor: colors.infoLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  b2bTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.info,
+  },
+  sectionDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  formContainer: {
+    gap: spacing.md,
+  },
+  fieldGroup: {
+    gap: 4,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  requiredStar: {
+    color: colors.error,
+    fontWeight: '700',
+  },
+  optionalText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '400',
+  },
+  input: {
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  inputError: {
+    borderColor: colors.error,
+    backgroundColor: colors.errorLight + '22',
+  },
+  phoneInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+  },
+  phonePrefix: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginRight: spacing.sm,
+  },
+  phoneInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  flexOne: {
+    flex: 1,
+  },
+  errorText: {
+    fontSize: 11,
+    color: colors.error,
+    fontWeight: '500',
+    marginTop: 2,
   },
   totalUnitsHeader: {
     fontSize: 12,
