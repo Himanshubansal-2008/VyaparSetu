@@ -268,6 +268,28 @@ export default function SellerOrdersScreen({
 
   const renderOrderItem = ({ item }) => {
     const statusCfg = getStatusColor(item.status);
+    const sellerItems = getSellerOrderItems(item, businessId, defaultProducts);
+    const totalOrderItemsCount = Array.isArray(item.items) ? item.items.length : 0;
+    const hasOtherSellers = totalOrderItemsCount > sellerItems.length;
+
+    const sellerSubtotal = sellerItems.reduce(
+      (sum, it) =>
+        sum +
+        (Number(it.itemTotal) ||
+          Number(it.unitPrice || it.price || 0) * (Number(it.quantity) || 1)),
+      0
+    );
+
+    const sellerUnits = sellerItems.reduce(
+      (sum, it) => sum + (Number(it.quantity) || 1),
+      0
+    );
+
+    const firstSellerItem = sellerItems[0] || {};
+    const moreSellerItems = sellerItems.length - 1;
+
+    const delivery = item.deliveryAddress || {};
+
     return (
       <TouchableOpacity
         style={styles.orderCard}
@@ -275,6 +297,7 @@ export default function SellerOrdersScreen({
         accessibilityRole="button"
         accessibilityLabel={`Order ${item.id}, Status ${item.status}`}
       >
+        {/* Top Header: ID, Date & Status */}
         <View style={styles.cardHeader}>
           <View style={styles.orderIdGroup}>
             <Ionicons
@@ -300,9 +323,97 @@ export default function SellerOrdersScreen({
               },
             ]}
           >
+            <Ionicons
+              name={statusCfg.icon}
+              size={13}
+              color={statusCfg.text}
+              style={{ marginRight: 4 }}
+            />
             <Text style={[styles.statusBadgeText, { color: statusCfg.text }]}>
               {item.status || 'Confirmed'}
             </Text>
+          </View>
+        </View>
+
+        {/* Buyer Info Strip */}
+        <View style={styles.buyerStrip}>
+          <Ionicons
+            name="business-outline"
+            size={14}
+            color={colors.textSecondary}
+            style={{ marginRight: 6 }}
+          />
+          <Text style={styles.buyerName} numberOfLines={1}>
+            {delivery.businessName || delivery.fullName || 'Wholesale Buyer'}
+          </Text>
+          {delivery.city ? (
+            <Text style={styles.buyerLocation}> • {delivery.city}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Product preview belonging to THIS seller */}
+        <View style={styles.productRow}>
+          <View style={styles.thumbnailBox}>
+            {firstSellerItem.image ? (
+              <Image
+                source={{ uri: firstSellerItem.image }}
+                style={styles.thumbnail}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.thumbnailFallback}>
+                <Ionicons name="cube-outline" size={24} color={colors.textMuted} />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.productDetails}>
+            <Text style={styles.productTitle} numberOfLines={2}>
+              {firstSellerItem.title || firstSellerItem.name || 'Wholesale Product'}
+            </Text>
+
+            {moreSellerItems > 0 && (
+              <Text style={styles.moreItemsText}>
+                + {moreSellerItems} more of your {moreSellerItems === 1 ? 'item' : 'items'}
+              </Text>
+            )}
+
+            <View style={styles.metaRow}>
+              <View style={styles.metaBadge}>
+                <Text style={styles.metaBadgeText}>
+                  {sellerUnits} {firstSellerItem.unit ? `${firstSellerItem.unit}s` : 'units'}
+                </Text>
+              </View>
+
+              {hasOtherSellers && (
+                <View style={styles.multiSellerBadge}>
+                  <Text style={styles.multiSellerBadgeText}>
+                    Part of multi-seller order
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Value and Actions Row */}
+        <View style={styles.footerRow}>
+          <View>
+            <Text style={styles.amountLabel}>Your Order Portion</Text>
+            <Text style={styles.amountValue}>
+              ₹{sellerSubtotal.toLocaleString('en-IN')}
+            </Text>
+          </View>
+
+          <View style={styles.detailsBtn}>
+            <Text style={styles.detailsBtnText}>View Order</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={14}
+              color={colors.primary}
+            />
           </View>
         </View>
       </TouchableOpacity>
