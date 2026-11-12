@@ -25,6 +25,7 @@ import {
 import { products as defaultProducts, subscribeProducts } from '../data/products';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
+import { getOrdersForSeller, subscribeOrders } from '../data/orders';
 
 export default function BusinessProfileScreen({
   navigation,
@@ -35,6 +36,7 @@ export default function BusinessProfileScreen({
   onNavigateToProductDetails,
   onNavigateToAddProduct,
   onNavigateToEditProduct,
+  onNavigateToSellerOrders,
 }) {
   const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
   const [productList, setProductList] = useState(defaultProducts);
@@ -49,6 +51,14 @@ export default function BusinessProfileScreen({
   useEffect(() => {
     return subscribeProducts((updated) => {
       setProductList([...updated]);
+    });
+  }, []);
+
+  const [ordersList, setOrdersList] = useState([]);
+
+  useEffect(() => {
+    return subscribeOrders((updated) => {
+      setOrdersList([...updated]);
     });
   }, []);
 
@@ -272,6 +282,40 @@ export default function BusinessProfileScreen({
         productId: product?.id,
         isEdit: true,
         business: resolvedBusiness,
+      });
+    }
+  };
+
+  const currentSellerOrders = useMemo(() => {
+    const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
+    if (!sId) return [];
+    return getOrdersForSeller(sId, productList);
+  }, [resolvedBusiness, productList, ordersList]);
+
+  const pendingOrdersCount = useMemo(() => {
+    return currentSellerOrders.filter((o) => {
+      const st = String(o.status || '').toLowerCase();
+      return (
+        st === 'confirmed' ||
+        st === 'pending' ||
+        st === 'pending acceptance'
+      );
+    }).length;
+  }, [currentSellerOrders]);
+
+  const handleNavigateToSellerOrders = () => {
+    const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
+    if (onNavigateToSellerOrders) {
+      onNavigateToSellerOrders({
+        business: resolvedBusiness,
+        businessId: sId,
+        sellerId: sId,
+      });
+    } else if (navigation?.navigate) {
+      navigation.navigate('SellerOrders', {
+        business: resolvedBusiness,
+        businessId: sId,
+        sellerId: sId,
       });
     }
   };
@@ -500,6 +544,36 @@ export default function BusinessProfileScreen({
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* 3.1 Seller Order Management Card */}
+        <TouchableOpacity
+          style={styles.sellerOrdersCard}
+          onPress={handleNavigateToSellerOrders}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Manage Received Orders"
+        >
+          <View style={styles.sellerOrdersIconBox}>
+            <Ionicons name="cube-outline" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.sellerOrdersContent}>
+            <View style={styles.sellerOrdersTitleRow}>
+              <Text style={styles.sellerOrdersTitle}>Received Orders</Text>
+              {pendingOrdersCount > 0 && (
+                <View style={styles.sellerOrdersBadge}>
+                  <Text style={styles.sellerOrdersBadgeText}>
+                    {pendingOrdersCount} NEW
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.sellerOrdersSubtitle}>
+              {currentSellerOrders.length}{' '}
+              {currentSellerOrders.length === 1 ? 'order' : 'orders'} received • Manage wholesale fulfillments
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </TouchableOpacity>
 
         {/* 4. About Business Section */}
         <View style={styles.card}>
@@ -990,6 +1064,65 @@ const styles = StyleSheet.create({
   },
   verificationBadgeTextUnverified: {
     color: colors.textSecondary,
+  },
+  sellerOrdersCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1.5 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3.5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  sellerOrdersIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  sellerOrdersContent: {
+    flex: 1,
+  },
+  sellerOrdersTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sellerOrdersTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  sellerOrdersBadge: {
+    backgroundColor: colors.warning,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: borderRadius.full,
+  },
+  sellerOrdersBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textInverse,
+  },
+  sellerOrdersSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   card: {
     backgroundColor: colors.surface,

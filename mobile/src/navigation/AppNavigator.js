@@ -11,6 +11,7 @@ import CheckoutScreen from '../screens/CheckoutScreen';
 import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
 import OrderHistoryScreen from '../screens/OrderHistoryScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
+import SellerOrdersScreen from '../screens/SellerOrdersScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -36,6 +37,7 @@ const VALID_ROUTES = [
   'OrderHistory',
   'Orders',
   'OrderDetails',
+  'SellerOrders',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -302,6 +304,31 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToSellerOrders = useCallback(
+    (paramsOrBusinessId) => {
+      if (typeof paramsOrBusinessId === 'string') {
+        navigate('SellerOrders', {
+          businessId: paramsOrBusinessId,
+          sellerId: paramsOrBusinessId,
+        });
+      } else if (paramsOrBusinessId && typeof paramsOrBusinessId === 'object') {
+        const bId =
+          paramsOrBusinessId.businessId ||
+          paramsOrBusinessId.sellerId ||
+          paramsOrBusinessId.business?.id ||
+          paramsOrBusinessId.business?.sellerId;
+        navigate('SellerOrders', {
+          ...paramsOrBusinessId,
+          businessId: bId,
+          sellerId: bId,
+        });
+      } else {
+        navigate('SellerOrders', {});
+      }
+    },
+    [navigate]
+  );
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -394,6 +421,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onNavigateToProductDetails={handleNavigateToProductDetails}
             onNavigateToAddProduct={handleNavigateToAddProduct}
             onNavigateToEditProduct={handleNavigateToEditProduct}
+            onNavigateToSellerOrders={handleNavigateToSellerOrders}
           />
         </View>
       )}
@@ -509,6 +537,25 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           />
         </View>
       )}
+
+      {/* Seller Orders Screen */}
+      {currentRoute.name === 'SellerOrders' && (
+        <View style={styles.screen}>
+          <SellerOrdersScreen
+            key={
+              currentRoute.params?.businessId ||
+              currentRoute.params?.sellerId ||
+              'seller_orders'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+          />
+        </View>
+      )}
+
+
     </View>
   );
 }

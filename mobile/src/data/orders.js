@@ -42,9 +42,116 @@ export const ORDER_STAGES = [
 ];
 
 /**
- * Default previous orders to provide immediate buyer order history on initial launch.
+ * Default seed orders providing immediate buyer and seller history on initial launch.
  */
 export const DEFAULT_SEED_ORDERS = [
+  {
+    id: 'VS-M1S8R3-5201',
+    orderNumber: 'VS-M1S8R3-5201',
+    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+    status: 'Confirmed',
+    items: [
+      {
+        productId: 'prod-008',
+        title: 'Handcrafted Wooden Wall Hanging',
+        name: 'Handcrafted Wooden Wall Hanging',
+        image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=600',
+        category: 'Handicrafts',
+        unit: 'piece',
+        quantity: 20,
+        unitPrice: 280,
+        originalPrice: 400,
+        itemTotal: 5600,
+        sellerId: 'biz-sharma-handicrafts',
+        sellerName: 'Sharma Handicrafts',
+        activeTier: { minQuantity: 15, maxQuantity: 49, pricePerUnit: 280 },
+        savings: 2400,
+      },
+      {
+        productId: 'prod-001',
+        title: 'Handwoven Cotton Tote Bag',
+        name: 'Handwoven Cotton Tote Bag',
+        image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600',
+        category: 'Clothing',
+        unit: 'piece',
+        quantity: 30,
+        unitPrice: 160,
+        originalPrice: 220,
+        itemTotal: 4800,
+        sellerId: 'biz-001',
+        sellerName: 'Shree Handloom Works',
+        activeTier: { minQuantity: 10, maxQuantity: 49, pricePerUnit: 160 },
+        savings: 1800,
+      },
+    ],
+    totalItems: 2,
+    totalUnits: 50,
+    subtotal: 10400,
+    totalSavings: 4200,
+    totalAmount: 10400,
+    deliveryAddress: {
+      fullName: 'Vikram Patel',
+      businessName: 'Patel Wholesale & Retail Mart',
+      phone: '9825012345',
+      streetAddress: 'Warehouse 12, GIDC Commercial Hub',
+      city: 'Ahmedabad',
+      state: 'Gujarat',
+      pincode: '380009',
+      gstin: '24AAACP9876K1Z2',
+    },
+    paymentMethod: 'Trade Credit / RTGS / NEFT',
+    orderDate: new Date(Date.now() - 4 * 60 * 60 * 1000).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  },
+  {
+    id: 'VS-M1P4Q9-8124',
+    orderNumber: 'VS-M1P4Q9-8124',
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Processing',
+    acceptedAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+    items: [
+      {
+        productId: 'prod-009',
+        title: 'Handmade Wooden Coaster Set',
+        name: 'Handmade Wooden Coaster Set',
+        image: 'https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=600',
+        category: 'Handicrafts',
+        unit: 'set',
+        quantity: 25,
+        unitPrice: 220,
+        originalPrice: 300,
+        itemTotal: 5500,
+        sellerId: 'biz-sharma-handicrafts',
+        sellerName: 'Sharma Handicrafts',
+        activeTier: { minQuantity: 20, maxQuantity: 49, pricePerUnit: 220 },
+        savings: 2000,
+      },
+    ],
+    totalItems: 1,
+    totalUnits: 25,
+    subtotal: 5500,
+    totalSavings: 2000,
+    totalAmount: 5500,
+    deliveryAddress: {
+      fullName: 'Sunil Banerjee',
+      businessName: 'Bengal Craft Emporium',
+      phone: '9830112233',
+      streetAddress: 'Plot 7, New Market Commercial Lane',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700087',
+      gstin: '19AAECB1122D1Z9',
+    },
+    paymentMethod: 'Cash on Delivery (COD)',
+    orderDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  },
   {
     id: 'VS-M1K9P2-4018',
     orderNumber: 'VS-M1K9P2-4018',
@@ -61,6 +168,7 @@ export const DEFAULT_SEED_ORDERS = [
       {
         productId: 'prod-002',
         title: 'Wireless Bluetooth Earphones',
+        name: 'Wireless Bluetooth Earphones',
         image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600',
         category: 'Electronics',
         unit: 'piece',
@@ -68,6 +176,8 @@ export const DEFAULT_SEED_ORDERS = [
         unitPrice: 480,
         originalPrice: 650,
         itemTotal: 12000,
+        sellerId: 'biz-002',
+        sellerName: 'TechSource Distributors',
         activeTier: { minQuantity: 20, maxQuantity: 49, pricePerUnit: 480 },
         savings: 4250,
       },
@@ -110,6 +220,7 @@ export const DEFAULT_SEED_ORDERS = [
       {
         productId: 'prod-001',
         title: 'Handwoven Cotton Tote Bag',
+        name: 'Handwoven Cotton Tote Bag',
         image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600',
         category: 'Clothing',
         unit: 'piece',
@@ -117,12 +228,15 @@ export const DEFAULT_SEED_ORDERS = [
         unitPrice: 160,
         originalPrice: 220,
         itemTotal: 8000,
+        sellerId: 'biz-001',
+        sellerName: 'Shree Handloom Works',
         activeTier: { minQuantity: 50, maxQuantity: 99, pricePerUnit: 160 },
         savings: 3000,
       },
       {
         productId: 'prod-003',
         title: 'Jaipur Blue Pottery Ceramic Vase',
+        name: 'Jaipur Blue Pottery Ceramic Vase',
         image: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=600',
         category: 'Handicrafts',
         unit: 'piece',
@@ -130,6 +244,8 @@ export const DEFAULT_SEED_ORDERS = [
         unitPrice: 320,
         originalPrice: 420,
         itemTotal: 4800,
+        sellerId: 'biz-003',
+        sellerName: 'Rang Artisan Collective',
         activeTier: { minQuantity: 10, maxQuantity: 49, pricePerUnit: 320 },
         savings: 1500,
       },
@@ -183,11 +299,11 @@ export const subscribeOrders = (listener) => {
 
 /**
  * Returns stage index (0 to 4) for visual progress timeline.
- * Returns -1 if cancelled.
+ * Returns -1 if cancelled or rejected.
  */
 export const getStatusProgress = (status) => {
   const normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'cancelled') return -1;
+  if (normalized === 'cancelled' || normalized === 'rejected') return -1;
   const index = ORDER_STAGES.findIndex(
     (s) => s.key.toLowerCase() === normalized
   );
@@ -224,12 +340,14 @@ export const getStatusColor = (status) => {
       };
     case 'processing':
     case 'in production':
+    case 'accepted':
       return {
         bg: '#FEF3C7',
         text: '#92400E',
         border: '#F59E0B',
         icon: 'cube-outline',
       };
+    case 'rejected':
     case 'cancelled':
       return {
         bg: '#FEE2E2',
@@ -238,6 +356,8 @@ export const getStatusColor = (status) => {
         icon: 'close-circle-outline',
       };
     case 'confirmed':
+    case 'pending':
+    case 'pending acceptance':
     default:
       return {
         bg: '#DBEAFE',
@@ -382,6 +502,90 @@ export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
   return updatedOrder;
 };
 
+// ============================================================================
+// SELLER ORDER MANAGEMENT HELPERS
+// ============================================================================
+
+/**
+ * Helper to match seller identity between order item and seller business.
+ */
+const matchesSeller = (item, sellerId, allProducts = []) => {
+  if (!sellerId) return false;
+  const cleanSellerId = String(sellerId).trim().toLowerCase();
+
+  // 1. Direct item sellerId match
+  if (
+    item.sellerId &&
+    String(item.sellerId).trim().toLowerCase() === cleanSellerId
+  ) {
+    return true;
+  }
+
+  // 2. Lookup by productId in products catalog
+  const prodId = item.productId || item.id;
+  if (prodId && Array.isArray(allProducts) && allProducts.length > 0) {
+    const prod = allProducts.find(
+      (p) =>
+        String(p.id || '').trim().toLowerCase() ===
+        String(prodId).trim().toLowerCase()
+    );
+    if (
+      prod &&
+      prod.sellerId &&
+      String(prod.sellerId).trim().toLowerCase() === cleanSellerId
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
+ * Determines whether an order contains at least one product belonging to the specified seller.
+ */
+export const isOrderForSeller = (order, sellerId, allProducts = []) => {
+  if (!order || !sellerId) return false;
+  const cleanSellerId = String(sellerId).trim().toLowerCase();
+
+  if (
+    order.sellerId &&
+    String(order.sellerId).trim().toLowerCase() === cleanSellerId
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(order.items)) {
+    return order.items.some((item) =>
+      matchesSeller(item, cleanSellerId, allProducts)
+    );
+  }
+
+  return false;
+};
+
+/**
+ * Returns only the items in an order that belong to the specified seller.
+ */
+export const getSellerOrderItems = (order, sellerId, allProducts = []) => {
+  if (!order || !Array.isArray(order.items) || !sellerId) return [];
+  const cleanSellerId = String(sellerId).trim().toLowerCase();
+
+  return order.items.filter((item) =>
+    matchesSeller(item, cleanSellerId, allProducts)
+  );
+};
+
+/**
+ * Returns all orders containing products belonging to the specified seller.
+ */
+export const getOrdersForSeller = (sellerId, allProducts = []) => {
+  if (!sellerId) return [];
+  return inMemoryOrders.filter((order) =>
+    isOrderForSeller(order, sellerId, allProducts)
+  );
+};
+
 /**
  * Resets orders back to seed orders (useful for demo/testing).
  */
@@ -459,6 +663,9 @@ export default {
   resetOrders,
   getStatusProgress,
   getStatusColor,
+  isOrderForSeller,
+  getSellerOrderItems,
+  getOrdersForSeller,
   loadPersistedAddress,
   getSavedAddress,
   saveDeliveryAddress,
