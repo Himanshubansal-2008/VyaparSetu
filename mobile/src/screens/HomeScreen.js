@@ -23,6 +23,7 @@ import {
   products as defaultProducts,
   categories as defaultCategories,
   subscribeProducts,
+  isProductActive,
 } from '../data/products';
 import {
   getSessionBusinessProfile,
@@ -265,7 +266,7 @@ export default function HomeScreen({
   // Filter products matching BOTH search query (case-insensitive, multi-token, whitespace-safe) and selected category
   const filteredProducts = useMemo(() => {
     return allProducts.filter((product) => {
-      if (!product) return false;
+      if (!product || !isProductActive(product)) return false;
 
       const matchesCategory =
         !hasCategory ||
@@ -300,7 +301,7 @@ export default function HomeScreen({
   }, [allProducts, hasCategory, selectedCategory, hasSearch, searchTokens]);
 
   const featuredProducts = useMemo(
-    () => allProducts.filter((product) => product.isFeatured),
+    () => allProducts.filter((product) => isProductActive(product) && product.isFeatured),
     [allProducts]
   );
 

@@ -15,7 +15,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
-import { products as defaultProducts, subscribeProducts } from '../data/products';
+import {
+  products as defaultProducts,
+  subscribeProducts,
+  deleteProduct,
+  isProductActive,
+} from '../data/products';
 import {
   getSessionBusinessProfile,
   subscribeBusinessProfile,
@@ -268,6 +273,11 @@ export default function ProductDetailsScreen({
     return isProductOwnedByCurrentSeller(product, sessionProfile);
   }, [product, sessionProfile]);
 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isProductInactive = useMemo(() => {
+    return product ? !isProductActive(product) : false;
+  }, [product]);
+
   const handleEditProduct = () => {
     if (onNavigateToEditProduct) {
       onNavigateToEditProduct(product);
@@ -278,6 +288,71 @@ export default function ProductDetailsScreen({
         isEdit: true,
       });
     }
+  };
+
+  const handleDeleteProduct = () => {
+    if (isDeleting) return;
+    if (!product || !product.id) return;
+
+    if (!isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You can only delete products belonging to your own business.'
+      );
+      return;
+    }
+
+    const productName = product.name || 'this product';
+
+    Alert.alert(
+      'Delete Product',
+      `Are you sure you want to delete "${productName}"?\n\nThis product will no longer be available for purchase.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const res = await deleteProduct(product.id, sessionProfile);
+              if (res?.success) {
+                Alert.alert(
+                  'Product Deleted',
+                  'This product has been removed from your catalog and will no longer appear in the marketplace.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        if (onBackPress) {
+                          onBackPress();
+                        } else if (navigation?.goBack) {
+                          navigation.goBack();
+                        }
+                      },
+                    },
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Error',
+                  res?.message || 'Could not delete product. Please try again.'
+                );
+              }
+            } catch (err) {
+              console.warn('[ProductDetailsScreen] Delete error:', err);
+              Alert.alert('Error', 'An error occurred while deleting the product.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   // Resolve stock quantity (using stock property or availableQuantity fallback)
@@ -735,6 +810,13 @@ export default function ProductDetailsScreen({
   };
 
   const handleAddToCart = () => {
+    if (isProductInactive) {
+      Alert.alert(
+        'Product Unavailable',
+        'This product has been removed by the seller and is no longer available for purchase.'
+      );
+      return;
+    }
     if (isOwner) {
       Alert.alert(
         'Action Not Allowed',
@@ -759,6 +841,13 @@ export default function ProductDetailsScreen({
   };
 
   const handleRequestQuotation = () => {
+    if (isProductInactive) {
+      Alert.alert(
+        'Product Unavailable',
+        'This product has been removed by the seller and is no longer available for quotation requests.'
+      );
+      return;
+    }
     if (isOwner) {
       Alert.alert(
         'Action Not Allowed',
@@ -1008,6 +1097,21 @@ export default function ProductDetailsScreen({
                 />
                 <Text style={styles.ownProductAlertText}>
                   This is your product listing. As the seller, you cannot add it to your cart or purchase it.
+                </Text>
+              </View>
+            )}
+
+            {/* Inactive Product Notice Banner */}
+            {isProductInactive && !isOwner && (
+              <View style={styles.inactiveProductAlertBanner}>
+                <Ionicons
+                  name="alert-circle"
+                  size={16}
+                  color={colors.error}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.inactiveProductAlertText}>
+                  This product has been removed by the seller and is no longer available for purchase or price quotations.
                 </Text>
               </View>
             )}
@@ -1354,28 +1458,10 @@ export default function ProductDetailsScreen({
                 <View style={styles.sellerListingTextWrapper}>
                   <Text style={styles.sellerListingTitle}>Seller Product Listing</Text>
                   <Text style={styles.sellerListingSubtitle}>
-                    This is your product listing on VyaparSetu. You can update pricing tiers, available stock, or specifications anytime.
+                    This is your product listing on VyaparSetu. You can update pricing tiers, available stock, or manage this listing anytime using the action bar below.
                   </Text>
                 </View>
               </View>
-
-              <TouchableOpacity
-                style={styles.sellerListingEditBtn}
-                onPress={handleEditProduct}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Edit Product Details"
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={18}
-                  color={colors.primary}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={styles.sellerListingEditBtnText}>
-                  Edit Product Details
-                </Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -1726,23 +1812,13 @@ export default function ProductDetailsScreen({
       <View style={[styles.bottomBar, isOwner && styles.sellerBottomBar]}>
         {isOwner ? (
           <View style={styles.sellerBottomBarContainer}>
-            <View style={styles.sellerBottomBarInfo}>
-              <View style={styles.sellerBottomBadge}>
-                <Ionicons name="person" size={12} color={colors.primary} />
-                <Text style={styles.sellerBottomBadgeText}>My Product</Text>
-              </View>
-              <View style={styles.sellerBottomPriceRow}>
-                <Text style={styles.sellerBottomCurrency}>₹</Text>
-                <Text style={styles.sellerBottomPrice}>{formattedPrice}</Text>
-                {product?.unit && (
-                  <Text style={styles.sellerBottomUnit}>/{unitSingular}</Text>
-                )}
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={styles.sellerEditProductButton}
+              style={[
+                styles.sellerEditProductButton,
+                isDeleting && { opacity: 0.6 },
+              ]}
               onPress={handleEditProduct}
+              disabled={isDeleting}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Edit Product Details"
@@ -1751,13 +1827,38 @@ export default function ProductDetailsScreen({
                 name="create-outline"
                 size={18}
                 color={colors.textInverse}
-                style={styles.sellerEditProductIcon}
+                style={styles.sellerButtonIcon}
               />
               <Text
                 style={styles.sellerEditProductButtonText}
                 numberOfLines={1}
               >
-                Edit Product Details
+                Edit Product
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.sellerDeleteProductButton,
+                isDeleting && styles.sellerDeleteProductButtonDisabled,
+              ]}
+              onPress={handleDeleteProduct}
+              disabled={isDeleting}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Delete Product"
+            >
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={colors.error}
+                style={styles.sellerButtonIcon}
+              />
+              <Text
+                style={styles.sellerDeleteProductButtonText}
+                numberOfLines={1}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Product'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1786,8 +1887,12 @@ export default function ProductDetailsScreen({
 
             <View style={styles.bottomBarActions}>
               <TouchableOpacity
-                style={styles.bottomBarQuoteBtn}
+                style={[
+                  styles.bottomBarQuoteBtn,
+                  isProductInactive && { opacity: 0.5 },
+                ]}
                 onPress={handleRequestQuotation}
+                disabled={isProductInactive}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Request Custom Price"
@@ -1795,31 +1900,54 @@ export default function ProductDetailsScreen({
                 <Ionicons
                   name="document-text-outline"
                   size={18}
-                  color={colors.primary}
+                  color={isProductInactive ? colors.textMuted : colors.primary}
                 />
-                <Text style={styles.bottomBarQuoteBtnText}>Request Price</Text>
+                <Text
+                  style={[
+                    styles.bottomBarQuoteBtnText,
+                    isProductInactive && { color: colors.textMuted },
+                  ]}
+                >
+                  Request Price
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.addToCartButton,
-                  (isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
+                  (isProductInactive || isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
                     styles.addToCartButtonDisabled,
                 ]}
                 onPress={handleAddToCart}
-                disabled={isOutOfStock || isStockBelowMoq || !isValidQuantity}
+                disabled={isProductInactive || isOutOfStock || isStockBelowMoq || !isValidQuantity}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={itemInCart ? 'Update Wholesale Cart' : 'Add to Wholesale Cart'}
+                accessibilityLabel={
+                  isProductInactive
+                    ? 'Product Unavailable'
+                    : itemInCart
+                    ? 'Update Wholesale Cart'
+                    : 'Add to Wholesale Cart'
+                }
               >
                 <Ionicons
-                  name={itemInCart ? 'checkmark-circle-outline' : 'cart-outline'}
+                  name={
+                    isProductInactive
+                      ? 'alert-circle-outline'
+                      : itemInCart
+                      ? 'checkmark-circle-outline'
+                      : 'cart-outline'
+                  }
                   size={18}
                   color={colors.textInverse}
                   style={styles.addToCartIcon}
                 />
                 <Text style={styles.addToCartButtonText}>
-                  {itemInCart ? 'Update Cart' : 'Add to Cart'}
+                  {isProductInactive
+                    ? 'Unavailable'
+                    : itemInCart
+                    ? 'Update Cart'
+                    : 'Add to Cart'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2019,81 +2147,67 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: spacing.md,
-  },
-  sellerBottomBarInfo: {
-    justifyContent: 'center',
-    gap: 2,
-  },
-  sellerBottomBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    gap: 3,
-  },
-  sellerBottomBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  sellerBottomPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  sellerBottomCurrency: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
-    marginRight: 1,
-  },
-  sellerBottomPrice: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  sellerBottomUnit: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginLeft: 1,
   },
   sellerEditProductButton: {
     flex: 1,
-    maxWidth: 240,
-    minWidth: 170,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     ...Platform.select({
       ios: {
         shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
-  },
-  sellerEditProductIcon: {
-    marginRight: spacing.xs + 2,
   },
   sellerEditProductButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.textInverse,
+  },
+  sellerDeleteProductButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#DC2626',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sellerDeleteProductButtonDisabled: {
+    opacity: 0.5,
+  },
+  sellerDeleteProductButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.error,
+  },
+  sellerButtonIcon: {
+    marginRight: spacing.xs + 2,
   },
   sellerListingCard: {
     backgroundColor: '#F8FAFC',
@@ -2143,20 +2257,24 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: 2,
   },
-  sellerListingEditBtn: {
+  inactiveProductAlertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    paddingVertical: spacing.sm + 4,
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  sellerListingEditBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
+  inactiveProductAlertText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.error,
+    fontWeight: '600',
+    lineHeight: 16,
   },
   myProductBadge: {
     flexDirection: 'row',

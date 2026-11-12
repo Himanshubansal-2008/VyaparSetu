@@ -18,6 +18,7 @@ import EmptyState from '../components/EmptyState';
 import {
   products as defaultProducts,
   categories as defaultCategories,
+  isProductActive,
 } from '../data/products';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -104,7 +105,7 @@ export default function ProductListingScreen({
   // Filter products matching BOTH search query (multi-token, case-insensitive, whitespace-safe) and selected category
   const filteredProducts = useMemo(() => {
     return allProducts.filter((product) => {
-      if (!product) return false;
+      if (!product || !isProductActive(product)) return false;
 
       const matchesCategory =
         selectedCategory === 'all' ||

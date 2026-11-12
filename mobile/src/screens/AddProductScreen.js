@@ -19,8 +19,18 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { categories, saveProduct, getProductById } from '../data/products';
-import { getSessionBusinessProfile } from '../data/businessProfileData';
+import {
+  categories,
+  saveProduct,
+  getProductById,
+  deleteProduct,
+  isProductActive,
+} from '../data/products';
+import {
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+  isProductOwnedByCurrentSeller,
+} from '../data/businessProfileData';
 
 // Extract product categories (excluding filter-only 'all')
 const PRODUCT_CATEGORIES = categories
@@ -118,6 +128,19 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
   const [errors, setErrors] = useState({});
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const isOwner = useMemo(() => {
+    return isProductOwnedByCurrentSeller(initialProduct, sessionProfile);
+  }, [initialProduct, sessionProfile]);
 
   const productImages = Array.isArray(formData.productImages)
     ? formData.productImages
@@ -468,6 +491,72 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     }
   };
 
+  // Delete Product Handler
+  const handleDeleteProduct = () => {
+    if (isDeleting || isSubmitting) return;
+    if (!initialProduct || !initialProduct.id) return;
+
+    if (!isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You can only delete products belonging to your own business.'
+      );
+      return;
+    }
+
+    const productName =
+      formData.productName.trim() || initialProduct.name || 'this product';
+
+    Alert.alert(
+      'Delete Product',
+      `Are you sure you want to delete "${productName}"?\n\nThis product will no longer be available for purchase.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const res = await deleteProduct(initialProduct.id, sessionProfile);
+              if (res?.success) {
+                Alert.alert(
+                  'Product Deleted',
+                  'This product has been removed from your catalog and will no longer appear in the marketplace.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        handleBack();
+                      },
+                    },
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Error',
+                  res?.message || 'Could not delete product. Please try again.'
+                );
+              }
+            } catch (err) {
+              console.warn('[AddProductScreen] Delete product error:', err);
+              Alert.alert(
+                'Error',
+                'An error occurred while deleting the product.'
+              );
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Back Navigation
   const handleBack = () => {
     if (onBackPress) {
@@ -496,7 +585,20 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         <Text style={styles.headerTitle}>
           {isEditMode ? 'Edit Product' : 'Add Product'}
         </Text>
-        <View style={styles.headerRightSpacer} />
+        {isEditMode && isOwner ? (
+          <TouchableOpacity
+            style={styles.headerDeleteButton}
+            onPress={handleDeleteProduct}
+            disabled={isDeleting || isSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel="Delete Product"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="trash-outline" size={20} color={colors.error} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerRightSpacer} />
+        )}
       </View>
 
       <KeyboardAvoidingView
@@ -1047,6 +1149,45 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               {isEditMode ? 'Save Changes' : 'Add Product'}
             </Text>
           </TouchableOpacity>
+
+          {/* Delete Product Section (Edit Mode Only for Product Owner) */}
+          {isEditMode && isOwner && (
+            <View style={styles.deleteSectionCard}>
+              <View style={styles.deleteHeaderRow}>
+                <View style={styles.deleteIconBox}>
+                  <Ionicons name="trash-outline" size={18} color={colors.error} />
+                </View>
+                <View style={styles.deleteTextWrapper}>
+                  <Text style={styles.deleteTitle}>Delete Product</Text>
+                  <Text style={styles.deleteSubtitle}>
+                    Remove this product from your wholesale catalog. Once deleted, buyers will no longer be able to purchase it or request price quotations.
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.deleteButton,
+                  (isDeleting || isSubmitting) && styles.deleteButtonDisabled,
+                ]}
+                onPress={handleDeleteProduct}
+                activeOpacity={0.8}
+                disabled={isDeleting || isSubmitting}
+                accessibilityRole="button"
+                accessibilityLabel="Delete Product"
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={18}
+                  color={colors.textInverse}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.deleteButtonText}>
+                  {isDeleting ? 'Deleting Product...' : 'Delete Product'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1580,5 +1721,72 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: spacing.xl,
+  },
+  headerDeleteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  deleteSectionCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    marginTop: spacing.xl,
+    gap: spacing.md,
+  },
+  deleteHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  deleteIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteTextWrapper: {
+    flex: 1,
+  },
+  deleteTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.error,
+  },
+  deleteSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    shadowColor: colors.error,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textInverse,
   },
 });

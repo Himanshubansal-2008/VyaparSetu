@@ -22,7 +22,11 @@ import {
   getSessionBusinessProfile,
   subscribeBusinessProfile,
 } from '../data/businessProfileData';
-import { products as defaultProducts, subscribeProducts } from '../data/products';
+import {
+  products as defaultProducts,
+  subscribeProducts,
+  isProductActive,
+} from '../data/products';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
 import { getOrdersForSeller, subscribeOrders } from '../data/orders';
@@ -212,7 +216,7 @@ export default function BusinessProfileScreen({
     );
 
     return allProducts.filter((product) => {
-      if (!product) return false;
+      if (!product || !isProductActive(product)) return false;
 
       const pSellerId = product.sellerId
         ? String(product.sellerId).trim().toLowerCase()

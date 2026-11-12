@@ -506,6 +506,14 @@ export const submitQuotationRequest = async ({
     return { success: false, message: 'Invalid product details.' };
   }
 
+  if (product.isDeleted || product.status === 'archived' || product.isArchived || product.isActive === false) {
+    return {
+      success: false,
+      reason: 'product_unavailable',
+      message: 'This product has been removed by the seller and is no longer available for price quotations.',
+    };
+  }
+
   if (isProductOwnedByCurrentSeller(product)) {
     return {
       success: false,

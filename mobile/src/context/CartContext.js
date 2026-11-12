@@ -8,6 +8,11 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
+import {
+  isProductActive,
+  getProductById,
+  subscribeProducts,
+} from '../data/products';
 
 export const CART_STORAGE_KEY = '@vyaparsetu_cart';
 
@@ -139,11 +144,16 @@ export function CartProvider({ children }) {
             // Re-validate and re-calculate pricing based on current product definitions
             const sanitized = parsed.map((item) => {
               const product = item.product || {};
+              const pId = item.id || product.id;
+              const liveProduct = getProductById(pId);
+              const isUnavailable = !liveProduct || !isProductActive(liveProduct);
+              const resolvedProduct = liveProduct || product;
+
               const qty = Math.max(1, Number(item.quantity) || 1);
-              let values = calculateItemValues(product, qty);
+              let values = calculateItemValues(resolvedProduct, qty);
               if (item.quotationId && item.unitPrice) {
                 const qPrice = Number(item.unitPrice);
-                const regPrice = Number(product.price) || qPrice;
+                const regPrice = Number(resolvedProduct.price) || qPrice;
                 values = {
                   unitPrice: qPrice,
                   itemTotal: qty * qPrice,
@@ -153,9 +163,13 @@ export function CartProvider({ children }) {
               }
               return {
                 ...item,
-                id: item.id || product.id,
-                product,
+                id: item.id || resolvedProduct.id,
+                product: resolvedProduct,
                 quantity: qty,
+                isUnavailable: isUnavailable || Boolean(item.isUnavailable),
+                unavailableReason: isUnavailable
+                  ? 'This product has been removed by the seller and is no longer available.'
+                  : item.unavailableReason || null,
                 ...values,
               };
             });
@@ -191,6 +205,37 @@ export function CartProvider({ children }) {
     saveCart();
   }, [cartItems, isLoaded]);
 
+  // 3. Re-validate cart items against product catalog updates (e.g. deletion / archival)
+  useEffect(() => {
+    return subscribeProducts((updatedProducts) => {
+      setCartItems((prevItems) => {
+        let changed = false;
+        const updated = prevItems.map((item) => {
+          const pId = item.id || item.product?.id;
+          const liveProduct = updatedProducts.find(
+            (p) =>
+              String(p?.id || '').trim().toLowerCase() ===
+              String(pId || '').trim().toLowerCase()
+          );
+          const isUnavailable = !liveProduct || !isProductActive(liveProduct);
+          if (Boolean(item.isUnavailable) !== isUnavailable) {
+            changed = true;
+            return {
+              ...item,
+              product: liveProduct || item.product,
+              isUnavailable,
+              unavailableReason: isUnavailable
+                ? 'This product has been removed by the seller and is no longer available.'
+                : null,
+            };
+          }
+          return item;
+        });
+        return changed ? updated : prevItems;
+      });
+    });
+  }, []);
+
   /**
    * Adds a product to the cart with the given quantity.
    * If the item already exists in the cart, increases or replaces its quantity.
@@ -203,6 +248,14 @@ export function CartProvider({ children }) {
           success: false,
           reason: 'invalid_product',
           message: 'Invalid product details.',
+        };
+      }
+
+      if (!isProductActive(product)) {
+        return {
+          success: false,
+          reason: 'product_unavailable',
+          message: 'This product has been deleted or is no longer available for purchase.',
         };
       }
 
@@ -482,6 +535,21 @@ export function CartProvider({ children }) {
   }, []);
 
   /**
+   * Removes any products that are deleted, archived, or marked unavailable from the cart.
+   */
+  const removeUnavailableProducts = useCallback(() => {
+    setCartItems((prevItems) =>
+      prevItems.filter((item) => {
+        const pId = item.id || item.product?.id;
+        const liveProd = getProductById(pId);
+        const isUnavail =
+          item.isUnavailable || !liveProd || !isProductActive(liveProd);
+        return !isUnavail;
+      })
+    );
+  }, []);
+
+  /**
    * Checks whether a product is currently present in the cart.
    */
   const isInCart = useCallback(
@@ -512,6 +580,17 @@ export function CartProvider({ children }) {
   // Derived aggregates
   const cartItemCount = cartItems.length;
 
+  const unavailableCartItems = useMemo(() => {
+    return cartItems.filter((item) => {
+      if (item.isUnavailable) return true;
+      const pId = item.id || item.product?.id;
+      const liveProd = getProductById(pId);
+      return !liveProd || !isProductActive(liveProd);
+    });
+  }, [cartItems]);
+
+  const hasUnavailableProducts = unavailableCartItems.length > 0;
+
   const totalUnits = useMemo(() => {
     return cartItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
   }, [cartItems]);
@@ -530,6 +609,8 @@ export function CartProvider({ children }) {
     () => ({
       cartItems,
       cartItemCount,
+      unavailableCartItems,
+      hasUnavailableProducts,
       totalUnits,
       subtotal,
       totalSavings,
@@ -542,12 +623,15 @@ export function CartProvider({ children }) {
       removeFromCart,
       clearCart,
       removeOwnProducts,
+      removeUnavailableProducts,
       isInCart,
       getCartItem,
     }),
     [
       cartItems,
       cartItemCount,
+      unavailableCartItems,
+      hasUnavailableProducts,
       totalUnits,
       subtotal,
       totalSavings,
@@ -560,6 +644,7 @@ export function CartProvider({ children }) {
       removeFromCart,
       clearCart,
       removeOwnProducts,
+      removeUnavailableProducts,
       isInCart,
       getCartItem,
     ]
@@ -577,6 +662,8 @@ export function useCart() {
     return {
       cartItems: [],
       cartItemCount: 0,
+      unavailableCartItems: [],
+      hasUnavailableProducts: false,
       totalUnits: 0,
       subtotal: 0,
       totalSavings: 0,
@@ -588,6 +675,8 @@ export function useCart() {
       decreaseQuantity: () => {},
       removeFromCart: () => {},
       clearCart: () => {},
+      removeOwnProducts: () => {},
+      removeUnavailableProducts: () => {},
       isInCart: () => false,
       getCartItem: () => null,
     };

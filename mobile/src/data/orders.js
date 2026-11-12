@@ -305,7 +305,7 @@ export const DEFAULT_SEED_ORDERS = [
   },
 ];
 
-let inMemoryOrders = [];
+let inMemoryOrders = [...DEFAULT_SEED_ORDERS];
 let inMemoryAddress = null;
 const orderListeners = new Set();
 
@@ -472,6 +472,13 @@ export const saveOrder = async (orderData) => {
     );
     if (hasOwn) {
       throw new Error('Sellers cannot purchase products from their own business.');
+    }
+
+    const hasUnavailable = orderData.items.some(
+      (item) => item.isUnavailable || item.isDeleted || item.status === 'archived'
+    );
+    if (hasUnavailable) {
+      throw new Error('Cannot place order containing unavailable or deleted products.');
     }
   }
 

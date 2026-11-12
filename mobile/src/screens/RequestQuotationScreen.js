@@ -28,6 +28,7 @@ import {
   subscribeBusinessProfile,
   isProductOwnedByCurrentSeller,
 } from '../data/businessProfileData';
+import { isProductActive } from '../data/products';
 
 const DELIVERY_TIMELINES = [
   'Within 7 days',
@@ -96,6 +97,10 @@ export default function RequestQuotationScreen({
   const isOwnProduct = useMemo(() => {
     return isProductOwnedByCurrentSeller(product, sessionProfile);
   }, [product, sessionProfile]);
+
+  const isProductInactive = useMemo(() => {
+    return product ? !isProductActive(product) : false;
+  }, [product]);
 
   // Auto-populate buyer and address details from saved session / address
   useEffect(() => {
@@ -232,6 +237,14 @@ export default function RequestQuotationScreen({
   }, [quantity, effectiveUnitPrice]);
 
   const handleSubmit = async () => {
+    if (isProductInactive) {
+      Alert.alert(
+        'Product Unavailable',
+        'This product has been removed by the seller and is no longer available for quotation requests.'
+      );
+      return;
+    }
+
     if (isOwnProduct) {
       Alert.alert(
         'Action Not Allowed',
@@ -375,6 +388,23 @@ export default function RequestQuotationScreen({
                 </Text>
                 <Text style={styles.ownProductBlockedSubtitle}>
                   You are registered as the seller of this product. Sellers cannot request quotations or negotiate prices for their own products.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Unavailable Product Blocking Warning Banner */}
+        {isProductInactive && (
+          <View style={styles.ownProductBlockedBanner}>
+            <View style={styles.ownProductBlockedHeader}>
+              <Ionicons name="alert-circle" size={22} color={colors.error} />
+              <View style={styles.ownProductBlockedTextWrapper}>
+                <Text style={styles.ownProductBlockedTitle}>
+                  Product Unavailable
+                </Text>
+                <Text style={styles.ownProductBlockedSubtitle}>
+                  This product has been removed by the seller and is no longer available for price quotations.
                 </Text>
               </View>
             </View>
@@ -643,10 +673,10 @@ export default function RequestQuotationScreen({
         <TouchableOpacity
           style={[
             styles.submitButton,
-            (isSubmitting || isOwnProduct) && styles.submitButtonDisabled,
+            (isSubmitting || isOwnProduct || isProductInactive) && styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={isSubmitting || isOwnProduct}
+          disabled={isSubmitting || isOwnProduct || isProductInactive}
           activeOpacity={0.8}
         >
           {isSubmitting ? (
@@ -654,13 +684,21 @@ export default function RequestQuotationScreen({
           ) : (
             <>
               <Ionicons
-                name={isOwnProduct ? 'alert-circle-outline' : 'paper-plane-outline'}
+                name={
+                  isOwnProduct || isProductInactive
+                    ? 'alert-circle-outline'
+                    : 'paper-plane-outline'
+                }
                 size={18}
                 color={colors.textInverse}
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.submitButtonText}>
-                {isOwnProduct ? 'Cannot Request Own Product' : 'Send Price Request'}
+                {isOwnProduct
+                  ? 'Cannot Request Own Product'
+                  : isProductInactive
+                  ? 'Product Unavailable'
+                  : 'Send Price Request'}
               </Text>
             </>
           )}

@@ -1,5 +1,11 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  getSessionBusinessProfile,
+  isProductOwnedByCurrentSeller,
+} from './businessProfileData.js';
+import { getOrders } from './orders.js';
+import { getQuotations } from './quotations.js';
 
 export const categories = [
   { id: "all", name: "All Products", icon: "grid-outline" },
@@ -526,28 +532,37 @@ export const products = [
   },
 ];
 
+export const isProductActive = (product) => {
+  if (!product || typeof product !== 'object') return false;
+  if (product.isDeleted === true) return false;
+  if (product.isArchived === true) return false;
+  if (product.status === 'archived' || product.status === 'deleted') return false;
+  if (product.isActive === false) return false;
+  return true;
+};
+
 export const getFeaturedProducts = () =>
-  products.filter((product) => Boolean(product?.isFeatured));
+  products.filter((product) => isProductActive(product) && Boolean(product?.isFeatured));
 
 export const getSurplusProducts = () =>
-  products.filter((product) => Boolean(product?.isSurplus));
+  products.filter((product) => isProductActive(product) && Boolean(product?.isSurplus));
 
 export const getProductsByCategory = (categoryId) =>
-  !categoryId || categoryId === "all"
-    ? products
+  !categoryId || categoryId === 'all'
+    ? products.filter(isProductActive)
     : products.filter(
         (product) =>
-          product &&
+          isProductActive(product) &&
           (product.categoryId === categoryId || product.category === categoryId)
       );
 
 export const searchProducts = (query) => {
-  if (!query || typeof query !== "string") return products;
+  if (!query || typeof query !== 'string') return products.filter(isProductActive);
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return products;
+  if (tokens.length === 0) return products.filter(isProductActive);
 
   return products.filter((product) => {
-    if (!product) return false;
+    if (!product || !isProductActive(product)) return false;
     const searchableText = [
       product.name,
       product.categoryName,
@@ -559,7 +574,7 @@ export const searchProducts = (query) => {
       ...(Array.isArray(product.tags) ? product.tags : []),
     ]
       .filter(Boolean)
-      .join(" ")
+      .join(' ')
       .toLowerCase();
 
     return tokens.every((token) => searchableText.includes(token));
@@ -567,6 +582,8 @@ export const searchProducts = (query) => {
 };
 
 export const STORAGE_KEY_CUSTOM_PRODUCTS = '@vyaparsetu_custom_products';
+export const STORAGE_KEY_DELETED_PRODUCT_IDS = '@vyaparsetu_deleted_product_ids';
+export const STORAGE_KEY_ARCHIVED_PRODUCT_IDS = '@vyaparsetu_archived_product_ids';
 
 const storage =
   AsyncStorage && typeof AsyncStorage.setItem === 'function'
@@ -614,16 +631,255 @@ const persistCustomProducts = async () => {
   }
 };
 
+const persistDeletedProductId = async (id) => {
+  try {
+    if (!storage || typeof storage.getItem !== 'function') return;
+    const cleanId = String(id).trim().toLowerCase();
+    const json = await storage.getItem(STORAGE_KEY_DELETED_PRODUCT_IDS);
+    const existing = json ? JSON.parse(json) : [];
+    if (!existing.includes(cleanId)) {
+      existing.push(cleanId);
+      await storage.setItem(
+        STORAGE_KEY_DELETED_PRODUCT_IDS,
+        JSON.stringify(existing)
+      );
+    }
+  } catch (e) {
+    console.warn('[products] Error persisting deleted product ID:', e);
+  }
+};
+
+const persistArchivedProductId = async (id) => {
+  try {
+    if (!storage || typeof storage.getItem !== 'function') return;
+    const cleanId = String(id).trim().toLowerCase();
+    const json = await storage.getItem(STORAGE_KEY_ARCHIVED_PRODUCT_IDS);
+    const existing = json ? JSON.parse(json) : [];
+    if (!existing.includes(cleanId)) {
+      existing.push(cleanId);
+      await storage.setItem(
+        STORAGE_KEY_ARCHIVED_PRODUCT_IDS,
+        JSON.stringify(existing)
+      );
+    }
+  } catch (e) {
+    console.warn('[products] Error persisting archived product ID:', e);
+  }
+};
+
+/**
+ * Checks whether the deleted or archived product is in buyer cart and flags it as unavailable.
+ */
+const updateCartOnProductDeleted = async (productId) => {
+  try {
+    if (!storage || typeof storage.getItem !== 'function') return;
+    const cleanId = String(productId).trim().toLowerCase();
+    const cartJson = await storage.getItem('@vyaparsetu_cart');
+    if (cartJson) {
+      const cartItems = JSON.parse(cartJson);
+      if (Array.isArray(cartItems)) {
+        let changed = false;
+        const updated = cartItems.map((item) => {
+          const pId = item?.id || item?.productId || item?.product?.id;
+          if (pId && String(pId).trim().toLowerCase() === cleanId) {
+            changed = true;
+            return {
+              ...item,
+              isUnavailable: true,
+              unavailableReason:
+                'This product has been removed by the seller and is no longer available.',
+            };
+          }
+          return item;
+        });
+        if (changed) {
+          await storage.setItem('@vyaparsetu_cart', JSON.stringify(updated));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[products] Error updating cart storage on product deletion:', e);
+  }
+};
+
+/**
+ * Checks whether a product has historical orders or quotation requests.
+ */
+export const hasProductOrdersOrQuotations = (productId) => {
+  if (!productId) return false;
+  const cleanId = String(productId).trim().toLowerCase();
+
+  // Check orders
+  try {
+    const allOrders = getOrders();
+    if (Array.isArray(allOrders)) {
+      const hasOrder = allOrders.some((order) => {
+        if (!order || !Array.isArray(order.items)) return false;
+        return order.items.some((item) => {
+          const pId = item?.productId || item?.id;
+          return pId && String(pId).trim().toLowerCase() === cleanId;
+        });
+      });
+      if (hasOrder) return true;
+    }
+  } catch (e) {
+    console.warn('[products] Error checking orders for product:', e);
+  }
+
+  // Check quotations
+  try {
+    const allQuotes = getQuotations();
+    if (Array.isArray(allQuotes)) {
+      const hasQuote = allQuotes.some((quote) => {
+        if (!quote) return false;
+        const pId = quote.productId || quote.product?.id;
+        return pId && String(pId).trim().toLowerCase() === cleanId;
+      });
+      if (hasQuote) return true;
+    }
+  } catch (e) {
+    console.warn('[products] Error checking quotations for product:', e);
+  }
+
+  return false;
+};
+
+/**
+ * Delete or archive product based on historical records:
+ * - If product has NO orders or quotations: permanently removed from catalog and storage.
+ * - If product has existing orders or quotations: soft-deleted / archived to preserve historical snapshots.
+ *
+ * Verifies ownership using sellerId and session business profile.
+ */
+export const deleteProduct = async (productId, customProfile) => {
+  if (!productId) {
+    return {
+      success: false,
+      reason: 'invalid_id',
+      message: 'Product ID is required.',
+    };
+  }
+
+  const cleanId = String(productId).trim().toLowerCase();
+  const index = products.findIndex(
+    (p) => p && String(p.id).trim().toLowerCase() === cleanId
+  );
+
+  if (index === -1) {
+    return {
+      success: false,
+      reason: 'not_found',
+      message: 'Product not found in catalog.',
+    };
+  }
+
+  const product = products[index];
+
+  // Ownership verification using existing sellerId / session business profile logic
+  const profile =
+    customProfile !== undefined ? customProfile : getSessionBusinessProfile();
+  if (!isProductOwnedByCurrentSeller(product, profile)) {
+    return {
+      success: false,
+      reason: 'unauthorized',
+      message: 'You can only delete products belonging to your own business.',
+    };
+  }
+
+  const hasHistory = hasProductOrdersOrQuotations(product.id);
+
+  if (hasHistory) {
+    // Soft-delete / Archive to preserve order & quotation records
+    const archivedProduct = {
+      ...product,
+      isDeleted: true,
+      isArchived: true,
+      status: 'archived',
+      isActive: false,
+      archivedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    products[index] = archivedProduct;
+
+    await persistArchivedProductId(product.id);
+    await persistCustomProducts();
+    await updateCartOnProductDeleted(product.id);
+
+    notifyProductListeners();
+    return {
+      success: true,
+      mode: 'archived',
+      message: 'Product archived successfully. Historical records preserved.',
+      product: archivedProduct,
+    };
+  } else {
+    // Hard-delete: permanently remove product from catalog
+    products.splice(index, 1);
+
+    await persistDeletedProductId(product.id);
+    await persistCustomProducts();
+    await updateCartOnProductDeleted(product.id);
+
+    notifyProductListeners();
+    return {
+      success: true,
+      mode: 'deleted',
+      message: 'Product permanently deleted.',
+      productId: product.id,
+    };
+  }
+};
+
 export const loadPersistedProducts = async () => {
   try {
     if (storage && typeof storage.getItem === 'function') {
-      const json = await storage.getItem(STORAGE_KEY_CUSTOM_PRODUCTS);
-      if (json) {
-        const customProducts = JSON.parse(json);
+      const [customJson, deletedJson, archivedJson] = await Promise.all([
+        storage.getItem(STORAGE_KEY_CUSTOM_PRODUCTS),
+        storage.getItem(STORAGE_KEY_DELETED_PRODUCT_IDS),
+        storage.getItem(STORAGE_KEY_ARCHIVED_PRODUCT_IDS),
+      ]);
+
+      const deletedIds = new Set(
+        deletedJson
+          ? JSON.parse(deletedJson).map((id) => String(id).trim().toLowerCase())
+          : []
+      );
+      const archivedIds = new Set(
+        archivedJson
+          ? JSON.parse(archivedJson).map((id) => String(id).trim().toLowerCase())
+          : []
+      );
+
+      // 1. Remove any permanently deleted products
+      for (let i = products.length - 1; i >= 0; i--) {
+        const p = products[i];
+        if (p && p.id && deletedIds.has(String(p.id).trim().toLowerCase())) {
+          products.splice(i, 1);
+        }
+      }
+
+      // 2. Mark any archived products
+      products.forEach((p, idx) => {
+        if (p && p.id && archivedIds.has(String(p.id).trim().toLowerCase())) {
+          products[idx] = {
+            ...p,
+            isDeleted: true,
+            isArchived: true,
+            status: 'archived',
+            isActive: false,
+          };
+        }
+      });
+
+      // 3. Load custom products
+      if (customJson) {
+        const customProducts = JSON.parse(customJson);
         if (Array.isArray(customProducts)) {
           customProducts.forEach((cp) => {
             if (!cp || !cp.id) return;
             const cleanId = String(cp.id).trim().toLowerCase();
+            if (deletedIds.has(cleanId)) return; // Exclude permanently deleted
+
             const index = products.findIndex(
               (p) => p && String(p.id).trim().toLowerCase() === cleanId
             );

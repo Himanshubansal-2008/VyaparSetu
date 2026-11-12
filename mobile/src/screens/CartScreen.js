@@ -40,6 +40,8 @@ export default function CartScreen({
   const {
     cartItems,
     cartItemCount,
+    unavailableCartItems = [],
+    hasUnavailableProducts = false,
     totalUnits,
     subtotal,
     totalSavings,
@@ -49,6 +51,7 @@ export default function CartScreen({
     decreaseQuantity,
     removeFromCart,
     clearCart,
+    removeUnavailableProducts,
   } = useCart();
 
   const [editingQuantities, setEditingQuantities] = useState({});
@@ -288,6 +291,27 @@ export default function CartScreen({
       );
       return;
     }
+    if (hasUnavailableProducts) {
+      Alert.alert(
+        'Cannot Proceed to Checkout',
+        `Your cart contains ${unavailableCartItems.length} product${unavailableCartItems.length > 1 ? 's' : ''} that ${unavailableCartItems.length > 1 ? 'are' : 'is'} no longer available from the seller. Please remove ${unavailableCartItems.length > 1 ? 'them' : 'it'} to continue.`,
+        [
+          { text: 'Keep in Cart', style: 'cancel' },
+          {
+            text: 'Remove Unavailable Products',
+            style: 'destructive',
+            onPress: () => {
+              if (removeUnavailableProducts) {
+                removeUnavailableProducts();
+              } else {
+                unavailableCartItems.forEach((item) => removeFromCart(item.id));
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
     if (onNavigateToCheckout) {
       onNavigateToCheckout();
     } else if (navigation?.navigate) {
@@ -479,6 +503,59 @@ export default function CartScreen({
             </View>
           )}
 
+          {/* Unavailable Products Warning Banner */}
+          {hasUnavailableProducts && (
+            <View style={[styles.ownProductsAlertCard, { marginTop: hasOwnProducts ? spacing.sm : 0 }]}>
+              <View style={styles.ownProductsAlertHeader}>
+                <Ionicons name="alert-circle" size={22} color={colors.error} />
+                <View style={styles.ownProductsAlertTitleWrapper}>
+                  <Text style={styles.ownProductsAlertTitle}>
+                    Cart Contains Unavailable {unavailableCartItems.length === 1 ? 'Product' : 'Products'} ({unavailableCartItems.length})
+                  </Text>
+                  <Text style={styles.ownProductsAlertSubtitle}>
+                    Some items in your cart were removed by the seller and can no longer be ordered. Please remove them before proceeding to checkout.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.removeOwnProductsBtn}
+                onPress={() => {
+                  Alert.alert(
+                    'Remove Unavailable Products',
+                    `Remove ${unavailableCartItems.length} unavailable product${unavailableCartItems.length > 1 ? 's' : ''} from your cart?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => {
+                          if (removeUnavailableProducts) {
+                            removeUnavailableProducts();
+                          } else {
+                            unavailableCartItems.forEach((item) => removeFromCart(item.id));
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Remove unavailable products from cart"
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={15}
+                  color={colors.textInverse}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.removeOwnProductsBtnText}>
+                  Remove Unavailable {unavailableCartItems.length === 1 ? 'Product' : 'Products'} ({unavailableCartItems.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Cart Items List */}
           <View style={styles.itemsListContainer}>
             {cartItems.map((item, index) => {
@@ -487,6 +564,7 @@ export default function CartScreen({
                 product,
                 sessionProfile
               );
+              const isItemUnavailable = Boolean(item.isUnavailable);
               const moq = getProductMoq(product);
               const stock = getProductStock(product);
               const unitSingular = product.unit || 'unit';
@@ -512,7 +590,7 @@ export default function CartScreen({
                   key={`cart-item-${item.id || index}`}
                   style={[
                     styles.itemCard,
-                    isOwnItem && styles.itemCardOwnProduct,
+                    (isOwnItem || isItemUnavailable) && styles.itemCardOwnProduct,
                   ]}
                 >
                   {isOwnItem && (
@@ -525,6 +603,20 @@ export default function CartScreen({
                       />
                       <Text style={styles.ownProductCardTagText}>
                         My Product — Cannot be purchased
+                      </Text>
+                    </View>
+                  )}
+
+                  {isItemUnavailable && !isOwnItem && (
+                    <View style={styles.ownProductCardTag}>
+                      <Ionicons
+                        name="alert-circle"
+                        size={14}
+                        color={colors.error}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={styles.ownProductCardTagText}>
+                        Product Removed by Seller — Cannot be purchased
                       </Text>
                     </View>
                   )}
@@ -901,7 +993,7 @@ export default function CartScreen({
           <TouchableOpacity
             style={[
               styles.checkoutButton,
-              hasOwnProducts && styles.checkoutButtonBlocked,
+              (hasOwnProducts || hasUnavailableProducts) && styles.checkoutButtonBlocked,
             ]}
             onPress={handleCheckoutPress}
             activeOpacity={0.8}
@@ -909,11 +1001,13 @@ export default function CartScreen({
             accessibilityLabel={
               hasOwnProducts
                 ? 'Remove own products to checkout'
+                : hasUnavailableProducts
+                ? 'Remove unavailable products to checkout'
                 : 'Proceed to Checkout'
             }
           >
             <Ionicons
-              name={hasOwnProducts ? 'alert-circle-outline' : 'card-outline'}
+              name={hasOwnProducts || hasUnavailableProducts ? 'alert-circle-outline' : 'card-outline'}
               size={18}
               color={colors.textInverse}
               style={styles.checkoutButtonIcon}
@@ -921,6 +1015,8 @@ export default function CartScreen({
             <Text style={styles.checkoutButtonText}>
               {hasOwnProducts
                 ? 'Remove Own Products to Checkout'
+                : hasUnavailableProducts
+                ? 'Remove Unavailable Products to Checkout'
                 : 'Proceed to Checkout'}
             </Text>
           </TouchableOpacity>

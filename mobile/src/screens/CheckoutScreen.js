@@ -30,6 +30,7 @@ import {
   subscribeBusinessProfile,
 } from '../data/businessProfileData';
 import { markQuotationAsOrdered } from '../data/quotations';
+import { getProductById, isProductActive } from '../data/products';
 import EmptyState from '../components/EmptyState';
 
 const PAYMENT_METHODS = [
@@ -100,6 +101,17 @@ export default function CheckoutScreen({
   }, [cartItems, sessionProfile]);
 
   const hasOwnProducts = ownCartItems.length > 0;
+
+  const unavailableCartItems = useMemo(() => {
+    return cartItems.filter((item) => {
+      if (item.isUnavailable) return true;
+      const pId = item.id || item.product?.id;
+      const liveProduct = getProductById(pId);
+      return !liveProduct || !isProductActive(liveProduct);
+    });
+  }, [cartItems]);
+
+  const hasUnavailableProducts = unavailableCartItems.length > 0;
 
   // Load previously saved delivery address if available
   useEffect(() => {
@@ -188,6 +200,20 @@ export default function CheckoutScreen({
       Alert.alert(
         'Order Blocked',
         `Your cart contains ${ownCartItems.length} product${ownCartItems.length > 1 ? 's' : ''} from your own business. Sellers cannot purchase their own products. Please return to your cart and remove them before placing an order.`,
+        [
+          {
+            text: 'Return to Cart',
+            onPress: handleBack,
+          },
+        ]
+      );
+      return;
+    }
+
+    if (hasUnavailableProducts) {
+      Alert.alert(
+        'Order Blocked',
+        `Your cart contains ${unavailableCartItems.length} product${unavailableCartItems.length > 1 ? 's' : ''} that ${unavailableCartItems.length > 1 ? 'are' : 'is'} no longer available from the seller. Please return to your cart and remove ${unavailableCartItems.length > 1 ? 'them' : 'it'} before placing an order.`,
         [
           {
             text: 'Return to Cart',
@@ -798,22 +824,24 @@ export default function CheckoutScreen({
             <TouchableOpacity
               style={[
                 styles.placeOrderButton,
-                (isSubmitting || hasOwnProducts) &&
+                (isSubmitting || hasOwnProducts || hasUnavailableProducts) &&
                   styles.placeOrderButtonDisabled,
               ]}
               onPress={handlePlaceOrder}
-              disabled={isSubmitting || hasOwnProducts}
+              disabled={isSubmitting || hasOwnProducts || hasUnavailableProducts}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={
                 hasOwnProducts
                   ? 'Cannot purchase own products'
+                  : hasUnavailableProducts
+                  ? 'Remove unavailable products'
                   : 'Place Wholesale Order'
               }
             >
               <Ionicons
                 name={
-                  hasOwnProducts
+                  hasOwnProducts || hasUnavailableProducts
                     ? 'alert-circle-outline'
                     : 'checkmark-circle-outline'
                 }
@@ -824,6 +852,8 @@ export default function CheckoutScreen({
               <Text style={styles.placeOrderText}>
                 {hasOwnProducts
                   ? 'Cannot Purchase Own Products'
+                  : hasUnavailableProducts
+                  ? 'Remove Unavailable Products'
                   : isSubmitting
                   ? 'Placing Order...'
                   : 'Place Order'}
