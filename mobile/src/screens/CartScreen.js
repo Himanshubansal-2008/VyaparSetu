@@ -22,7 +22,11 @@ export default function CartScreen({
   onNavigateToProductDetails,
   onNavigateToHome,
 }) {
-  const { cartItems, cartItemCount, increaseQuantity } = useCart();
+  const { cartItems, cartItemCount, increaseQuantity, decreaseQuantity } = useCart();
+
+  const handleDecrement = (item) => {
+    decreaseQuantity(item.id);
+  };
 
   const handleIncrement = (item) => {
     increaseQuantity(item.id);
@@ -182,6 +186,19 @@ export default function CartScreen({
                 {/* Controls Row: Stepper */}
                 <View style={styles.controlsRow}>
                   <View style={styles.stepperWrapper}>
+                    <TouchableOpacity
+                      style={styles.stepperBtn}
+                      onPress={() => handleDecrement(item)}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Decrease quantity"
+                    >
+                      <Ionicons
+                        name="remove"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+
                     <View style={styles.quantityDisplay}>
                       <Text style={styles.quantityNumber}>
                         {item.quantity}
