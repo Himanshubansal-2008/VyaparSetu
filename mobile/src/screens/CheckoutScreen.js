@@ -28,8 +28,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Alert,
   Platform,
   StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -58,6 +60,7 @@ export default function CheckoutScreen({
   } = useCart();
 
   const [selectedPayment, setSelectedPayment] = useState('bank_transfer');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [addressForm, setAddressForm] = useState({
     name: '',
@@ -90,6 +93,68 @@ export default function CheckoutScreen({
       isMounted = false;
     };
   }, []);
+
+  const validateAddress = () => {
+    const newErrors = {};
+
+    if (!addressForm.name || addressForm.name.trim().length < 2) {
+      newErrors.name = 'Contact name is required (min. 2 characters).';
+    }
+
+    const cleanPhone = (addressForm.phone || '').replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      newErrors.phone = 'Valid 10-digit mobile number is required.';
+    }
+
+    if (!addressForm.street || addressForm.street.trim().length < 5) {
+      newErrors.street = 'Street address / premises is required (min. 5 characters).';
+    }
+
+    if (!addressForm.city || addressForm.city.trim().length < 2) {
+      newErrors.city = 'City / Town is required.';
+    }
+
+    if (!addressForm.state || addressForm.state.trim().length < 2) {
+      newErrors.state = 'State / Union Territory is required.';
+    }
+
+    const cleanPincode = (addressForm.pincode || '').replace(/[^0-9]/g, '');
+    if (!cleanPincode || cleanPincode.length !== 6) {
+      newErrors.pincode = 'Valid 6-digit PIN code is required.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handlePlaceOrder = () => {
+    if (isSubmitting) return;
+
+    if (cartItems.length === 0) {
+      Alert.alert(
+        'Empty Wholesale Cart',
+        'Your cart has no products to checkout. Please add products from the catalog first.',
+        [{ text: 'Browse Products', onPress: handleGoHome }]
+      );
+      return;
+    }
+
+    const isValid = validateAddress();
+    if (!isValid) {
+      Alert.alert(
+        'Incomplete Delivery Details',
+        'Please review the delivery address fields highlighted in red to complete your order placement.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Order Validated',
+      `Ready to place order for ${totalUnits} units (₹${totalAmount.toLocaleString('en-IN')}).`,
+      [{ text: 'OK' }]
+    );
+  };
 
   const handleInputChange = (field, value) => {
     setAddressForm((prev) => ({ ...prev, [field]: value }));
@@ -167,8 +232,13 @@ export default function CheckoutScreen({
           />
         </ScrollView>
       ) : (
-        <ScrollView
-          style={styles.scrollView}
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+        >
+          <ScrollView
+            style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -548,7 +618,45 @@ export default function CheckoutScreen({
               </Text>
             </View>
           </View>
-        </ScrollView>
+          </ScrollView>
+
+          {/* Sticky Bottom Bar */}
+          <View style={styles.bottomBar}>
+            <View style={styles.bottomBarTotalWrapper}>
+              <Text style={styles.bottomBarLabel}>
+                Grand Total ({totalUnits} units)
+              </Text>
+              <View style={styles.bottomBarPriceRow}>
+                <Text style={styles.bottomBarCurrency}>₹</Text>
+                <Text style={styles.bottomBarAmount}>
+                  {totalAmount.toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.placeOrderButton,
+                isSubmitting && styles.placeOrderButtonDisabled,
+              ]}
+              onPress={handlePlaceOrder}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Place Wholesale Order"
+            >
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={20}
+                color={colors.textInverse}
+                style={styles.placeOrderIcon}
+              />
+              <Text style={styles.placeOrderText}>
+                {isSubmitting ? 'Placing Order...' : 'Place Order'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );
@@ -559,6 +667,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  keyboardView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -967,5 +1078,86 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  bottomBarTotalWrapper: {
+    flex: 1,
+  },
+  bottomBarLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bottomBarPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  bottomBarCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 2,
+  },
+  bottomBarAmount: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  placeOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  placeOrderButtonDisabled: {
+    opacity: 0.6,
+  },
+  placeOrderIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  placeOrderText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textInverse,
   },
 });
