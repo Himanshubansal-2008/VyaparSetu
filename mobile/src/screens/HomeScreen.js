@@ -29,6 +29,7 @@ import {
   setSessionBusinessProfile,
   subscribeBusinessProfile,
   isUserCreatedProfile,
+  isProductOwnedByCurrentSeller,
   STORAGE_KEY_SESSION_PROFILE,
 } from '../data/businessProfileData';
 import { colors } from '../theme/colors';
@@ -521,19 +522,12 @@ export default function HomeScreen({
       <FlatList
         data={filteredProducts}
         renderItem={({ item }) => {
-          const isOwnProduct =
-            hasSavedProfile &&
-            savedProfile?.id &&
-            (String(item?.businessId || '').toLowerCase() ===
-              String(savedProfile.id).toLowerCase() ||
-              String(item?.sellerId || '').toLowerCase() ===
-                String(savedProfile.id).toLowerCase() ||
-              String(item?.sellerId || '').toLowerCase() ===
-                String(savedProfile.sellerId || '').toLowerCase());
+          const isOwnProduct = isProductOwnedByCurrentSeller(item, savedProfile);
 
           return (
             <ProductCard
               product={item}
+              isOwnProduct={isOwnProduct}
               onPress={handleProductPress}
               onEditPress={
                 isOwnProduct

@@ -7,6 +7,7 @@ import React, {
   useMemo,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
 
 export const CART_STORAGE_KEY = '@vyaparsetu_cart';
 
@@ -202,6 +203,14 @@ export function CartProvider({ children }) {
           success: false,
           reason: 'invalid_product',
           message: 'Invalid product details.',
+        };
+      }
+
+      if (isProductOwnedByCurrentSeller(product)) {
+        return {
+          success: false,
+          reason: 'own_product',
+          message: 'You cannot add your own product to your cart.',
         };
       }
 
@@ -462,6 +471,17 @@ export function CartProvider({ children }) {
   }, []);
 
   /**
+   * Removes any products that belong to the current seller from the cart.
+   */
+  const removeOwnProducts = useCallback(() => {
+    setCartItems((prevItems) =>
+      prevItems.filter(
+        (item) => !isProductOwnedByCurrentSeller(item.product || item)
+      )
+    );
+  }, []);
+
+  /**
    * Checks whether a product is currently present in the cart.
    */
   const isInCart = useCallback(
@@ -521,6 +541,7 @@ export function CartProvider({ children }) {
       decreaseQuantity,
       removeFromCart,
       clearCart,
+      removeOwnProducts,
       isInCart,
       getCartItem,
     }),
@@ -538,6 +559,7 @@ export function CartProvider({ children }) {
       decreaseQuantity,
       removeFromCart,
       clearCart,
+      removeOwnProducts,
       isInCart,
       getCartItem,
     ]

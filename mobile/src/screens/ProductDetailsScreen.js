@@ -16,7 +16,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
 import { products as defaultProducts, subscribeProducts } from '../data/products';
-import { getSessionBusinessProfile } from '../data/businessProfileData';
+import {
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+  isProductOwnedByCurrentSeller,
+} from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
@@ -251,18 +255,18 @@ export default function ProductDetailsScreen({
     }
   };
 
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
   const isOwner = useMemo(() => {
-    const session = getSessionBusinessProfile();
-    if (!session || !product) return false;
-    const sId = String(session.id || '').trim().toLowerCase();
-    const sSellerId = String(session.sellerId || '').trim().toLowerCase();
-    const pBizId = String(product.businessId || '').trim().toLowerCase();
-    const pSellerId = String(product.sellerId || '').trim().toLowerCase();
-    return Boolean(
-      (sId && (sId === pBizId || sId === pSellerId)) ||
-      (sSellerId && (sSellerId === pBizId || sSellerId === pSellerId))
-    );
-  }, [product]);
+    return isProductOwnedByCurrentSeller(product, sessionProfile);
+  }, [product, sessionProfile]);
 
   const handleEditProduct = () => {
     if (onNavigateToEditProduct) {
@@ -731,6 +735,13 @@ export default function ProductDetailsScreen({
   };
 
   const handleAddToCart = () => {
+    if (isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You cannot add your own product to your wholesale cart.'
+      );
+      return;
+    }
     if (!product || isOutOfStock || isStockBelowMoq || !isValidQuantity) return;
     const result = addToCart(product, quantity, { replace: itemInCart });
     if (result?.success) {
@@ -748,6 +759,13 @@ export default function ProductDetailsScreen({
   };
 
   const handleRequestQuotation = () => {
+    if (isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You cannot request a price quotation for your own product.'
+      );
+      return;
+    }
     if (!product) return;
     const initialQty = isValidQuantity ? quantity : (product.moq || 1);
     const params = {
@@ -960,12 +978,39 @@ export default function ProductDetailsScreen({
                   <Text style={styles.idText}>ID: {product.id}</Text>
                 </View>
               ) : null}
+
+              {isOwner && (
+                <View style={styles.myProductBadge}>
+                  <Ionicons
+                    name="person"
+                    size={11}
+                    color={colors.primary}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.myProductBadgeText}>My Product</Text>
+                </View>
+              )}
             </View>
 
             {/* Product Name */}
             <Text style={styles.productName}>
               {product?.name || 'Unnamed Product'}
             </Text>
+
+            {/* Own Product Seller Notice Banner */}
+            {isOwner && (
+              <View style={styles.ownProductAlertBanner}>
+                <Ionicons
+                  name="information-circle"
+                  size={16}
+                  color={colors.primary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.ownProductAlertText}>
+                  This is your product listing. As the seller, you cannot add it to your cart or purchase it.
+                </Text>
+              </View>
+            )}
 
             {/* Seller Information & View Business Profile Action (visible immediately without scrolling) */}
             <TouchableOpacity
@@ -1296,263 +1341,303 @@ export default function ProductDetailsScreen({
             </View>
           </View>
 
-          {/* Select Quantity & Estimated Price Section */}
-          <View style={styles.quantityCard}>
-            <View style={styles.quantityHeaderRow}>
-              <View style={styles.sectionHeaderRow}>
+          {isOwner ? (
+            <View style={styles.sellerListingCard}>
+              <View style={styles.sellerListingHeaderRow}>
+                <View style={styles.sellerListingIconBox}>
+                  <Ionicons
+                    name="storefront"
+                    size={20}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.sellerListingTextWrapper}>
+                  <Text style={styles.sellerListingTitle}>Seller Product Listing</Text>
+                  <Text style={styles.sellerListingSubtitle}>
+                    This is your product listing on VyaparSetu. You can update pricing tiers, available stock, or specifications anytime.
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.sellerListingEditBtn}
+                onPress={handleEditProduct}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Edit Product Details"
+              >
                 <Ionicons
-                  name="calculator-outline"
+                  name="create-outline"
                   size={18}
                   color={colors.primary}
-                  style={styles.sectionHeaderIcon}
+                  style={{ marginRight: 6 }}
                 />
-                <Text style={styles.sectionTitle}>Select Quantity</Text>
-              </View>
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitBadgeText}>
-                  Per {unitSingular}
+                <Text style={styles.sellerListingEditBtnText}>
+                  Edit Product Details
                 </Text>
-              </View>
+              </TouchableOpacity>
             </View>
-
-            {isOutOfStock ? (
-              <View style={styles.outOfStockBanner}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={20}
-                  color={colors.error}
-                />
-                <View style={styles.outOfStockTextWrapper}>
-                  <Text style={styles.outOfStockTitle}>Out of Stock</Text>
-                  <Text style={styles.outOfStockSubtext}>
-                    This item is currently out of stock. Quantity selection is disabled.
-                  </Text>
-                </View>
-              </View>
-            ) : isStockBelowMoq ? (
-              <View style={styles.stockBelowMoqBanner}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={20}
-                  color={colors.warning}
-                />
-                <View style={styles.stockBelowMoqTextWrapper}>
-                  <Text style={styles.stockBelowMoqTitle}>
-                    Stock Below Minimum Order Quantity
-                  </Text>
-                  <Text style={styles.stockBelowMoqSubtext}>
-                    Available stock ({stockValue.toLocaleString('en-IN')} {unitPlural}) is lower than the minimum order quantity ({minQty} {unitPlural}). Quantity selection is unavailable until restocked.
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.quantityControlsWrapper}>
-                {/* Stepper & Input Row */}
-                <View style={styles.stepperContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.stepperButton,
-                      (isOutOfStock || quantity <= minQty) && styles.stepperButtonDisabled,
-                    ]}
-                    onPress={handleDecrement}
-                    disabled={isOutOfStock || quantity <= minQty}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Decrease quantity"
-                    accessibilityState={{ disabled: isOutOfStock || quantity <= minQty }}
-                  >
+          ) : (
+            <>
+              {/* Select Quantity & Estimated Price Section */}
+              <View style={styles.quantityCard}>
+                <View style={styles.quantityHeaderRow}>
+                  <View style={styles.sectionHeaderRow}>
                     <Ionicons
-                      name="remove"
-                      size={20}
-                      color={
-                        isOutOfStock || quantity <= minQty
-                          ? colors.textMuted
-                          : colors.primary
-                      }
+                      name="calculator-outline"
+                      size={18}
+                      color={colors.primary}
+                      style={styles.sectionHeaderIcon}
                     />
-                  </TouchableOpacity>
-
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      inputError && styles.inputWrapperError,
-                    ]}
-                  >
-                    <TextInput
-                      style={styles.quantityInput}
-                      value={quantityInputText}
-                      onChangeText={handleQuantityInputChange}
-                      onBlur={handleQuantityInputBlur}
-                      onSubmitEditing={handleQuantityInputBlur}
-                      returnKeyType="done"
-                      keyboardType="number-pad"
-                      selectTextOnFocus
-                      accessibilityRole="spinbutton"
-                      accessibilityLabel="Order quantity"
-                      accessibilityValue={{ min: minQty, max: maxQty, now: quantity }}
-                    />
+                    <Text style={styles.sectionTitle}>Select Quantity</Text>
                   </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.stepperButton,
-                      (isOutOfStock || quantity >= maxQty) && styles.stepperButtonDisabled,
-                    ]}
-                    onPress={handleIncrement}
-                    disabled={isOutOfStock || quantity >= maxQty}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Increase quantity"
-                    accessibilityState={{ disabled: isOutOfStock || quantity >= maxQty }}
-                  >
-                    <Ionicons
-                      name="add"
-                      size={20}
-                      color={
-                        isOutOfStock || quantity >= maxQty
-                          ? colors.textMuted
-                          : colors.primary
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  <View style={styles.unitLabelBox}>
-                    <Text style={styles.unitLabelText}>{unitPlural}</Text>
+                  <View style={styles.unitBadge}>
+                    <Text style={styles.unitBadgeText}>
+                      Per {unitSingular}
+                    </Text>
                   </View>
                 </View>
 
-                {/* Validation message if input is invalid / out of bounds */}
-                {inputError && (
-                  <View style={styles.validationRow}>
+                {isOutOfStock ? (
+                  <View style={styles.outOfStockBanner}>
                     <Ionicons
-                      name="alert-circle"
-                      size={14}
+                      name="alert-circle-outline"
+                      size={20}
+                      color={colors.error}
+                    />
+                    <View style={styles.outOfStockTextWrapper}>
+                      <Text style={styles.outOfStockTitle}>Out of Stock</Text>
+                      <Text style={styles.outOfStockSubtext}>
+                        This item is currently out of stock. Quantity selection is disabled.
+                      </Text>
+                    </View>
+                  </View>
+                ) : isStockBelowMoq ? (
+                  <View style={styles.stockBelowMoqBanner}>
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={20}
                       color={colors.warning}
                     />
-                    <Text style={styles.validationText}>{inputError}</Text>
-                  </View>
-                )}
-
-                {/* Constraints limits helper row */}
-                <View style={styles.limitsRow}>
-                  <Text style={styles.limitText}>
-                    Min. Order: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
-                  </Text>
-                  <Text style={styles.limitDot}>·</Text>
-                  <Text style={styles.limitText}>
-                    Available Stock:{' '}
-                    <Text style={styles.limitBold}>
-                      {stockValue !== null && !isNaN(stockValue)
-                        ? `${stockValue.toLocaleString('en-IN')} ${unitPlural}`
-                        : 'Available'}
-                    </Text>
-                  </Text>
-                </View>
-
-                {/* Price Calculation Summary Container */}
-                <View style={styles.calculationContainer}>
-                  {/* Applicable Unit Price Row */}
-                  <View style={styles.calculationRow}>
-                    <View>
-                      <Text style={styles.calcLabel}>Applicable Unit Price</Text>
-                      <Text style={styles.calcTierApplied}>
-                        {activeTier
-                          ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity !== null && activeTier.maxQuantity !== undefined ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
-                          : 'Standard Wholesale Price'}
+                    <View style={styles.stockBelowMoqTextWrapper}>
+                      <Text style={styles.stockBelowMoqTitle}>
+                        Stock Below Minimum Order Quantity
+                      </Text>
+                      <Text style={styles.stockBelowMoqSubtext}>
+                        Available stock ({stockValue.toLocaleString('en-IN')} {unitPlural}) is lower than the minimum order quantity ({minQty} {unitPlural}). Quantity selection is unavailable until restocked.
                       </Text>
                     </View>
-                    <View style={styles.calcPriceRow}>
-                      <Text style={styles.calcCurrency}>₹</Text>
-                      <Text style={styles.calcUnitPriceValue}>
-                        {formattedApplicableUnitPrice}
-                      </Text>
-                      {product?.unit && (
-                        <Text style={styles.calcUnit}>/{product.unit}</Text>
-                      )}
-                    </View>
                   </View>
-
-                  <View style={styles.calcDivider} />
-
-                  {/* Estimated Total Price Row */}
-                  <View style={styles.calculationRow}>
-                    <View style={styles.calcFormulaWrapper}>
-                      <Text style={styles.calcTotalLabel}>Estimated Total</Text>
-                      <Text
+                ) : (
+                  <View style={styles.quantityControlsWrapper}>
+                    {/* Stepper & Input Row */}
+                    <View style={styles.stepperContainer}>
+                      <TouchableOpacity
                         style={[
-                          styles.calcTotalFormula,
-                          !isValidQuantity && inputError && styles.calcTotalFormulaError,
+                          styles.stepperButton,
+                          (isOutOfStock || quantity <= minQty) && styles.stepperButtonDisabled,
+                        ]}
+                        onPress={handleDecrement}
+                        disabled={isOutOfStock || quantity <= minQty}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Decrease quantity"
+                        accessibilityState={{ disabled: isOutOfStock || quantity <= minQty }}
+                      >
+                        <Ionicons
+                          name="remove"
+                          size={20}
+                          color={
+                            isOutOfStock || quantity <= minQty
+                              ? colors.textMuted
+                              : colors.primary
+                          }
+                        />
+                      </TouchableOpacity>
+
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          inputError && styles.inputWrapperError,
                         ]}
                       >
-                        {isValidQuantity
-                          ? `${quantity} ${unitPlural} × ₹${formattedApplicableUnitPrice}`
-                          : inputError || `Enter a valid quantity (min. ${minQty} ${unitPlural})`}
+                        <TextInput
+                          style={styles.quantityInput}
+                          value={quantityInputText}
+                          onChangeText={handleQuantityInputChange}
+                          onBlur={handleQuantityInputBlur}
+                          onSubmitEditing={handleQuantityInputBlur}
+                          returnKeyType="done"
+                          keyboardType="number-pad"
+                          selectTextOnFocus
+                          accessibilityRole="spinbutton"
+                          accessibilityLabel="Order quantity"
+                          accessibilityValue={{ min: minQty, max: maxQty, now: quantity }}
+                        />
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.stepperButton,
+                          (isOutOfStock || quantity >= maxQty) && styles.stepperButtonDisabled,
+                        ]}
+                        onPress={handleIncrement}
+                        disabled={isOutOfStock || quantity >= maxQty}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Increase quantity"
+                        accessibilityState={{ disabled: isOutOfStock || quantity >= maxQty }}
+                      >
+                        <Ionicons
+                          name="add"
+                          size={20}
+                          color={
+                            isOutOfStock || quantity >= maxQty
+                              ? colors.textMuted
+                              : colors.primary
+                          }
+                        />
+                      </TouchableOpacity>
+
+                      <View style={styles.unitLabelBox}>
+                        <Text style={styles.unitLabelText}>{unitPlural}</Text>
+                      </View>
+                    </View>
+
+                    {/* Validation message if input is invalid / out of bounds */}
+                    {inputError && (
+                      <View style={styles.validationRow}>
+                        <Ionicons
+                          name="alert-circle"
+                          size={14}
+                          color={colors.warning}
+                        />
+                        <Text style={styles.validationText}>{inputError}</Text>
+                      </View>
+                    )}
+
+                    {/* Constraints limits helper row */}
+                    <View style={styles.limitsRow}>
+                      <Text style={styles.limitText}>
+                        Min. Order: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
+                      </Text>
+                      <Text style={styles.limitDot}>·</Text>
+                      <Text style={styles.limitText}>
+                        Available Stock:{' '}
+                        <Text style={styles.limitBold}>
+                          {stockValue !== null && !isNaN(stockValue)
+                            ? `${stockValue.toLocaleString('en-IN')} ${unitPlural}`
+                            : 'Available'}
+                        </Text>
                       </Text>
                     </View>
-                    <View style={styles.calcPriceRow}>
-                      {isValidQuantity ? (
-                        <>
-                          <Text style={styles.calcTotalCurrency}>₹</Text>
-                          <Text style={styles.calcTotalValue}>
-                            {formattedEstimatedTotal}
+
+                    {/* Price Calculation Summary Container */}
+                    <View style={styles.calculationContainer}>
+                      {/* Applicable Unit Price Row */}
+                      <View style={styles.calculationRow}>
+                        <View>
+                          <Text style={styles.calcLabel}>Applicable Unit Price</Text>
+                          <Text style={styles.calcTierApplied}>
+                            {activeTier
+                              ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity !== null && activeTier.maxQuantity !== undefined ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
+                              : 'Standard Wholesale Price'}
                           </Text>
-                        </>
-                      ) : (
-                        <Text style={styles.calcTotalPlaceholder}>—</Text>
+                        </View>
+                        <View style={styles.calcPriceRow}>
+                          <Text style={styles.calcCurrency}>₹</Text>
+                          <Text style={styles.calcUnitPriceValue}>
+                            {formattedApplicableUnitPrice}
+                          </Text>
+                          {product?.unit && (
+                            <Text style={styles.calcUnit}>/{product.unit}</Text>
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.calcDivider} />
+
+                      {/* Estimated Total Price Row */}
+                      <View style={styles.calculationRow}>
+                        <View style={styles.calcFormulaWrapper}>
+                          <Text style={styles.calcTotalLabel}>Estimated Total</Text>
+                          <Text
+                            style={[
+                              styles.calcTotalFormula,
+                              !isValidQuantity && inputError && styles.calcTotalFormulaError,
+                            ]}
+                          >
+                            {isValidQuantity
+                              ? `${quantity} ${unitPlural} × ₹${formattedApplicableUnitPrice}`
+                              : inputError || `Enter a valid quantity (min. ${minQty} ${unitPlural})`}
+                          </Text>
+                        </View>
+                        <View style={styles.calcPriceRow}>
+                          {isValidQuantity ? (
+                            <>
+                              <Text style={styles.calcTotalCurrency}>₹</Text>
+                              <Text style={styles.calcTotalValue}>
+                                {formattedEstimatedTotal}
+                              </Text>
+                            </>
+                          ) : (
+                            <Text style={styles.calcTotalPlaceholder}>—</Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Savings Callout (if bulk tier gives savings) */}
+                      {savings.hasSavings && (
+                        <View style={styles.savingsCallout}>
+                          <Ionicons
+                            name="pricetag"
+                            size={15}
+                            color={colors.success}
+                          />
+                          <Text style={styles.savingsCalloutText}>
+                            You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> on this purchase ({savings.percent}% off)!
+                          </Text>
+                        </View>
                       )}
                     </View>
                   </View>
+                )}
+              </View>
 
-                  {/* Savings Callout (if bulk tier gives savings) */}
-                  {savings.hasSavings && (
-                    <View style={styles.savingsCallout}>
-                      <Ionicons
-                        name="pricetag"
-                        size={15}
-                        color={colors.success}
-                      />
-                      <Text style={styles.savingsCalloutText}>
-                        You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> on this purchase ({savings.percent}% off)!
-                      </Text>
-                    </View>
-                  )}
+              {/* Price Request Callout Card */}
+              <View style={styles.rfqCard}>
+                <View style={styles.rfqHeaderRow}>
+                  <View style={styles.rfqIconBox}>
+                    <Ionicons
+                      name="chatbubbles-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <View style={styles.rfqHeaderTextWrapper}>
+                    <Text style={styles.rfqTitle}>Need a Custom Price?</Text>
+                    <Text style={styles.rfqSubtext}>
+                      Ask a seller for a price based on the quantity you want to buy. Negotiate custom quantities and order terms directly.
+                    </Text>
+                  </View>
                 </View>
+                <TouchableOpacity
+                  style={styles.rfqButton}
+                  onPress={handleRequestQuotation}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Request Custom Price"
+                >
+                  <Ionicons
+                    name="paper-plane-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.rfqButtonText}>Request Custom Price</Text>
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
-
-          {/* Price Request Callout Card */}
-          <View style={styles.rfqCard}>
-            <View style={styles.rfqHeaderRow}>
-              <View style={styles.rfqIconBox}>
-                <Ionicons
-                  name="chatbubbles-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-              <View style={styles.rfqHeaderTextWrapper}>
-                <Text style={styles.rfqTitle}>Need a Custom Price?</Text>
-                <Text style={styles.rfqSubtext}>
-                  Ask a seller for a price based on the quantity you want to buy. Negotiate custom quantities and order terms directly.
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.rfqButton}
-              onPress={handleRequestQuotation}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Request Custom Price"
-            >
-              <Ionicons
-                name="paper-plane-outline"
-                size={16}
-                color={colors.primary}
-              />
-              <Text style={styles.rfqButtonText}>Request Custom Price</Text>
-            </TouchableOpacity>
-          </View>
+            </>
+          )}
 
           {/* Product Overview / Key Information Card */}
           {keyDetails.length > 0 && (
@@ -1638,67 +1723,108 @@ export default function ProductDetailsScreen({
       </ScrollView>
 
       {/* Sticky Bottom Action Bar */}
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomBarPriceContainer}>
-          <Text style={styles.bottomBarPriceLabel}>
-            {isValidQuantity ? `Total (${quantity} ${unitPlural})` : 'Wholesale Price'}
-          </Text>
-          <View style={styles.bottomBarPriceRow}>
-            <Text style={styles.bottomBarCurrency}>₹</Text>
-            <Text style={styles.bottomBarAmount}>
-              {isValidQuantity ? formattedEstimatedTotal : formattedApplicableUnitPrice}
-            </Text>
-            {!isValidQuantity && product?.unit && (
-              <Text style={styles.bottomBarUnit}>/{product.unit}</Text>
-            )}
-          </View>
-          {activeTier && (
-            <View style={styles.bottomBarTierBadge}>
-              <Ionicons name="sparkles" size={10} color={colors.surplus} />
-              <Text style={styles.bottomBarTierText}>Wholesale Tier Applied</Text>
+      <View style={[styles.bottomBar, isOwner && styles.sellerBottomBar]}>
+        {isOwner ? (
+          <View style={styles.sellerBottomBarContainer}>
+            <View style={styles.sellerBottomBarInfo}>
+              <View style={styles.sellerBottomBadge}>
+                <Ionicons name="person" size={12} color={colors.primary} />
+                <Text style={styles.sellerBottomBadgeText}>My Product</Text>
+              </View>
+              <View style={styles.sellerBottomPriceRow}>
+                <Text style={styles.sellerBottomCurrency}>₹</Text>
+                <Text style={styles.sellerBottomPrice}>{formattedPrice}</Text>
+                {product?.unit && (
+                  <Text style={styles.sellerBottomUnit}>/{unitSingular}</Text>
+                )}
+              </View>
             </View>
-          )}
-        </View>
 
-        <View style={styles.bottomBarActions}>
-          <TouchableOpacity
-            style={styles.bottomBarQuoteBtn}
-            onPress={handleRequestQuotation}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Request Custom Price"
-          >
-            <Ionicons
-              name="document-text-outline"
-              size={18}
-              color={colors.primary}
-            />
-            <Text style={styles.bottomBarQuoteBtnText}>Request Price</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sellerEditProductButton}
+              onPress={handleEditProduct}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Edit Product Details"
+            >
+              <Ionicons
+                name="create-outline"
+                size={18}
+                color={colors.textInverse}
+                style={styles.sellerEditProductIcon}
+              />
+              <Text
+                style={styles.sellerEditProductButtonText}
+                numberOfLines={1}
+              >
+                Edit Product Details
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <View style={styles.bottomBarPriceContainer}>
+              <Text style={styles.bottomBarPriceLabel}>
+                {isValidQuantity ? `Total (${quantity} ${unitPlural})` : 'Wholesale Price'}
+              </Text>
+              <View style={styles.bottomBarPriceRow}>
+                <Text style={styles.bottomBarCurrency}>₹</Text>
+                <Text style={styles.bottomBarAmount}>
+                  {isValidQuantity ? formattedEstimatedTotal : formattedApplicableUnitPrice}
+                </Text>
+                {!isValidQuantity && product?.unit && (
+                  <Text style={styles.bottomBarUnit}>/{product.unit}</Text>
+                )}
+              </View>
+              {activeTier && (
+                <View style={styles.bottomBarTierBadge}>
+                  <Ionicons name="sparkles" size={10} color={colors.surplus} />
+                  <Text style={styles.bottomBarTierText}>Wholesale Tier Applied</Text>
+                </View>
+              )}
+            </View>
 
-          <TouchableOpacity
-            style={[
-              styles.addToCartButton,
-              (isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
-                styles.addToCartButtonDisabled,
-            ]}
-            onPress={handleAddToCart}
-            disabled={isOutOfStock || isStockBelowMoq || !isValidQuantity}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={itemInCart ? 'Update Wholesale Cart' : 'Add to Wholesale Cart'}
-          >
-            <Ionicons
-              name={itemInCart ? 'checkmark-circle-outline' : 'cart-outline'}
-              size={18}
-              color={colors.textInverse}
-              style={styles.addToCartIcon}
-            />
-            <Text style={styles.addToCartButtonText}>
-              {itemInCart ? 'Update Cart' : 'Add to Cart'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.bottomBarActions}>
+              <TouchableOpacity
+                style={styles.bottomBarQuoteBtn}
+                onPress={handleRequestQuotation}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Request Custom Price"
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text style={styles.bottomBarQuoteBtnText}>Request Price</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.addToCartButton,
+                  (isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
+                    styles.addToCartButtonDisabled,
+                ]}
+                onPress={handleAddToCart}
+                disabled={isOutOfStock || isStockBelowMoq || !isValidQuantity}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={itemInCart ? 'Update Wholesale Cart' : 'Add to Wholesale Cart'}
+              >
+                <Ionicons
+                  name={itemInCart ? 'checkmark-circle-outline' : 'cart-outline'}
+                  size={18}
+                  color={colors.textInverse}
+                  style={styles.addToCartIcon}
+                />
+                <Text style={styles.addToCartButtonText}>
+                  {itemInCart ? 'Update Cart' : 'Add to Cart'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -1884,6 +2010,188 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
+  sellerBottomBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+  },
+  sellerBottomBarContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  sellerBottomBarInfo: {
+    justifyContent: 'center',
+    gap: 2,
+  },
+  sellerBottomBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 3,
+  },
+  sellerBottomBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  sellerBottomPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  sellerBottomCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 1,
+  },
+  sellerBottomPrice: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  sellerBottomUnit: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: 1,
+  },
+  sellerEditProductButton: {
+    flex: 1,
+    maxWidth: 240,
+    minWidth: 170,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  sellerEditProductIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  sellerEditProductButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
+  sellerListingCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sellerListingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  sellerListingIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  sellerListingTextWrapper: {
+    flex: 1,
+  },
+  sellerListingTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  sellerListingSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  sellerListingEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm + 4,
+    borderRadius: borderRadius.md,
+  },
+  sellerListingEditBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  myProductBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  myProductBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  ownProductAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  ownProductAlertText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
   rfqCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -1983,7 +2291,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xxxl * 2.5,
+    paddingBottom: spacing.xxxl * 3.5,
   },
   galleryContainer: {
     backgroundColor: colors.surface,

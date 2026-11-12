@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,6 +20,11 @@ import {
   getProductMoq,
   getProductStock,
 } from '../context/CartContext';
+import {
+  isProductOwnedByCurrentSeller,
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+} from '../data/businessProfileData';
 import EmptyState from '../components/EmptyState';
 
 export default function CartScreen({
@@ -47,6 +52,39 @@ export default function CartScreen({
   } = useCart();
 
   const [editingQuantities, setEditingQuantities] = useState({});
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const ownCartItems = useMemo(() => {
+    return cartItems.filter((item) =>
+      isProductOwnedByCurrentSeller(item.product || item, sessionProfile)
+    );
+  }, [cartItems, sessionProfile]);
+
+  const hasOwnProducts = ownCartItems.length > 0;
+
+  const handleRemoveOwnProducts = () => {
+    Alert.alert(
+      'Remove My Products',
+      `Remove ${ownCartItems.length} product${ownCartItems.length > 1 ? 's' : ''} from your cart?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            ownCartItems.forEach((item) => removeFromCart(item.id));
+          },
+        },
+      ]
+    );
+  };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -233,6 +271,23 @@ export default function CartScreen({
 
   const handleCheckoutPress = () => {
     if (isEmpty) return;
+    if (hasOwnProducts) {
+      Alert.alert(
+        'Cannot Proceed to Checkout',
+        `Your cart contains ${ownCartItems.length} product${ownCartItems.length > 1 ? 's' : ''} from your own business. Sellers cannot purchase their own products. Please remove ${ownCartItems.length > 1 ? 'them' : 'it'} to continue.`,
+        [
+          { text: 'Keep in Cart', style: 'cancel' },
+          {
+            text: 'Remove My Products',
+            style: 'destructive',
+            onPress: () => {
+              ownCartItems.forEach((item) => removeFromCart(item.id));
+            },
+          },
+        ]
+      );
+      return;
+    }
     if (onNavigateToCheckout) {
       onNavigateToCheckout();
     } else if (navigation?.navigate) {
@@ -390,10 +445,48 @@ export default function CartScreen({
             </Text>
           </View>
 
+          {/* Own Products Warning Banner */}
+          {hasOwnProducts && (
+            <View style={styles.ownProductsAlertCard}>
+              <View style={styles.ownProductsAlertHeader}>
+                <Ionicons name="alert-circle" size={22} color={colors.error} />
+                <View style={styles.ownProductsAlertTitleWrapper}>
+                  <Text style={styles.ownProductsAlertTitle}>
+                    Cart Contains Your Own {ownCartItems.length === 1 ? 'Product' : 'Products'}
+                  </Text>
+                  <Text style={styles.ownProductsAlertSubtitle}>
+                    Sellers cannot purchase products from their own business. Remove {ownCartItems.length === 1 ? 'it' : 'them'} before proceeding to checkout.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.removeOwnProductsBtn}
+                onPress={handleRemoveOwnProducts}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Remove my products from cart"
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={15}
+                  color={colors.textInverse}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.removeOwnProductsBtnText}>
+                  Remove My {ownCartItems.length === 1 ? 'Product' : 'Products'} ({ownCartItems.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Cart Items List */}
           <View style={styles.itemsListContainer}>
             {cartItems.map((item, index) => {
               const product = item.product || {};
+              const isOwnItem = isProductOwnedByCurrentSeller(
+                product,
+                sessionProfile
+              );
               const moq = getProductMoq(product);
               const stock = getProductStock(product);
               const unitSingular = product.unit || 'unit';
@@ -417,8 +510,25 @@ export default function CartScreen({
               return (
                 <View
                   key={`cart-item-${item.id || index}`}
-                  style={styles.itemCard}
+                  style={[
+                    styles.itemCard,
+                    isOwnItem && styles.itemCardOwnProduct,
+                  ]}
                 >
+                  {isOwnItem && (
+                    <View style={styles.ownProductCardTag}>
+                      <Ionicons
+                        name="alert-circle"
+                        size={14}
+                        color={colors.error}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={styles.ownProductCardTagText}>
+                        My Product — Cannot be purchased
+                      </Text>
+                    </View>
+                  )}
+
                   {/* Top Row: Thumbnail + Details */}
                   <TouchableOpacity
                     style={styles.itemTopRow}
@@ -650,7 +760,10 @@ export default function CartScreen({
                     </View>
 
                     <TouchableOpacity
-                      style={styles.removeButton}
+                      style={[
+                        styles.removeButton,
+                        isOwnItem && styles.removeButtonOwn,
+                      ]}
                       onPress={() => handleRemoveItem(item)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
@@ -659,9 +772,17 @@ export default function CartScreen({
                       <Ionicons
                         name="trash-outline"
                         size={15}
-                        color={colors.error}
+                        color={isOwnItem ? colors.textInverse : colors.error}
+                        style={isOwnItem ? { marginRight: 4 } : undefined}
                       />
-                      <Text style={styles.removeButtonText}>Remove</Text>
+                      <Text
+                        style={[
+                          styles.removeButtonText,
+                          isOwnItem && styles.removeButtonTextOwn,
+                        ]}
+                      >
+                        {isOwnItem ? 'Remove Own Product' : 'Remove'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -778,19 +899,30 @@ export default function CartScreen({
           </View>
 
           <TouchableOpacity
-            style={styles.checkoutButton}
+            style={[
+              styles.checkoutButton,
+              hasOwnProducts && styles.checkoutButtonBlocked,
+            ]}
             onPress={handleCheckoutPress}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Proceed to Checkout"
+            accessibilityLabel={
+              hasOwnProducts
+                ? 'Remove own products to checkout'
+                : 'Proceed to Checkout'
+            }
           >
             <Ionicons
-              name="card-outline"
+              name={hasOwnProducts ? 'alert-circle-outline' : 'card-outline'}
               size={18}
               color={colors.textInverse}
               style={styles.checkoutButtonIcon}
             />
-            <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+            <Text style={styles.checkoutButtonText}>
+              {hasOwnProducts
+                ? 'Remove Own Products to Checkout'
+                : 'Proceed to Checkout'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1465,6 +1597,9 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  checkoutButtonBlocked: {
+    backgroundColor: colors.error,
+  },
   checkoutButtonIcon: {
     marginRight: spacing.xs + 2,
   },
@@ -1472,5 +1607,77 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.textInverse,
+  },
+  ownProductsAlertCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md + 2,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    gap: spacing.sm,
+  },
+  ownProductsAlertHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  ownProductsAlertTitleWrapper: {
+    flex: 1,
+  },
+  ownProductsAlertTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  ownProductsAlertSubtitle: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  removeOwnProductsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: 2,
+  },
+  removeOwnProductsBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
+  itemCardOwnProduct: {
+    borderColor: '#FCA5A5',
+    borderWidth: 1.5,
+    backgroundColor: '#FFFBFB',
+  },
+  ownProductCardTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  ownProductCardTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  removeButtonOwn: {
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: borderRadius.sm,
+  },
+  removeButtonTextOwn: {
+    color: colors.textInverse,
+    fontWeight: '700',
   },
 });

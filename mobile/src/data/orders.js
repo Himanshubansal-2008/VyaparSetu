@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isProductOwnedByCurrentSeller } from './businessProfileData.js';
 
 const storage = AsyncStorage.default || AsyncStorage;
 
@@ -464,6 +465,15 @@ export const getOrderById = (orderId) => {
  */
 export const saveOrder = async (orderData) => {
   if (!orderData) return null;
+
+  if (Array.isArray(orderData.items)) {
+    const hasOwn = orderData.items.some((item) =>
+      isProductOwnedByCurrentSeller(item)
+    );
+    if (hasOwn) {
+      throw new Error('Sellers cannot purchase products from their own business.');
+    }
+  }
 
   const orderId = orderData.id || generateOrderId();
   const newOrder = {

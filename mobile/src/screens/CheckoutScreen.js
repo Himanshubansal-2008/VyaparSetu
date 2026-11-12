@@ -24,6 +24,11 @@ import {
   saveDeliveryAddress,
   getSavedAddress,
 } from '../data/orders';
+import {
+  isProductOwnedByCurrentSeller,
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+} from '../data/businessProfileData';
 import { markQuotationAsOrdered } from '../data/quotations';
 import EmptyState from '../components/EmptyState';
 
@@ -79,6 +84,22 @@ export default function CheckoutScreen({
   const [errors, setErrors] = useState({});
   const [selectedPayment, setSelectedPayment] = useState('bank_transfer');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const ownCartItems = useMemo(() => {
+    return cartItems.filter((item) =>
+      isProductOwnedByCurrentSeller(item.product || item, sessionProfile)
+    );
+  }, [cartItems, sessionProfile]);
+
+  const hasOwnProducts = ownCartItems.length > 0;
 
   // Load previously saved delivery address if available
   useEffect(() => {
@@ -163,6 +184,20 @@ export default function CheckoutScreen({
   };
 
   const handlePlaceOrder = async () => {
+    if (hasOwnProducts) {
+      Alert.alert(
+        'Order Blocked',
+        `Your cart contains ${ownCartItems.length} product${ownCartItems.length > 1 ? 's' : ''} from your own business. Sellers cannot purchase their own products. Please return to your cart and remove them before placing an order.`,
+        [
+          {
+            text: 'Return to Cart',
+            onPress: handleBack,
+          },
+        ]
+      );
+      return;
+    }
+
     if (isSubmitting) return;
 
     if (cartItems.length === 0) {
@@ -329,6 +364,40 @@ export default function CheckoutScreen({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Own Products Blocking Banner */}
+            {hasOwnProducts && (
+              <View style={styles.checkoutBlockedBanner}>
+                <View style={styles.checkoutBlockedHeader}>
+                  <Ionicons name="alert-circle" size={22} color={colors.error} />
+                  <View style={styles.checkoutBlockedTextWrapper}>
+                    <Text style={styles.checkoutBlockedTitle}>
+                      Checkout Blocked: Contains Own Products ({ownCartItems.length})
+                    </Text>
+                    <Text style={styles.checkoutBlockedDesc}>
+                      Sellers cannot purchase products from their own business. Please return to your cart and remove them before placing an order.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.returnToCartButton}
+                  onPress={handleBack}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Return to Cart to Remove Own Products"
+                >
+                  <Ionicons
+                    name="arrow-back"
+                    size={15}
+                    color={colors.textInverse}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.returnToCartButtonText}>
+                    Return to Cart to Fix
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* 1. Delivery Address Card */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeaderRow}>
@@ -729,22 +798,35 @@ export default function CheckoutScreen({
             <TouchableOpacity
               style={[
                 styles.placeOrderButton,
-                isSubmitting && styles.placeOrderButtonDisabled,
+                (isSubmitting || hasOwnProducts) &&
+                  styles.placeOrderButtonDisabled,
               ]}
               onPress={handlePlaceOrder}
-              disabled={isSubmitting}
+              disabled={isSubmitting || hasOwnProducts}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Place Wholesale Order"
+              accessibilityLabel={
+                hasOwnProducts
+                  ? 'Cannot purchase own products'
+                  : 'Place Wholesale Order'
+              }
             >
               <Ionicons
-                name="checkmark-circle-outline"
+                name={
+                  hasOwnProducts
+                    ? 'alert-circle-outline'
+                    : 'checkmark-circle-outline'
+                }
                 size={20}
                 color={colors.textInverse}
                 style={styles.placeOrderIcon}
               />
               <Text style={styles.placeOrderText}>
-                {isSubmitting ? 'Placing Order...' : 'Place Order'}
+                {hasOwnProducts
+                  ? 'Cannot Purchase Own Products'
+                  : isSubmitting
+                  ? 'Placing Order...'
+                  : 'Place Order'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1249,6 +1331,48 @@ const styles = StyleSheet.create({
   },
   placeOrderText: {
     fontSize: 15,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
+  checkoutBlockedBanner: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md + 2,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  checkoutBlockedHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  checkoutBlockedTextWrapper: {
+    flex: 1,
+  },
+  checkoutBlockedTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  checkoutBlockedDesc: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  returnToCartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  returnToCartButtonText: {
+    fontSize: 13,
     fontWeight: '700',
     color: colors.textInverse,
   },

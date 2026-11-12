@@ -245,6 +245,46 @@ export const hasUserBusinessProfile = () => {
   return isUserCreatedProfile(sessionBusinessProfile);
 };
 
+/**
+ * Checks whether a given product belongs to the currently active seller/business profile.
+ * Compares business profile id / sellerId / businessName against product sellerId / businessId / sellerName.
+ *
+ * @param {Object} productOrItem - Product object or cart/order item containing a product
+ * @param {Object} [customProfile] - Optional explicit business profile to compare against (defaults to getSessionBusinessProfile())
+ * @returns {boolean} True if the product belongs to the current seller
+ */
+export const isProductOwnedByCurrentSeller = (productOrItem, customProfile) => {
+  if (!productOrItem) return false;
+  const product = productOrItem.product || productOrItem;
+  if (!product || typeof product !== 'object') return false;
+
+  const profile = customProfile !== undefined ? customProfile : getSessionBusinessProfile();
+  if (!profile || typeof profile !== 'object') return false;
+
+  const profileId = String(profile.id || '').trim().toLowerCase();
+  const profileSellerId = String(profile.sellerId || '').trim().toLowerCase();
+  const profileName = String(profile.businessName || profile.sellerName || '').trim().toLowerCase();
+
+  const prodSellerId = String(product.sellerId || '').trim().toLowerCase();
+  const prodBizId = String(product.businessId || '').trim().toLowerCase();
+  const prodSellerName = String(product.sellerName || '').trim().toLowerCase();
+
+  // 1. Direct ID / sellerId match
+  if (profileId && (profileId === prodSellerId || profileId === prodBizId)) {
+    return true;
+  }
+  if (profileSellerId && (profileSellerId === prodSellerId || profileSellerId === prodBizId)) {
+    return true;
+  }
+
+  // 2. Exact Business / Seller Name match if non-empty
+  if (profileName && prodSellerName && profileName === prodSellerName) {
+    return true;
+  }
+
+  return false;
+};
+
 export const subscribeBusinessProfile = (listener) => {
   if (typeof listener !== 'function') return () => {};
   profileListeners.add(listener);

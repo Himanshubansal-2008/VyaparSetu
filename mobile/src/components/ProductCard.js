@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,6 +11,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import {
+  isProductOwnedByCurrentSeller,
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+} from '../data/businessProfileData';
 
 export default function ProductCard({
   product,
@@ -28,12 +33,62 @@ export default function ProductCard({
   totalReviews = product?.totalReviews,
   isSurplus = product?.isSurplus,
   isFeatured = product?.isFeatured,
+  isOwnProduct: propIsOwnProduct,
   onPress,
   onEditPress,
   style,
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [imageError, setImageError] = useState(false);
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const isOwn = useMemo(() => {
+    if (propIsOwnProduct !== undefined) return Boolean(propIsOwnProduct);
+    return isProductOwnedByCurrentSeller(
+      product || {
+        id,
+        name,
+        price,
+        originalPrice,
+        category,
+        sellerName,
+        location,
+        image,
+        unit,
+        moq,
+        rating,
+        totalReviews,
+        isSurplus,
+        isFeatured,
+      },
+      sessionProfile
+    );
+  }, [
+    propIsOwnProduct,
+    product,
+    id,
+    name,
+    price,
+    originalPrice,
+    category,
+    sellerName,
+    location,
+    image,
+    unit,
+    moq,
+    rating,
+    totalReviews,
+    isSurplus,
+    isFeatured,
+    sessionProfile,
+  ]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -162,6 +217,13 @@ export default function ProductCard({
             <View style={styles.featuredBadge}>
               <Ionicons name="star" size={10} color={colors.accent} />
               <Text style={styles.featuredText}>Featured</Text>
+            </View>
+          )}
+
+          {isOwn && (
+            <View style={styles.myProductBadge}>
+              <Ionicons name="person" size={10} color={colors.textInverse} />
+              <Text style={styles.myProductBadgeText}>My Product</Text>
             </View>
           )}
         </View>
@@ -363,6 +425,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: colors.accent,
+  },
+  myProductBadge: {
+    position: 'absolute',
+    bottom: spacing.xs + 2,
+    left: spacing.xs + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  myProductBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   details: {
     padding: spacing.sm + 2,

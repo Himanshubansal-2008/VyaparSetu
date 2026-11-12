@@ -23,7 +23,11 @@ import {
   getApplicableUnitPrice,
 } from '../context/CartContext';
 import { loadPersistedAddress, getSavedAddress } from '../data/orders';
-import { getSessionBusinessProfile } from '../data/businessProfileData';
+import {
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+  isProductOwnedByCurrentSeller,
+} from '../data/businessProfileData';
 
 const DELIVERY_TIMELINES = [
   'Within 7 days',
@@ -80,6 +84,18 @@ export default function RequestQuotationScreen({
   const [gstin, setGstin] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const isOwnProduct = useMemo(() => {
+    return isProductOwnedByCurrentSeller(product, sessionProfile);
+  }, [product, sessionProfile]);
 
   // Auto-populate buyer and address details from saved session / address
   useEffect(() => {
@@ -216,6 +232,14 @@ export default function RequestQuotationScreen({
   }, [quantity, effectiveUnitPrice]);
 
   const handleSubmit = async () => {
+    if (isOwnProduct) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You cannot submit a price quotation request for your own product.'
+      );
+      return;
+    }
+
     if (!product || !product.id) {
       Alert.alert('Invalid Product', 'Product details are missing or invalid.');
       return;
@@ -340,6 +364,23 @@ export default function RequestQuotationScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Own Product Blocking Warning Banner */}
+        {isOwnProduct && (
+          <View style={styles.ownProductBlockedBanner}>
+            <View style={styles.ownProductBlockedHeader}>
+              <Ionicons name="alert-circle" size={22} color={colors.error} />
+              <View style={styles.ownProductBlockedTextWrapper}>
+                <Text style={styles.ownProductBlockedTitle}>
+                  My Product — Request Not Allowed
+                </Text>
+                <Text style={styles.ownProductBlockedSubtitle}>
+                  You are registered as the seller of this product. Sellers cannot request quotations or negotiate prices for their own products.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Product Card */}
         <View style={styles.card}>
           <View style={styles.productRow}>
@@ -600,17 +641,27 @@ export default function RequestQuotationScreen({
         </View>
 
         <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+          style={[
+            styles.submitButton,
+            (isSubmitting || isOwnProduct) && styles.submitButtonDisabled,
+          ]}
           onPress={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isOwnProduct}
           activeOpacity={0.8}
         >
           {isSubmitting ? (
             <ActivityIndicator size="small" color={colors.textInverse} />
           ) : (
             <>
-              <Ionicons name="paper-plane-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-              <Text style={styles.submitButtonText}>Send Price Request</Text>
+              <Ionicons
+                name={isOwnProduct ? 'alert-circle-outline' : 'paper-plane-outline'}
+                size={18}
+                color={colors.textInverse}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.submitButtonText}>
+                {isOwnProduct ? 'Cannot Request Own Product' : 'Send Price Request'}
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -962,6 +1013,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.textInverse,
+  },
+  ownProductBlockedBanner: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md + 2,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    marginBottom: spacing.md,
+  },
+  ownProductBlockedHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  ownProductBlockedTextWrapper: {
+    flex: 1,
+  },
+  ownProductBlockedTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  ownProductBlockedSubtitle: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 2,
+    lineHeight: 16,
   },
 });
 

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isProductOwnedByCurrentSeller } from './businessProfileData.js';
 
 const storage = AsyncStorage.default || AsyncStorage;
 
@@ -503,6 +504,14 @@ export const submitQuotationRequest = async ({
 }) => {
   if (!product || !product.id) {
     return { success: false, message: 'Invalid product details.' };
+  }
+
+  if (isProductOwnedByCurrentSeller(product)) {
+    return {
+      success: false,
+      reason: 'own_product',
+      message: 'You cannot request a quotation for your own product.',
+    };
   }
 
   const requestedQty = Math.max(1, Number(quantity) || Number(product.moq) || 1);
