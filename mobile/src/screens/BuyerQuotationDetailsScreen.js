@@ -292,7 +292,7 @@ export default function BuyerQuotationDetailsScreen({
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Quotation #{quotation.id || quotation.quotationNumber}</Text>
+          <Text style={styles.headerTitle}>Price Request #{quotation.id || quotation.quotationNumber}</Text>
           <Text style={styles.headerSubtitle}>
             Requested {new Date(quotation.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
@@ -309,14 +309,14 @@ export default function BuyerQuotationDetailsScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Banner for Counter-Offer */}
+        {/* Banner for Suggest a Different Price */}
         {isCounterOffer && (
           <View style={styles.counterBanner}>
             <Ionicons name="swap-horizontal" size={18} color="#92400E" style={{ marginRight: 8 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.counterBannerTitle}>Supplier Counter-Offer</Text>
+              <Text style={styles.counterBannerTitle}>Seller Suggested a Different Price</Text>
               <Text style={styles.counterBannerSubtitle}>
-                Supplier proposed {quotation.quotedQuantity} units at ₹{quotation.quotedUnitPrice}/unit. Review the remarks below.
+                Offer a different price to the buyer. Seller proposed {quotation.quotedQuantity} units at ₹{quotation.quotedUnitPrice}/unit.
               </Text>
             </View>
           </View>
@@ -327,11 +327,11 @@ export default function BuyerQuotationDetailsScreen({
           <View style={styles.acceptedBanner}>
             <Ionicons name="checkmark-circle" size={18} color="#065F46" style={{ marginRight: 8 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.acceptedBannerTitle}>Quotation Accepted</Text>
+              <Text style={styles.acceptedBannerTitle}>Price Request Accepted</Text>
               <Text style={styles.acceptedBannerSubtitle}>
                 {isOrdered
                   ? `Order has been placed (Consignment #${quotation.orderId || 'Active'}).`
-                  : 'Guaranteed commercial pricing is locked. You can now checkout.'}
+                  : 'Agreed wholesale pricing is locked. You can now checkout.'}
               </Text>
             </View>
           </View>
@@ -362,7 +362,7 @@ export default function BuyerQuotationDetailsScreen({
               <View style={styles.supplierRow}>
                 <Ionicons name="storefront-outline" size={13} color={colors.textSecondary} style={{ marginRight: 4 }} />
                 <Text style={styles.supplierText} numberOfLines={1}>
-                  Supplier: {quotation.sellerName || prod.sellerName || 'Verified Supplier'}
+                  Seller: {quotation.sellerName || prod.sellerName || 'Verified Seller'}
                 </Text>
               </View>
 
@@ -374,7 +374,7 @@ export default function BuyerQuotationDetailsScreen({
                 </View>
                 <View style={styles.metaBadge}>
                   <Text style={styles.metaBadgeText}>
-                    MOQ: {prod.moq || 1} {prod.unit || 'units'}
+                    Min. Order: {prod.moq || 1} {prod.unit || 'units'}
                   </Text>
                 </View>
               </View>
@@ -384,9 +384,9 @@ export default function BuyerQuotationDetailsScreen({
           </View>
         </TouchableOpacity>
 
-        {/* Commercial Terms Comparison Table */}
+        {/* Order Terms Comparison Table */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeading}>Commercial Terms Comparison</Text>
+          <Text style={styles.sectionHeading}>Order Terms Comparison</Text>
 
           {/* Quantity */}
           <View style={styles.compareRow}>
@@ -495,7 +495,7 @@ export default function BuyerQuotationDetailsScreen({
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
               <Ionicons name="chatbubble-ellipses-outline" size={17} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.sectionHeading}>Supplier Commercial Remarks</Text>
+              <Text style={styles.sectionHeading}>Seller Order Remarks</Text>
             </View>
             <View style={styles.quoteBox}>
               <Text style={styles.quoteBoxText}>{quotation.sellerNotes}</Text>
@@ -519,9 +519,9 @@ export default function BuyerQuotationDetailsScreen({
           <View style={styles.declineCard}>
             <Ionicons name="close-circle-outline" size={20} color={colors.error} style={{ marginRight: 8 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.declineTitle}>Quotation Declined</Text>
+              <Text style={styles.declineTitle}>Price Request Declined</Text>
               <Text style={styles.declineReason}>
-                {quotation.rejectionReason || quotation.buyerRejectionReason || 'Commercial terms were not concluded.'}
+                {quotation.rejectionReason || quotation.buyerRejectionReason || 'Order terms were not concluded.'}
               </Text>
             </View>
           </View>
@@ -532,7 +532,7 @@ export default function BuyerQuotationDetailsScreen({
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
               <Ionicons name="location-outline" size={17} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.sectionHeading}>Consignment Destination</Text>
+              <Text style={styles.sectionHeading}>Delivery Address</Text>
             </View>
             <Text style={styles.destinationBusiness}>
               {quotation.deliveryAddress?.businessName || quotation.deliveryAddress?.fullName}
@@ -567,7 +567,7 @@ export default function BuyerQuotationDetailsScreen({
               activeOpacity={0.8}
             >
               <Ionicons name="close-circle-outline" size={18} color={colors.error} style={{ marginRight: 4 }} />
-              <Text style={styles.declineBtnText}>Decline</Text>
+              <Text style={styles.declineBtnText}>Decline Price Request</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -581,7 +581,7 @@ export default function BuyerQuotationDetailsScreen({
               ) : (
                 <>
                   <Ionicons name="checkmark-circle-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-                  <Text style={styles.acceptBtnText}>Accept Quotation</Text>
+                  <Text style={styles.acceptBtnText}>Accept Price & Order Terms</Text>
                 </>
               )}
             </TouchableOpacity>

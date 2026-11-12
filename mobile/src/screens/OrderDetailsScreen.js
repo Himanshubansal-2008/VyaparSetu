@@ -129,7 +129,7 @@ export default function OrderDetailsScreen({
 
       Alert.alert(
         'Added to Cart',
-        `Reordered ${order.items.length} wholesale ${order.items.length === 1 ? 'item' : 'items'} to your cart.`,
+        `Added ${order.items.length} wholesale ${order.items.length === 1 ? 'item' : 'items'} back to your cart.`,
         [
           {
             text: 'View Cart',
@@ -523,7 +523,7 @@ export default function OrderDetailsScreen({
                             style={{ marginRight: 3 }}
                           />
                           <Text style={[styles.bulkTierTagText, { color: colors.primary }]}>
-                            Agreed Quote #{String(item.quotationId).slice(-6)}
+                            Agreed Price Request #{String(item.quotationId).slice(-6)}
                           </Text>
                         </View>
                       )}
@@ -616,7 +616,7 @@ export default function OrderDetailsScreen({
           </View>
         </View>
 
-        {/* 6. Payment & Commercial Terms */}
+        {/* 6. Payment & Order Terms */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
@@ -643,7 +643,7 @@ export default function OrderDetailsScreen({
                   {order.paymentMethod || 'Trade Credit / RTGS / NEFT'}
                 </Text>
                 <Text style={styles.paymentMethodSubtitle}>
-                  Wholesale Settlement Terms: Net 30 Commercial Invoice
+                  Wholesale Settlement Terms: Net 30 Order Terms Invoice
                 </Text>
               </View>
             </View>
@@ -687,7 +687,7 @@ export default function OrderDetailsScreen({
             {(Number(order.totalSavings) || 0) > 0 && (
               <View style={styles.breakdownRow}>
                 <Text style={[styles.breakdownLabel, { color: colors.success }]}>
-                  Bulk Volume Tier Savings
+                  Wholesale Tier Savings
                 </Text>
                 <Text style={[styles.breakdownValue, { color: colors.success }]}>
                   - ₹{(Number(order.totalSavings) || 0).toLocaleString('en-IN')}
@@ -725,7 +725,7 @@ export default function OrderDetailsScreen({
             onPress={handleReorder}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Reorder all items"
+            accessibilityLabel="Order again to cart"
           >
             <Ionicons
               name="repeat-outline"
@@ -733,7 +733,7 @@ export default function OrderDetailsScreen({
               color={colors.textInverse}
               style={{ marginRight: 8 }}
             />
-            <Text style={styles.reorderButtonText}>Reorder to Cart</Text>
+            <Text style={styles.reorderButtonText}>Order Again to Cart</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

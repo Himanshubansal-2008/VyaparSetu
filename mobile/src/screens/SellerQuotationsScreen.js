@@ -30,7 +30,7 @@ import { products as defaultProducts } from '../data/products';
 import EmptyState from '../components/EmptyState';
 
 const FILTER_TABS = [
-  { key: 'All', label: 'All RFQs' },
+  { key: 'All', label: 'All Requests' },
   { key: 'Pending', label: 'Needs Action' },
   { key: 'Quoted', label: 'Quoted' },
   { key: 'Accepted', label: 'Accepted' },
@@ -284,7 +284,7 @@ export default function SellerQuotationsScreen({
           {hasResponse ? (
             <View style={styles.responseSummary}>
               <Text style={styles.quotedPriceLabel}>
-                {isCounterOffer ? 'Counter-Offered:' : 'Quoted Price:'}
+                {isCounterOffer ? 'Suggested Price:' : 'Quoted Price:'}
               </Text>
               <Text style={styles.quotedPriceValue}>
                 ₹{item.quotedUnitPrice}/{prod.unit || 'unit'}
@@ -296,7 +296,7 @@ export default function SellerQuotationsScreen({
           ) : (
             <View style={styles.actionNeededBox}>
               <Ionicons name="alert-circle" size={14} color="#D97706" style={{ marginRight: 4 }} />
-              <Text style={styles.actionNeededText}>Action Required: Send Quote / Counter</Text>
+              <Text style={styles.actionNeededText}>Action Required: Respond to Price Request</Text>
             </View>
           )}
 
@@ -328,7 +328,7 @@ export default function SellerQuotationsScreen({
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Quotation Requests (RFQs)</Text>
+          <Text style={styles.headerTitle}>Customer Price Requests</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
             {business?.businessName || 'Sharma Handicrafts'}
           </Text>
@@ -336,7 +336,7 @@ export default function SellerQuotationsScreen({
 
         <View style={styles.sellerBadge}>
           <Ionicons name="shield-checkmark" size={13} color={colors.success} style={{ marginRight: 3 }} />
-          <Text style={styles.sellerBadgeText}>Seller RFQ</Text>
+          <Text style={styles.sellerBadgeText}>Customer Price Requests</Text>
         </View>
       </View>
 
@@ -344,7 +344,7 @@ export default function SellerQuotationsScreen({
       <View style={styles.kpiContainer}>
         <View style={styles.kpiCard}>
           <Text style={styles.kpiValue}>{counts.all}</Text>
-          <Text style={styles.kpiLabel}>Total RFQs</Text>
+          <Text style={styles.kpiLabel}>Total</Text>
         </View>
         <View style={styles.kpiDivider} />
         <View style={styles.kpiCard}>
@@ -369,7 +369,7 @@ export default function SellerQuotationsScreen({
           <Ionicons name="search-outline" size={18} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search RFQ ID, buyer business, or item..."
+            placeholder="Search request ID, buyer business, or item..."
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -439,15 +439,15 @@ export default function SellerQuotationsScreen({
               iconColor={colors.primary}
               title={
                 searchQuery
-                  ? 'No Matching RFQs'
+                  ? 'No Matching Price Requests'
                   : activeFilter !== 'All'
-                  ? `No ${activeFilter} RFQs`
-                  : 'No Quotation Requests'
+                  ? `No ${activeFilter} Price Requests`
+                  : 'No Price Requests'
               }
               description={
                 searchQuery
-                  ? `No quotation requests matched "${searchQuery}".`
-                  : 'You have not received any quotation requests for your products yet. When buyers submit an RFQ, it will appear here for commercial response.'
+                  ? `No price requests matched "${searchQuery}".`
+                  : 'You have not received any custom price requests for your products yet. When buyers submit a price request, it will appear here for you to respond.'
               }
             />
           </View>

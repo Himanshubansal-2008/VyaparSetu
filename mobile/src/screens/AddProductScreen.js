@@ -307,14 +307,14 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
     const moqNum = parseInt(formData.moq, 10);
     if (!formData.moq.trim() || isNaN(moqNum) || moqNum < 1) {
-      newErrors.moq = 'MOQ must be at least 1';
+      newErrors.moq = 'Minimum Order Quantity must be at least 1';
     }
 
     const stockNum = parseInt(formData.stock, 10);
     if (!formData.stock.trim() || isNaN(stockNum) || stockNum < 0) {
       newErrors.stock = 'Available stock is required';
     } else if (!isNaN(moqNum) && stockNum < moqNum) {
-      newErrors.stock = `Available stock (${stockNum}) cannot be less than MOQ (${moqNum})`;
+      newErrors.stock = `Available stock (${stockNum}) cannot be less than Minimum Order Quantity (${moqNum})`;
     }
 
     setErrors(newErrors);
@@ -854,14 +854,14 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
 
           {/* Section 4: MOQ, Stock and Bulk Pricing */}
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Inventory & Bulk Pricing</Text>
+            <Text style={styles.sectionTitle}>Inventory & Wholesale Pricing</Text>
 
             {/* Row: MOQ & Available Stock */}
             <View style={styles.rowInputs}>
               {/* MOQ */}
               <View style={[styles.inputGroup, styles.inputHalf]}>
                 <Text style={styles.label}>
-                  MOQ <Text style={styles.requiredAsterisk}>*</Text>
+                  Minimum Order Quantity <Text style={styles.requiredAsterisk}>*</Text>
                 </Text>
                 <View
                   style={[
@@ -881,7 +881,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                 {errors.moq && (
                   <Text style={styles.errorText}>{errors.moq}</Text>
                 )}
-                <Text style={styles.inputHint}>Minimum order quantity</Text>
+                <Text style={styles.inputHint}>The minimum number of pieces a customer must order.</Text>
               </View>
 
               {/* Available Stock */}
@@ -917,10 +917,10 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             <View style={styles.bulkPricingHeaderRow}>
               <View>
                 <Text style={styles.bulkPricingSectionTitle}>
-                  Bulk Pricing Tiers
+                  Wholesale Pricing Tiers
                 </Text>
                 <Text style={styles.bulkPricingSectionSub}>
-                  Optional: Offer discounted unit prices for high volume orders
+                  Buy more and get a lower price per item.
                 </Text>
               </View>
               <TouchableOpacity
@@ -928,7 +928,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                 onPress={handleAddTier}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Add bulk pricing tier"
+                accessibilityLabel="Add wholesale pricing tier"
               >
                 <Ionicons name="add" size={16} color={colors.primary} />
                 <Text style={styles.addTierButtonText}>Add Tier</Text>
@@ -1019,7 +1019,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   color={colors.textMuted}
                 />
                 <Text style={styles.emptyTiersText}>
-                  No bulk pricing tiers added. Tap "+ Add Tier" to create
+                  No wholesale pricing tiers added. Tap "+ Add Tier" to create
                   volume discounts.
                 </Text>
               </View>

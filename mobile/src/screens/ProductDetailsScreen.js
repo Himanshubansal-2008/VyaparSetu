@@ -369,7 +369,7 @@ export default function ProductDetailsScreen({
     }
     if (product?.moq !== undefined && product?.moq !== null) {
       details.push({
-        label: 'Min. Order Qty (MOQ)',
+        label: 'Minimum Order Quantity',
         value: `${product.moq} ${unitPlural}`,
       });
     }
@@ -1029,7 +1029,7 @@ export default function ProductDetailsScreen({
             </View>
           </View>
 
-          {/* Bulk Pricing Section */}
+          {/* Wholesale Pricing Section */}
           <View style={styles.bulkPricingCard}>
             <View style={styles.bulkHeaderRow}>
               <View style={styles.sectionHeaderRow}>
@@ -1039,12 +1039,12 @@ export default function ProductDetailsScreen({
                   color={colors.primary}
                   style={styles.sectionHeaderIcon}
                 />
-                <Text style={styles.sectionTitle}>Bulk Pricing</Text>
+                <Text style={styles.sectionTitle}>Wholesale Pricing</Text>
               </View>
               {bulkTiers.length > 0 && (
                 <View style={styles.helperBadge}>
                   <Ionicons name="sparkles" size={11} color={colors.accent} />
-                  <Text style={styles.helperBadgeText}>Buy more, save more</Text>
+                  <Text style={styles.helperBadgeText}>Buy more and get a lower price per item</Text>
                 </View>
               )}
             </View>
@@ -1196,7 +1196,7 @@ export default function ProductDetailsScreen({
                 />
                 <View style={styles.emptyBulkTextWrapper}>
                   <Text style={styles.emptyBulkTitle}>
-                    Bulk pricing not available
+                    Wholesale pricing not available
                   </Text>
                   <Text style={styles.emptyBulkSubtext}>
                     This item is sold at the standard wholesale unit price.
@@ -1206,7 +1206,7 @@ export default function ProductDetailsScreen({
             )}
           </View>
 
-          {/* Minimum Order Quantity (MOQ) Section */}
+          {/* Minimum Order Quantity Section */}
           <View style={styles.orderMetricCard}>
             <View style={styles.sectionHeaderRow}>
               <Ionicons
@@ -1229,7 +1229,7 @@ export default function ProductDetailsScreen({
                 </Text>
               )}
               <Text style={styles.moqHelperText}>
-                Minimum quantity required per order
+                The minimum number of pieces a customer must order.
               </Text>
             </View>
           </View>
@@ -1436,7 +1436,7 @@ export default function ProductDetailsScreen({
                 {/* Constraints limits helper row */}
                 <View style={styles.limitsRow}>
                   <Text style={styles.limitText}>
-                    MOQ: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
+                    Min. Order: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
                   </Text>
                   <Text style={styles.limitDot}>·</Text>
                   <Text style={styles.limitText}>
@@ -1521,20 +1521,20 @@ export default function ProductDetailsScreen({
             )}
           </View>
 
-          {/* Request Quotation / RFQ Callout Card */}
+          {/* Price Request Callout Card */}
           <View style={styles.rfqCard}>
             <View style={styles.rfqHeaderRow}>
               <View style={styles.rfqIconBox}>
                 <Ionicons
-                  name="document-text-outline"
+                  name="chatbubbles-outline"
                   size={20}
                   color={colors.primary}
                 />
               </View>
               <View style={styles.rfqHeaderTextWrapper}>
-                <Text style={styles.rfqTitle}>Need Custom Bulk Terms?</Text>
+                <Text style={styles.rfqTitle}>Need a Custom Price?</Text>
                 <Text style={styles.rfqSubtext}>
-                  Request a direct wholesale quotation for custom quantities, target pricing, delivery schedules, and specialized payment terms.
+                  Ask a seller for a price based on the quantity you want to buy. Negotiate custom quantities and order terms directly.
                 </Text>
               </View>
             </View>
@@ -1543,14 +1543,14 @@ export default function ProductDetailsScreen({
               onPress={handleRequestQuotation}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Request Custom Quotation"
+              accessibilityLabel="Request Custom Price"
             >
               <Ionicons
                 name="paper-plane-outline"
                 size={16}
                 color={colors.primary}
               />
-              <Text style={styles.rfqButtonText}>Request Custom Quote</Text>
+              <Text style={styles.rfqButtonText}>Request Custom Price</Text>
             </TouchableOpacity>
           </View>
 
@@ -1655,7 +1655,7 @@ export default function ProductDetailsScreen({
           {activeTier && (
             <View style={styles.bottomBarTierBadge}>
               <Ionicons name="sparkles" size={10} color={colors.surplus} />
-              <Text style={styles.bottomBarTierText}>Bulk Tier Applied</Text>
+              <Text style={styles.bottomBarTierText}>Wholesale Tier Applied</Text>
             </View>
           )}
         </View>
@@ -1666,14 +1666,14 @@ export default function ProductDetailsScreen({
             onPress={handleRequestQuotation}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Request Quotation"
+            accessibilityLabel="Request Custom Price"
           >
             <Ionicons
               name="document-text-outline"
               size={18}
               color={colors.primary}
             />
-            <Text style={styles.bottomBarQuoteBtnText}>Quote</Text>
+            <Text style={styles.bottomBarQuoteBtnText}>Request Price</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

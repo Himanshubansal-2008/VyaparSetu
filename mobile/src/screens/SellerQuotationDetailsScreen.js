@@ -26,15 +26,15 @@ import {
 
 const RESPONSE_MODES = [
   { key: 'quote', label: 'Provide Quote' },
-  { key: 'counter', label: 'Counter-Offer' },
-  { key: 'reject', label: 'Decline RFQ' },
+  { key: 'counter', label: 'Suggest a Different Price' },
+  { key: 'reject', label: 'Decline Request' },
 ];
 
 const VALIDITY_OPTIONS = [7, 14, 30];
 
 const DECLINE_REASONS = [
   'Production capacity currently full',
-  'Requested quantity below custom manufacturing MOQ',
+  'Requested quantity below custom manufacturing Minimum Order Quantity',
   'Cannot meet requested delivery deadline',
   'Target price not economically viable',
   'Custom specification / raw material unavailable',
@@ -200,14 +200,14 @@ export default function SellerQuotationDetailsScreen({
           freightTerms,
           sellerNotes:
             counterReason.trim() ||
-            `Supplier counter-offers ${counterQty} units at ₹${counterPrice}/unit.`,
+            `Seller suggested ${counterQty} units at ₹${counterPrice}/unit.`,
         });
 
         if (res.success) {
           setQuotation(res.quotation);
-          Alert.alert('Counter-Offer Sent', `Counter-offer of ${counterQty} units @ ₹${counterPrice} sent to buyer.`);
+          Alert.alert('Suggested Price Sent', `Suggested price of ${counterQty} units @ ₹${counterPrice} sent to buyer.`);
         } else {
-          Alert.alert('Error', res.message || 'Failed to submit counter-offer.');
+          Alert.alert('Error', res.message || 'Failed to submit suggested price.');
         }
       } catch (err) {
         console.warn('Submit counter error:', err);
@@ -306,7 +306,7 @@ export default function SellerQuotationDetailsScreen({
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>RFQ #{quotation.id || quotation.quotationNumber}</Text>
+          <Text style={styles.headerTitle}>Price Request #{quotation.id || quotation.quotationNumber}</Text>
           <Text style={styles.headerSubtitle}>
             Received {new Date(quotation.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
@@ -329,7 +329,7 @@ export default function SellerQuotationDetailsScreen({
           <View style={styles.acceptedCallout}>
             <Ionicons name="checkmark-done-circle" size={20} color="#065F46" style={{ marginRight: 8 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.acceptedCalloutTitle}>Buyer Accepted Commercial Terms</Text>
+              <Text style={styles.acceptedCalloutTitle}>Buyer Accepted Order Terms</Text>
               <Text style={styles.acceptedCalloutSubtitle}>
                 {quotation.status === 'Ordered'
                   ? `Consignment order has been placed (#${quotation.orderId || 'Active'}).`
@@ -461,7 +461,7 @@ export default function SellerQuotationDetailsScreen({
         {/* Response Section */}
         {isPending ? (
           <View style={styles.card}>
-            <Text style={styles.sectionHeading}>Supplier Commercial Response</Text>
+            <Text style={styles.sectionHeading}>Your Response & Order Terms</Text>
 
             {/* Mode Selector */}
             <View style={styles.modeTabs}>
@@ -576,18 +576,18 @@ export default function SellerQuotationDetailsScreen({
               </View>
             )}
 
-            {/* Mode 2: Counter-Offer */}
+            {/* Mode 2: Suggest a Different Price */}
             {responseMode === 'counter' && (
               <View style={styles.formContainer}>
                 <View style={styles.counterNoticeBox}>
                   <Ionicons name="information-circle" size={16} color="#92400E" style={{ marginRight: 6 }} />
                   <Text style={styles.counterNoticeText}>
-                    Propose an alternate batch quantity or volume price tier to the buyer.
+                    Suggest a Different Price: Offer a different price to the buyer. Propose an alternate quantity or unit price.
                   </Text>
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Counter Consignment Quantity ({prod.unit || 'units'}) *</Text>
+                  <Text style={styles.inputLabel}>Suggested Quantity ({prod.unit || 'units'}) *</Text>
                   <View style={styles.textInputBox}>
                     <TextInput
                       style={styles.inputField}
@@ -600,7 +600,7 @@ export default function SellerQuotationDetailsScreen({
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Counter Unit Price (₹ / {prod.unit || 'unit'}) *</Text>
+                  <Text style={styles.inputLabel}>Suggested Unit Price (₹ / {prod.unit || 'unit'}) *</Text>
                   <View style={styles.textInputBox}>
                     <Text style={styles.currencyPrefix}>₹</Text>
                     <TextInput
@@ -614,7 +614,7 @@ export default function SellerQuotationDetailsScreen({
                 </View>
 
                 <View style={styles.liveCalcCard}>
-                  <Text style={styles.liveCalcLabel}>Counter-Offer Consignment Total:</Text>
+                  <Text style={styles.liveCalcLabel}>Suggested Order Total:</Text>
                   <Text style={styles.liveCalcAmount}>₹{counterPreviewTotal.toLocaleString('en-IN')}</Text>
                   <Text style={styles.liveCalcSubtext}>
                     {counterPreviewQty} {prod.unit || 'units'} × ₹{counterPreviewPrice}
@@ -622,14 +622,14 @@ export default function SellerQuotationDetailsScreen({
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Counter-Offer Rationale / Notes *</Text>
+                  <Text style={styles.inputLabel}>Suggested Price Rationale / Notes *</Text>
                   <TextInput
                     style={[styles.textInputBox, styles.textArea]}
                     multiline
                     numberOfLines={3}
                     value={counterReason}
                     onChangeText={setCounterReason}
-                    placeholder="Explain why this quantity or pricing is required (e.g., minimum machine run, special dye batch)..."
+                    placeholder="Explain why this quantity or pricing is suggested (e.g., minimum batch run, material cost)..."
                   />
                 </View>
               </View>
@@ -638,7 +638,7 @@ export default function SellerQuotationDetailsScreen({
             {/* Mode 3: Decline Request */}
             {responseMode === 'reject' && (
               <View style={styles.formContainer}>
-                <Text style={styles.inputLabel}>Select Reason for Declining RFQ</Text>
+                <Text style={styles.inputLabel}>Select Reason for Declining Price Request</Text>
                 <View style={{ gap: spacing.xs, marginTop: spacing.xs }}>
                   {DECLINE_REASONS.map((r) => {
                     const isSelected = selectedDeclineReason === r;
@@ -668,7 +668,7 @@ export default function SellerQuotationDetailsScreen({
         ) : (
           /* Already Responded View */
           <View style={styles.card}>
-            <Text style={styles.sectionHeading}>Your Submitted Commercial Response</Text>
+            <Text style={styles.sectionHeading}>Your Submitted Response</Text>
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Quoted Unit Price</Text>
@@ -768,8 +768,8 @@ export default function SellerQuotationDetailsScreen({
                   {responseMode === 'quote'
                     ? 'Send Formal Quotation'
                     : responseMode === 'counter'
-                    ? 'Send Counter-Offer'
-                    : 'Decline Quotation Request'}
+                    ? 'Send Suggested Price'
+                    : 'Decline Price Request'}
                 </Text>
               </>
             )}

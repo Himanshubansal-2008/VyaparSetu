@@ -187,7 +187,7 @@ export default function ProductCard({
 
           {moq ? (
             <Text style={styles.moq}>
-              MOQ: {moq} {moqUnitLabel}
+              Min. Order: {moq} {moqUnitLabel}
             </Text>
           ) : null}
 

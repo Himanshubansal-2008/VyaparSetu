@@ -293,7 +293,7 @@ export default function SellerOrderDetailsScreen({
             onPress={handleBack}
           >
             <Ionicons name="receipt-outline" size={18} color={colors.textInverse} style={{ marginRight: 8 }} />
-            <Text style={styles.returnButtonText}>Return to Seller Orders</Text>
+            <Text style={styles.returnButtonText}>Return to Customer Orders</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -645,7 +645,7 @@ export default function SellerOrderDetailsScreen({
                             style={{ marginRight: 3 }}
                           />
                           <Text style={[styles.bulkTierTagText, { color: colors.primary }]}>
-                            Agreed Quote #{String(item.quotationId).slice(-6)}
+                            Agreed Price Request #{String(item.quotationId).slice(-6)}
                           </Text>
                         </View>
                       )}
@@ -703,7 +703,7 @@ export default function SellerOrderDetailsScreen({
             {(sellerDetails?.sellerSavings || 0) > 0 && (
               <View style={styles.breakdownRow}>
                 <Text style={[styles.breakdownLabel, { color: colors.success }]}>
-                  Wholesale Bulk Volume Discount
+                  Wholesale Volume Discount
                 </Text>
                 <Text style={[styles.breakdownValue, { color: colors.success }]}>
                   - ₹{(sellerDetails.sellerSavings).toLocaleString('en-IN')}
@@ -815,7 +815,7 @@ export default function SellerOrderDetailsScreen({
           activeOpacity={0.8}
         >
           <Ionicons name="arrow-back" size={16} color={colors.primary} style={{ marginRight: 6 }} />
-          <Text style={styles.allOrdersBtnText}>Back to Seller Orders</Text>
+          <Text style={styles.allOrdersBtnText}>Back to Customer Orders</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

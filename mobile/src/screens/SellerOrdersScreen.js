@@ -545,7 +545,7 @@ export default function SellerOrdersScreen({
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Seller Orders</Text>
+          <Text style={styles.headerTitle}>Customer Orders</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
             {business?.businessName || 'My Wholesale Business'}
           </Text>

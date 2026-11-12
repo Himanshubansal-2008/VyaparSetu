@@ -158,7 +158,7 @@ export default function CartScreen({
       updateQuantity(item.id, moq);
       Alert.alert(
         'Minimum Order Quantity',
-        `The minimum wholesale order quantity for "${item.product?.name || 'this item'}" is ${moq} ${unitPlural}. Quantity set to ${moq}.`
+        `The minimum number of pieces a customer must order for "${item.product?.name || 'this item'}" is ${moq} ${unitPlural}. Quantity set to ${moq}.`
       );
       return;
     }
@@ -192,7 +192,7 @@ export default function CartScreen({
     if (item.quantity <= moq) {
       Alert.alert(
         'Minimum Order Quantity Reached',
-        `The minimum wholesale order quantity for this item is ${moq} ${unit}. To remove it from your cart, tap the Remove button.`,
+        `The minimum number of pieces a customer must order for this item is ${moq} ${unit}. To remove it from your cart, tap the Remove button.`,
         [
           { text: 'Keep Item', style: 'cancel' },
           {
@@ -315,7 +315,7 @@ export default function CartScreen({
             }}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="View submitted quotations and RFQs"
+            accessibilityLabel="View my price requests"
           >
             <Ionicons
               name="document-text-outline"
@@ -323,7 +323,7 @@ export default function CartScreen({
               color={colors.primary}
             />
             <Text style={styles.quotationsLinkButtonText}>
-              View Submitted Quotations & RFQs
+              View My Price Requests
             </Text>
           </TouchableOpacity>
 
@@ -345,7 +345,7 @@ export default function CartScreen({
                   color={colors.accent}
                 />
                 <Text style={styles.assuranceItemText}>
-                  Tiered Bulk Pricing Discounts
+                  Tiered Wholesale Pricing Discounts
                 </Text>
               </View>
               <View style={styles.assuranceItem}>
@@ -365,7 +365,7 @@ export default function CartScreen({
                   color={colors.info}
                 />
                 <Text style={styles.assuranceItemText}>
-                  GST Compliance & Factory Quotations
+                  GST Compliance & Price Requests
                 </Text>
               </View>
             </View>
@@ -501,7 +501,7 @@ export default function CartScreen({
                           color={colors.primary}
                         />
                         <Text style={styles.quoteAgreedBadgeText}>
-                          Quote #{String(item.quotationId).slice(-6)} · Agreed Price
+                          Agreed Price Request #{String(item.quotationId).slice(-6)}
                         </Text>
                       </View>
                     ) : item.activeTier ? (
@@ -512,7 +512,7 @@ export default function CartScreen({
                           color={colors.surplus}
                         />
                         <Text style={styles.tierAppliedText}>
-                          Bulk Tier Applied
+                          Wholesale Tier Applied
                         </Text>
                       </View>
                     ) : (
@@ -533,7 +533,7 @@ export default function CartScreen({
                         color={colors.primary}
                       />
                       <Text style={styles.quoteBannerText}>
-                        Locked negotiated price ({item.quantity} {unitPlural} at ₹{item.unitPrice.toLocaleString('en-IN')}/{unitSingular})
+                        Locked agreed price ({item.quantity} {unitPlural} at ₹{item.unitPrice.toLocaleString('en-IN')}/{unitSingular})
                       </Text>
                     </View>
                   )}
@@ -547,8 +547,7 @@ export default function CartScreen({
                         color={colors.surplus}
                       />
                       <Text style={styles.savingsBannerText}>
-                        Saving ₹{item.savings.toLocaleString('en-IN')} with bulk
-                        tier ({item.quantity} {unitPlural})
+                        Saving ₹{item.savings.toLocaleString('en-IN')} with wholesale pricing ({item.quantity} {unitPlural})
                       </Text>
                     </View>
                   )}
@@ -637,7 +636,7 @@ export default function CartScreen({
                   <View style={styles.itemFooterRow}>
                     <View style={styles.constraintsRow}>
                       <Text style={styles.constraintText}>
-                        MOQ: <Text style={styles.boldText}>{moq}</Text>
+                        Min. Order: <Text style={styles.boldText}>{moq}</Text>
                       </Text>
                       <Text style={styles.constraintDot}>·</Text>
                       <Text style={styles.constraintText}>
@@ -698,7 +697,7 @@ export default function CartScreen({
             {totalSavings > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summarySavingsLabel}>
-                  Bulk Pricing Savings
+                  Wholesale Pricing Savings
                 </Text>
                 <Text style={styles.summarySavingsValue}>
                   -₹{totalSavings.toLocaleString('en-IN')}
@@ -725,13 +724,12 @@ export default function CartScreen({
                 color={colors.textSecondary}
               />
               <Text style={styles.summaryNoticeText}>
-                Taxes (GST) and freight logistics will be finalized upon seller
-                quotation acceptance.
+                Prices reflect active wholesale pricing tiers or custom price request agreements.
               </Text>
             </View>
           </View>
 
-          {/* Quotations Quick Link */}
+          {/* Price Requests Quick Link */}
           <TouchableOpacity
             style={styles.cartQuotationsRow}
             onPress={() => {
@@ -743,7 +741,7 @@ export default function CartScreen({
             }}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="View submitted quotations"
+            accessibilityLabel="View my price requests"
           >
             <View style={styles.cartQuotationsLeft}>
               <Ionicons
@@ -752,7 +750,7 @@ export default function CartScreen({
                 color={colors.primary}
               />
               <Text style={styles.cartQuotationsText}>
-                View all your active RFQs & Quotations
+                View all your active Price Requests
               </Text>
             </View>
             <Ionicons

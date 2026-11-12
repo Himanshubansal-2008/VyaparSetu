@@ -81,7 +81,7 @@ export const getQuotationStatusColor = (status) => {
         text: '#92400E',
         border: '#F59E0B',
         icon: 'swap-horizontal-outline',
-        label: 'Counter-Offer Received',
+        label: 'Different Price Suggested',
       };
     case 'rejected by seller':
     case 'rejected by buyer':
@@ -91,7 +91,7 @@ export const getQuotationStatusColor = (status) => {
         text: '#991B1B',
         border: '#EF4444',
         icon: 'close-circle-outline',
-        label: normalized.includes('seller') ? 'Declined by Supplier' : 'Declined by Buyer',
+        label: normalized.includes('seller') ? 'Declined by Seller' : 'Declined by Buyer',
       };
     case 'submitted':
     case 'pending':

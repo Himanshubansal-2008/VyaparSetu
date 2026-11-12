@@ -214,7 +214,7 @@ export default function BuyerQuotationsScreen({
           <View style={styles.counterBanner}>
             <Ionicons name="swap-horizontal" size={14} color="#92400E" style={{ marginRight: 6 }} />
             <Text style={styles.counterBannerText}>
-              Supplier made a Counter-Offer: {item.quotedQuantity} units @ ₹{item.quotedUnitPrice}/unit
+              Seller suggested a different price: {item.quotedQuantity} units @ ₹{item.quotedUnitPrice}/unit
             </Text>
           </View>
         )}
@@ -239,13 +239,13 @@ export default function BuyerQuotationsScreen({
             <View style={styles.supplierRow}>
               <Ionicons name="storefront-outline" size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
               <Text style={styles.supplierText} numberOfLines={1}>
-                {item.sellerName || prod.sellerName || 'Verified Supplier'}
+                {item.sellerName || prod.sellerName || 'Verified Seller'}
               </Text>
             </View>
 
             <View style={styles.requestedVolumeRow}>
               <Text style={styles.requestedVolumeText}>
-                Volume: <Text style={styles.boldText}>{requestedQty} {prod.unit || 'units'}</Text>
+                Quantity: <Text style={styles.boldText}>{requestedQty} {prod.unit || 'units'}</Text>
               </Text>
               {item.buyerTargetPrice ? (
                 <Text style={styles.targetPriceText}>
@@ -273,19 +273,19 @@ export default function BuyerQuotationsScreen({
                 )}
               </View>
               <Text style={styles.quotedTotalText}>
-                Consignment Total: ₹{quotedTotal.toLocaleString('en-IN')}
+                Estimated Total: ₹{quotedTotal.toLocaleString('en-IN')}
               </Text>
             </View>
           ) : (
             <View style={styles.waitingColumn}>
               <Ionicons name="time-outline" size={14} color={colors.textMuted} style={{ marginRight: 4 }} />
-              <Text style={styles.waitingText}>Awaiting supplier commercial response</Text>
+              <Text style={styles.waitingText}>Awaiting seller response</Text>
             </View>
           )}
 
           <View style={styles.actionBtn}>
             <Text style={styles.actionBtnText}>
-              {isAccepted ? 'View Terms' : hasSellerResponse ? 'Review & Accept' : 'View RFQ'}
+              {isAccepted ? 'View Order Terms' : hasSellerResponse ? 'Review & Accept' : 'View Price Request'}
             </Text>
             <Ionicons name="chevron-forward" size={14} color={colors.primary} />
           </View>
@@ -311,9 +311,9 @@ export default function BuyerQuotationsScreen({
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>My Quotations</Text>
+          <Text style={styles.headerTitle}>My Price Requests</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            Wholesale RFQs & Negotiated Pricing
+            Ask sellers for a custom price
           </Text>
         </View>
 
@@ -331,7 +331,7 @@ export default function BuyerQuotationsScreen({
       <View style={styles.kpiContainer}>
         <View style={styles.kpiCard}>
           <Text style={styles.kpiValue}>{counts.all}</Text>
-          <Text style={styles.kpiLabel}>Total RFQs</Text>
+          <Text style={styles.kpiLabel}>Total</Text>
         </View>
         <View style={styles.kpiDivider} />
         <View style={styles.kpiCard}>
@@ -341,7 +341,7 @@ export default function BuyerQuotationsScreen({
         <View style={styles.kpiDivider} />
         <View style={styles.kpiCard}>
           <Text style={[styles.kpiValue, { color: colors.primary }]}>{counts.received}</Text>
-          <Text style={styles.kpiLabel}>Quotes Ready</Text>
+          <Text style={styles.kpiLabel}>Prices Ready</Text>
         </View>
         <View style={styles.kpiDivider} />
         <View style={styles.kpiCard}>
@@ -356,7 +356,7 @@ export default function BuyerQuotationsScreen({
           <Ionicons name="search-outline" size={18} color={colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search quotations, products, or suppliers..."
+            placeholder="Search price requests, products, or sellers..."
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -426,15 +426,15 @@ export default function BuyerQuotationsScreen({
               iconColor={colors.primary}
               title={
                 searchQuery
-                  ? 'No Matching Quotations'
+                  ? 'No Matching Price Requests'
                   : activeFilter !== 'All'
-                  ? `No ${activeFilter} Quotations`
-                  : 'No Quotation Requests Yet'
+                  ? `No ${activeFilter} Price Requests`
+                  : 'No Price Requests Yet'
               }
               description={
                 searchQuery
-                  ? `No quotation requests matched "${searchQuery}". Try searching by quotation ID or supplier name.`
-                  : 'Request factory quotations directly from suppliers for customized bulk orders, negotiated prices, and volume discounts.'
+                  ? `No price requests matched "${searchQuery}". Try searching by request ID or seller name.`
+                  : 'Ask sellers for a custom price based on the quantity you want to buy. Negotiate wholesale pricing and order terms directly.'
               }
               actionText="Browse Wholesale Products"
               actionIcon="storefront-outline"

@@ -374,7 +374,7 @@ export default function BusinessProfileScreen({
               <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
           )}
-          <Text style={styles.headerTitle}>Business Profile</Text>
+          <Text style={styles.headerTitle}>My Business</Text>
           {canGoBack && <View style={styles.headerRightSpacer} />}
         </View>
 
@@ -487,7 +487,7 @@ export default function BusinessProfileScreen({
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>Business Profile</Text>
+        <Text style={styles.headerTitle}>My Business</Text>
         <TouchableOpacity
           style={styles.headerEditButton}
           onPress={handleEditProfile}
@@ -581,20 +581,20 @@ export default function BusinessProfileScreen({
           </View>
         </View>
 
-        {/* 3.1 Seller Order Management Card */}
+        {/* 3.1 Customer Orders Management Card */}
         <TouchableOpacity
           style={styles.sellerOrdersCard}
           onPress={handleNavigateToSellerOrders}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Manage Received Orders"
+          accessibilityLabel="Customer Orders"
         >
           <View style={styles.sellerOrdersIconBox}>
             <Ionicons name="cube-outline" size={22} color={colors.primary} />
           </View>
           <View style={styles.sellerOrdersContent}>
             <View style={styles.sellerOrdersTitleRow}>
-              <Text style={styles.sellerOrdersTitle}>Received Orders</Text>
+              <Text style={styles.sellerOrdersTitle}>Customer Orders</Text>
               {pendingOrdersCount > 0 && (
                 <View style={styles.sellerOrdersBadge}>
                   <Text style={styles.sellerOrdersBadgeText}>
@@ -605,26 +605,26 @@ export default function BusinessProfileScreen({
             </View>
             <Text style={styles.sellerOrdersSubtitle}>
               {currentSellerOrders.length}{' '}
-              {currentSellerOrders.length === 1 ? 'order' : 'orders'} received • Manage wholesale fulfillments
+              {currentSellerOrders.length === 1 ? 'order' : 'orders'} received • Manage customer fulfillments
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </TouchableOpacity>
 
-        {/* 3.2 Seller Quotations Management Card */}
+        {/* 3.2 Customer Price Requests Management Card */}
         <TouchableOpacity
           style={styles.sellerOrdersCard}
           onPress={handleNavigateToSellerQuotations}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Manage Received RFQs & Quotations"
+          accessibilityLabel="Customer Price Requests"
         >
           <View style={[styles.sellerOrdersIconBox, { backgroundColor: '#EFF6FF' }]}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
           </View>
           <View style={styles.sellerOrdersContent}>
             <View style={styles.sellerOrdersTitleRow}>
-              <Text style={styles.sellerOrdersTitle}>Received Quotations</Text>
+              <Text style={styles.sellerOrdersTitle}>Customer Price Requests</Text>
               {pendingQuotationsCount > 0 && (
                 <View style={[styles.sellerOrdersBadge, { backgroundColor: colors.warning }]}>
                   <Text style={styles.sellerOrdersBadgeText}>
@@ -635,7 +635,7 @@ export default function BusinessProfileScreen({
             </View>
             <Text style={styles.sellerOrdersSubtitle}>
               {currentSellerQuotations.length}{' '}
-              {currentSellerQuotations.length === 1 ? 'quotation' : 'quotations'} received • Respond to buyer RFQs & quotes
+              {currentSellerQuotations.length === 1 ? 'price request' : 'price requests'} received • Review and reply to buyer price requests
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />

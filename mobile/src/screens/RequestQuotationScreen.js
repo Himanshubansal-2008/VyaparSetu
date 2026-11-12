@@ -322,15 +322,15 @@ export default function RequestQuotationScreen({
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Request Wholesale Quote</Text>
+          <Text style={styles.headerTitle}>Price Request</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            Direct Factory Negotiation
+            Ask seller for a custom price
           </Text>
         </View>
 
         <View style={styles.verifiedBadge}>
           <Ionicons name="shield-checkmark" size={13} color={colors.primary} style={{ marginRight: 3 }} />
-          <Text style={styles.verifiedBadgeText}>B2B RFQ</Text>
+          <Text style={styles.verifiedBadgeText}>Price Request</Text>
         </View>
       </View>
 
@@ -359,7 +359,7 @@ export default function RequestQuotationScreen({
               </Text>
 
               <Text style={styles.sellerName} numberOfLines={1}>
-                Supplier: {product.sellerName || 'Verified Supplier'}
+                Seller: {product.sellerName || 'Verified Seller'}
               </Text>
 
               <View style={styles.priceMetaRow}>
@@ -368,7 +368,7 @@ export default function RequestQuotationScreen({
                 </Text>
                 <View style={styles.moqBadge}>
                   <Text style={styles.moqBadgeText}>
-                    MOQ: {moq} {product.unit || 'units'}
+                    Min. Order: {moq} {product.unit || 'units'}
                   </Text>
                 </View>
               </View>
@@ -378,7 +378,10 @@ export default function RequestQuotationScreen({
 
         {/* Quantity & Target Price Section */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeading}>Volume & Target Price</Text>
+          <Text style={styles.sectionHeading}>Quantity & Target Price</Text>
+          <Text style={styles.termExplanation}>
+            Ask a seller for a price based on the quantity you want to buy.
+          </Text>
 
           {/* Quantity Stepper */}
           <View style={styles.inputGroup}>
@@ -388,6 +391,9 @@ export default function RequestQuotationScreen({
                 Min: {moq}{stock !== Infinity ? ` · Stock: ${stock}` : ''}
               </Text>
             </View>
+            <Text style={styles.subHelperLabel}>
+              Minimum Order Quantity: The minimum number of pieces a customer must order.
+            </Text>
             <View style={styles.stepperContainer}>
               <TouchableOpacity
                 style={[styles.stepperButton, quantity <= moq && styles.stepperButtonDisabled]}
@@ -474,7 +480,7 @@ export default function RequestQuotationScreen({
 
         {/* Timeline & Terms */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeading}>Delivery & Commercial Terms</Text>
+          <Text style={styles.sectionHeading}>Delivery & Order Terms</Text>
 
           {/* Delivery Timeline Pills */}
           <Text style={styles.inputLabel}>Required By Timeline</Text>
@@ -533,7 +539,7 @@ export default function RequestQuotationScreen({
 
         {/* Delivery Destination */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeading}>Consignment Destination</Text>
+          <Text style={styles.sectionHeading}>Delivery Address</Text>
 
           <View style={styles.formRow}>
             <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
@@ -589,7 +595,7 @@ export default function RequestQuotationScreen({
       {/* Bottom Action Bar */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomBarInfo}>
-          <Text style={styles.bottomBarLabel}>RFQ Total ({quantity} {product.unit || 'units'})</Text>
+          <Text style={styles.bottomBarLabel}>Estimated Total ({quantity} {product.unit || 'units'})</Text>
           <Text style={styles.bottomBarTotal}>₹{estimatedTotal.toLocaleString('en-IN')}</Text>
         </View>
 
@@ -604,7 +610,7 @@ export default function RequestQuotationScreen({
           ) : (
             <>
               <Ionicons name="paper-plane-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-              <Text style={styles.submitButtonText}>Send Request</Text>
+              <Text style={styles.submitButtonText}>Send Price Request</Text>
             </>
           )}
         </TouchableOpacity>
@@ -751,7 +757,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  termExplanation: {
+    fontSize: 12,
+    color: colors.textSecondary,
     marginBottom: spacing.md,
+    lineHeight: 16,
   },
   inputGroup: {
     marginBottom: spacing.md,
@@ -761,6 +773,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.xs,
+  },
+  subHelperLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    lineHeight: 15,
   },
   inputLabel: {
     fontSize: 13,

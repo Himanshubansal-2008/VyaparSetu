@@ -413,14 +413,14 @@ export default function OrderHistoryScreen({
               onPress={onNavigateToBuyerQuotations}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="View Quotations"
+              accessibilityLabel="View Price Requests"
             >
               <Ionicons
                 name="document-text-outline"
                 size={16}
                 color={colors.primary}
               />
-              <Text style={styles.quotationsHeaderButtonText}>Quotes</Text>
+              <Text style={styles.quotationsHeaderButtonText}>Price Requests</Text>
             </TouchableOpacity>
           )}
 
@@ -604,7 +604,7 @@ export default function OrderHistoryScreen({
                   style={{ marginRight: 6 }}
                 />
                 <Text style={styles.quotationsEmptyButtonText}>
-                  View My Quotations & RFQs
+                  View My Price Requests
                 </Text>
               </TouchableOpacity>
             )}

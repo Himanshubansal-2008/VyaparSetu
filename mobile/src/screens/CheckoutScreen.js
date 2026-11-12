@@ -566,12 +566,12 @@ export default function CheckoutScreen({
                           {item.quotationId ? (
                             <View style={[styles.tierPill, { backgroundColor: '#EFF6FF' }]}>
                               <Text style={[styles.tierPillText, { color: colors.primary }]}>
-                                Agreed Quote
+                                Agreed Price
                               </Text>
                             </View>
                           ) : item.activeTier ? (
                             <View style={styles.tierPill}>
-                              <Text style={styles.tierPillText}>Bulk Tier</Text>
+                              <Text style={styles.tierPillText}>Wholesale Tier</Text>
                             </View>
                           ) : null}
                         </View>
@@ -666,7 +666,7 @@ export default function CheckoutScreen({
                 {totalSavings > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summarySavingsLabel}>
-                      Bulk Tier Discount Savings
+                      Wholesale Tier Savings
                     </Text>
                     <Text style={styles.summarySavingsValue}>
                       -₹{totalSavings.toLocaleString('en-IN')}
@@ -682,7 +682,7 @@ export default function CheckoutScreen({
                 </View>
 
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>GST Commercial Invoicing</Text>
+                  <Text style={styles.summaryLabel}>GST Invoicing & Order Terms</Text>
                   <Text style={styles.summaryValueMuted}>Included</Text>
                 </View>
 
