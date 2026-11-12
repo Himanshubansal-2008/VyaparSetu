@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,10 +11,15 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { useCart, getProductMoq, getProductStock } from '../context/CartContext';
+import {
+  useCart,
+  getProductMoq,
+  getProductStock,
+} from '../context/CartContext';
+import EmptyState from '../components/EmptyState';
 
 export default function CartScreen({
   navigation,
@@ -23,7 +28,50 @@ export default function CartScreen({
   onNavigateToProductDetails,
   onNavigateToHome,
 }) {
-  const { cartItems, cartItemCount, increaseQuantity, decreaseQuantity, removeFromCart, clearCart } = useCart();
+  const {
+    cartItems,
+    cartItemCount,
+    totalUnits,
+    subtotal,
+    totalSavings,
+    totalAmount,
+    increaseQuantity,
+    decreaseQuantity,
+    removeFromCart,
+    clearCart,
+  } = useCart();
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+    } else if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Home');
+    }
+  };
+
+  const handleBrowseProducts = () => {
+    if (onNavigateToHome) {
+      onNavigateToHome();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Home');
+    } else if (onBackPress) {
+      onBackPress();
+    }
+  };
+
+  const handleProductPress = (item) => {
+    const product = item?.product || item;
+    if (onNavigateToProductDetails) {
+      onNavigateToProductDetails(product);
+    } else if (navigation?.navigate) {
+      navigation.navigate('ProductDetails', {
+        productId: product.id,
+        product,
+      });
+    }
+  };
 
   const handleClearCartPress = () => {
     Alert.alert(
@@ -91,27 +139,29 @@ export default function CartScreen({
     increaseQuantity(item.id);
   };
 
-  const handleBack = () => {
-    if (onBackPress) {
-      onBackPress();
-    } else if (navigation?.canGoBack?.()) {
-      navigation.goBack();
-    } else if (navigation?.navigate) {
-      navigation.navigate('Home');
-    }
+  const handleCheckoutPress = () => {
+    Alert.alert(
+      'Request Wholesale Quotation',
+      `Your bulk order request for ${totalUnits} units totaling ₹${totalAmount.toLocaleString(
+        'en-IN'
+      )} has been prepared.\n\nIn VyaparSetu, submitting your cart initiates direct negotiations with verified manufacturers for GST invoicing, volume freight, and credit financing terms.`,
+      [
+        { text: 'Continue Browsing', style: 'cancel' },
+        {
+          text: 'Confirm Quotation',
+          onPress: () => {
+            Alert.alert(
+              'Quotation Submitted!',
+              'Sellers will review your quotation request and reply via Business Chat within 24 hours.',
+              [{ text: 'Done', onPress: handleBrowseProducts }]
+            );
+          },
+        },
+      ]
+    );
   };
 
-  const handleProductPress = (item) => {
-    const product = item?.product || item;
-    if (onNavigateToProductDetails) {
-      onNavigateToProductDetails(product);
-    } else if (navigation?.navigate) {
-      navigation.navigate('ProductDetails', {
-        productId: product.id,
-        product,
-      });
-    }
-  };
+  const isEmpty = cartItems.length === 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -140,7 +190,7 @@ export default function CartScreen({
           )}
         </View>
 
-        {cartItemCount > 0 ? (
+        {!isEmpty ? (
           <TouchableOpacity
             style={styles.clearButton}
             onPress={handleClearCartPress}
@@ -157,205 +207,286 @@ export default function CartScreen({
       </View>
 
       {/* 2. Main Content */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.itemsListContainer}>
-          {cartItems.map((item, index) => {
-            const product = item.product || {};
-            const moq = getProductMoq(product);
-            const unitSingular = product.unit || 'unit';
-            const stock = getProductStock(product);
-            const isAtMoq = item.quantity <= moq;
-            const isAtMaxStock = stock !== Infinity && item.quantity >= stock;
-            const unitPlural =
-              unitSingular.endsWith('s') || unitSingular === 'pair'
-                ? `${unitSingular}s`
-                : `${unitSingular}s`;
-            const hasBulkDiscount =
-              Boolean(item.activeTier) &&
-              product.price &&
-              item.unitPrice < product.price;
-            const imageUri =
-              product.image ||
-              (Array.isArray(product.images) && product.images[0]) ||
-              null;
+      {isEmpty ? (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.emptyContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <EmptyState
+            icon="cart-outline"
+            iconSize={64}
+            iconColor={colors.primary}
+            title="Your Cart is Empty"
+            description="You haven't added any wholesale products to your cart yet. Browse verified manufacturers and suppliers to find bulk deals."
+            actionText="Browse Wholesale Products"
+            actionIcon="storefront-outline"
+            onActionPress={handleBrowseProducts}
+            style={styles.emptyStateCard}
+          />
 
-            return (
-              <View key={`cart-item-${item.id || index}`} style={styles.itemCard}>
-                <TouchableOpacity
-                  style={styles.itemTopRow}
-                  onPress={() => handleProductPress(item)}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View details for ${product.name}`}
+          {/* Wholesale B2B Assurance Banner */}
+          <View style={styles.assuranceCard}>
+            <View style={styles.assuranceTitleRow}>
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={22}
+                color={colors.primary}
+              />
+              <Text style={styles.assuranceTitle}>VyaparSetu Trade Assurance</Text>
+            </View>
+            <View style={styles.assuranceGrid}>
+              <View style={styles.assuranceItem}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={18}
+                  color={colors.accent}
+                />
+                <Text style={styles.assuranceItemText}>
+                  Tiered Bulk Pricing Discounts
+                </Text>
+              </View>
+              <View style={styles.assuranceItem}>
+                <Ionicons
+                  name="business-outline"
+                  size={18}
+                  color={colors.success}
+                />
+                <Text style={styles.assuranceItemText}>
+                  Verified Direct Manufacturers
+                </Text>
+              </View>
+              <View style={styles.assuranceItem}>
+                <Ionicons
+                  name="receipt-outline"
+                  size={18}
+                  color={colors.info}
+                />
+                <Text style={styles.assuranceItemText}>
+                  GST Compliance & Factory Quotations
+                </Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Cart Notice Banner */}
+          <View style={styles.bannerNotice}>
+            <Ionicons
+              name="information-circle-outline"
+              size={18}
+              color={colors.info}
+              style={styles.bannerNoticeIcon}
+            />
+            <Text style={styles.bannerNoticeText}>
+              All prices update automatically based on wholesale quantity tiers.
+            </Text>
+          </View>
+
+          {/* Cart Items List */}
+          <View style={styles.itemsListContainer}>
+            {cartItems.map((item, index) => {
+              const product = item.product || {};
+              const moq = getProductMoq(product);
+              const stock = getProductStock(product);
+              const unitSingular = product.unit || 'unit';
+              const unitPlural =
+                unitSingular.endsWith('s') || unitSingular === 'pair'
+                  ? `${unitSingular}s`
+                  : `${unitSingular}s`;
+
+              const isAtMoq = item.quantity <= moq;
+              const isAtMaxStock = stock !== Infinity && item.quantity >= stock;
+              const hasBulkDiscount =
+                Boolean(item.activeTier) &&
+                product.price &&
+                item.unitPrice < product.price;
+
+              const imageUri =
+                product.image ||
+                (Array.isArray(product.images) && product.images[0]) ||
+                null;
+
+              return (
+                <View
+                  key={`cart-item-${item.id || index}`}
+                  style={styles.itemCard}
                 >
-                  <View style={styles.thumbnailContainer}>
-                    {imageUri ? (
-                      <Image
-                        source={{ uri: imageUri }}
-                        style={styles.thumbnailImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.thumbnailFallback}>
-                        <Ionicons
-                          name="cube-outline"
-                          size={28}
-                          color={colors.textMuted}
+                  {/* Top Row: Thumbnail + Details */}
+                  <TouchableOpacity
+                    style={styles.itemTopRow}
+                    onPress={() => handleProductPress(item)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View details for ${product.name}`}
+                  >
+                    <View style={styles.thumbnailContainer}>
+                      {imageUri ? (
+                        <Image
+                          source={{ uri: imageUri }}
+                          style={styles.thumbnailImage}
+                          resizeMode="cover"
                         />
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.itemDetails}>
-                    {product.categoryName && (
-                      <View style={styles.categoryBadge}>
-                        <Text style={styles.categoryBadgeText}>
-                          {product.categoryName}
-                        </Text>
-                      </View>
-                    )}
-
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {product.name || 'Wholesale Product'}
-                    </Text>
-
-                    {(product.sellerName || product.location) && (
-                      <View style={styles.sellerRow}>
-                        <Ionicons
-                          name="storefront-outline"
-                          size={13}
-                          color={colors.textSecondary}
-                        />
-                        <Text style={styles.sellerText} numberOfLines={1}>
-                          {product.sellerName || 'Verified Seller'}
-                          {product.location ? ` · ${product.location}` : ''}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-
-                {/* Pricing Breakdown Row */}
-                <View style={styles.pricingRow}>
-                  <View style={styles.unitPriceContainer}>
-                    <Text style={styles.unitPriceLabel}>Unit Price:</Text>
-                    <View style={styles.unitPriceValues}>
-                      <Text style={styles.unitPriceCurrent}>
-                        ₹{item.unitPrice.toLocaleString('en-IN')}
-                      </Text>
-                      <Text style={styles.unitPriceUnit}>
-                        /{unitSingular}
-                      </Text>
-                      {product.originalPrice && product.originalPrice > item.unitPrice && (
-                        <Text style={styles.unitPriceOriginal}>
-                          ₹{Number(product.originalPrice).toLocaleString('en-IN')}
-                        </Text>
+                      ) : (
+                        <View style={styles.thumbnailFallback}>
+                          <Ionicons
+                            name="cube-outline"
+                            size={28}
+                            color={colors.textMuted}
+                          />
+                        </View>
                       )}
                     </View>
+
+                    <View style={styles.itemDetails}>
+                      {product.categoryName && (
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryBadgeText}>
+                            {product.categoryName}
+                          </Text>
+                        </View>
+                      )}
+
+                      <Text style={styles.productName} numberOfLines={2}>
+                        {product.name || 'Wholesale Product'}
+                      </Text>
+
+                      {(product.sellerName || product.location) && (
+                        <View style={styles.sellerRow}>
+                          <Ionicons
+                            name="storefront-outline"
+                            size={13}
+                            color={colors.textSecondary}
+                          />
+                          <Text style={styles.sellerText} numberOfLines={1}>
+                            {product.sellerName || 'Verified Seller'}
+                            {product.location ? ` · ${product.location}` : ''}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Pricing Breakdown Row */}
+                  <View style={styles.pricingRow}>
+                    <View style={styles.unitPriceContainer}>
+                      <Text style={styles.unitPriceLabel}>Unit Price:</Text>
+                      <View style={styles.unitPriceValues}>
+                        <Text style={styles.unitPriceCurrent}>
+                          ₹{item.unitPrice.toLocaleString('en-IN')}
+                        </Text>
+                        <Text style={styles.unitPriceUnit}>
+                          /{unitSingular}
+                        </Text>
+                        {hasBulkDiscount && product.price && (
+                          <Text style={styles.unitPriceOriginal}>
+                            ₹{Number(product.price).toLocaleString('en-IN')}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {item.activeTier ? (
+                      <View style={styles.tierAppliedBadge}>
+                        <Ionicons
+                          name="sparkles"
+                          size={12}
+                          color={colors.surplus}
+                        />
+                        <Text style={styles.tierAppliedText}>
+                          Bulk Tier Applied
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.standardPriceBadge}>
+                        <Text style={styles.standardPriceText}>
+                          Standard Price
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
-                  {/* Item Total */}
-                  {item.activeTier ? (
-                    <View style={styles.tierAppliedBadge}>
+                  {/* Bulk Savings Highlight */}
+                  {item.savings > 0 && (
+                    <View style={styles.savingsBanner}>
                       <Ionicons
-                        name="sparkles"
-                        size={12}
+                        name="trending-down-outline"
+                        size={14}
                         color={colors.surplus}
                       />
-                      <Text style={styles.tierAppliedText}>
-                        Bulk Tier Applied
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.standardPriceBadge}>
-                      <Text style={styles.standardPriceText}>
-                        Standard Price
+                      <Text style={styles.savingsBannerText}>
+                        Saving ₹{item.savings.toLocaleString('en-IN')} with bulk
+                        tier ({item.quantity} {unitPlural})
                       </Text>
                     </View>
                   )}
-                </View>
 
-                {/* Bulk Savings Highlight */}
-                {item.savings > 0 && (
-                  <View style={styles.savingsBanner}>
-                    <Ionicons
-                      name="trending-down-outline"
-                      size={14}
-                      color={colors.surplus}
-                    />
-                    <Text style={styles.savingsBannerText}>
-                      Saving ₹{item.savings.toLocaleString('en-IN')} with bulk
-                      tier ({item.quantity} {unitPlural})
-                    </Text>
-                  </View>
-                )}
+                  <View style={styles.cardDivider} />
 
-                <View style={styles.cardDivider} />
+                  {/* Controls Row: Stepper + Item Total */}
+                  <View style={styles.controlsRow}>
+                    {/* Quantity Stepper */}
+                    <View style={styles.stepperWrapper}>
+                      <TouchableOpacity
+                        style={[
+                          styles.stepperBtn,
+                          isAtMoq && styles.stepperBtnMoq,
+                        ]}
+                        onPress={() => handleDecrement(item)}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Decrease quantity"
+                      >
+                        <Ionicons
+                          name={isAtMoq ? 'alert-circle-outline' : 'remove'}
+                          size={isAtMoq ? 16 : 18}
+                          color={isAtMoq ? colors.warning : colors.primary}
+                        />
+                      </TouchableOpacity>
 
-                {/* Controls Row: Stepper + Item Total */}
-                <View style={styles.controlsRow}>
-                  {/* Quantity Stepper */}
-                  <View style={styles.stepperWrapper}>
-                    <TouchableOpacity
-                      style={[
-                        styles.stepperBtn,
-                        isAtMoq && styles.stepperBtnMoq,
-                      ]}
-                      onPress={() => handleDecrement(item)}
-                      activeOpacity={0.7}
-                      accessibilityLabel="Decrease quantity"
-                    >
-                      <Ionicons
-                        name={isAtMoq ? 'alert-circle-outline' : 'remove'}
-                        size={isAtMoq ? 16 : 18}
-                        color={isAtMoq ? colors.warning : colors.primary}
-                      />
-                    </TouchableOpacity>
+                      <View style={styles.quantityDisplay}>
+                        <Text style={styles.quantityNumber}>
+                          {item.quantity}
+                        </Text>
+                        <Text style={styles.quantityUnitLabel}>
+                          {unitSingular}
+                        </Text>
+                      </View>
 
-                    <View style={styles.quantityDisplay}>
-                      <Text style={styles.quantityNumber}>
-                        {item.quantity}
-                      </Text>
-                      <Text style={styles.quantityUnitLabel}>
-                        {unitSingular}
-                      </Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.stepperBtn,
+                          isAtMaxStock && styles.stepperBtnDisabled,
+                        ]}
+                        onPress={() => handleIncrement(item)}
+                        disabled={isAtMaxStock}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Increase quantity"
+                      >
+                        <Ionicons
+                          name="add"
+                          size={18}
+                          color={
+                            isAtMaxStock ? colors.textMuted : colors.primary
+                          }
+                        />
+                      </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity
-                      style={[
-                        styles.stepperBtn,
-                        isAtMaxStock && styles.stepperBtnDisabled,
-                      ]}
-                      onPress={() => handleIncrement(item)}
-                      disabled={isAtMaxStock}
-                      activeOpacity={0.7}
-                      accessibilityLabel="Increase quantity"
-                    >
-                      <Ionicons
-                        name="add"
-                        size={18}
-                        color={
-                          isAtMaxStock ? colors.textMuted : colors.primary
-                        }
-                      />
-                    </TouchableOpacity>
+                    {/* Item Total */}
+                    <View style={styles.itemTotalContainer}>
+                      <Text style={styles.itemTotalLabel}>Item Total</Text>
+                      <Text style={styles.itemTotalAmount}>
+                        ₹{item.itemTotal.toLocaleString('en-IN')}
+                      </Text>
+                    </View>
                   </View>
 
-                  {/* Item Total */}
-                  <View style={styles.itemTotalContainer}>
-                    <Text style={styles.itemTotalLabel}>Item Total</Text>
-                    <Text style={styles.itemTotalAmount}>
-                      ₹{item.itemTotal.toLocaleString('en-IN')}
-                    </Text>
-                  </View>
-                </View>
-
-
-
+                  {/* Bottom Meta & Remove Row */}
                   <View style={styles.itemFooterRow}>
                     <View style={styles.constraintsRow}>
                       <Text style={styles.constraintText}>
@@ -374,25 +505,119 @@ export default function CartScreen({
 
                     <TouchableOpacity
                       style={styles.removeButton}
-                    onPress={() => handleRemoveItem(item)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${product.name} from cart`}
-                  >
-                    <Ionicons
-                      name="trash-outline"
-                      size={15}
-                      color={colors.error}
-                    />
-                    <Text style={styles.removeButtonText}>Remove</Text>
-                  </TouchableOpacity>
+                      onPress={() => handleRemoveItem(item)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${product.name} from cart`}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={15}
+                        color={colors.error}
+                      />
+                      <Text style={styles.removeButtonText}>Remove</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
+              );
+            })}
+          </View>
+
+          {/* 3. Order Summary Section */}
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryTitleRow}>
+              <Ionicons
+                name="receipt-outline"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.summaryTitle}>Wholesale Order Summary</Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Products</Text>
+              <Text style={styles.summaryValue}>
+                {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Quantity</Text>
+              <Text style={styles.summaryValue}>
+                {totalUnits.toLocaleString('en-IN')} units
+              </Text>
+            </View>
+
+            {totalSavings > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summarySavingsLabel}>
+                  Bulk Pricing Savings
+                </Text>
+                <Text style={styles.summarySavingsValue}>
+                  -₹{totalSavings.toLocaleString('en-IN')}
+                </Text>
               </View>
-            );
-          })}
+            )}
+
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryTotalLabel}>Estimated Total</Text>
+              <View style={styles.summaryTotalWrapper}>
+                <Text style={styles.summaryTotalCurrency}>₹</Text>
+                <Text style={styles.summaryTotalAmount}>
+                  {totalAmount.toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryNoticeRow}>
+              <Ionicons
+                name="information-circle"
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.summaryNoticeText}>
+                Taxes (GST) and freight logistics will be finalized upon seller
+                quotation acceptance.
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* 4. Sticky Bottom Checkout Bar (when items present) */}
+      {!isEmpty && (
+        <View style={styles.bottomBar}>
+          <View style={styles.bottomBarTotalWrapper}>
+            <Text style={styles.bottomBarTotalLabel}>
+              Total ({totalUnits} units)
+            </Text>
+            <View style={styles.bottomBarPriceRow}>
+              <Text style={styles.bottomBarCurrency}>₹</Text>
+              <Text style={styles.bottomBarAmount}>
+                {totalAmount.toLocaleString('en-IN')}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.checkoutButton}
+            onPress={handleCheckoutPress}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Request Wholesale Quotation"
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={19}
+              color={colors.textInverse}
+              style={styles.checkoutButtonIcon}
+            />
+            <Text style={styles.checkoutButtonText}>Request Quotation</Text>
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -455,9 +680,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  headerSpacer: {
-    width: 38,
-  },
   clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -472,48 +694,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.error,
   },
-  stepperBtnMoq: {
-    backgroundColor: colors.warningLight,
-    borderColor: colors.warning + '55',
-  },
-  stepperBtnDisabled: {
-    opacity: 0.5,
-    backgroundColor: colors.surfaceSubtle,
-  },
-  itemFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 4,
-  },
-  constraintsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  constraintText: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  boldText: {
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  constraintDot: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  removeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-  },
-  removeButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.error,
+  headerSpacer: {
+    width: 38,
   },
   scrollView: {
     flex: 1,
@@ -522,6 +704,69 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxxl * 2.5,
     gap: spacing.md,
+  },
+  emptyContainer: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
+    gap: spacing.xl,
+  },
+  emptyStateCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  assuranceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  assuranceTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  assuranceTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  assuranceGrid: {
+    gap: spacing.sm + 2,
+  },
+  assuranceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+  },
+  assuranceItemText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bannerNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.infoLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.info,
+  },
+  bannerNoticeIcon: {
+    marginRight: spacing.sm,
+  },
+  bannerNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.info,
+    lineHeight: 17,
   },
   itemsListContainer: {
     gap: spacing.md,
@@ -688,19 +933,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
   },
-  itemTotalContainer: {
-    alignItems: 'flex-end',
-  },
-  itemTotalLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  itemTotalAmount: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.primary,
-  },
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -725,6 +957,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  stepperBtnMoq: {
+    backgroundColor: colors.warningLight,
+    borderColor: colors.warning + '55',
+  },
+  stepperBtnDisabled: {
+    opacity: 0.5,
+    backgroundColor: colors.surfaceSubtle,
+  },
   quantityDisplay: {
     minWidth: 54,
     alignItems: 'center',
@@ -741,5 +981,225 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '500',
     textTransform: 'lowercase',
+  },
+  itemTotalContainer: {
+    alignItems: 'flex-end',
+  },
+  itemTotalLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  itemTotalAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  itemFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+  },
+  constraintsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  constraintText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  boldText: {
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  constraintDot: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  removeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.error,
+  },
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  summaryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  summaryTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  summarySavingsLabel: {
+    fontSize: 13,
+    color: colors.surplus,
+    fontWeight: '600',
+  },
+  summarySavingsValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.surplus,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  },
+  summaryTotalLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  summaryTotalWrapper: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  summaryTotalCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 2,
+  },
+  summaryTotalAmount: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  summaryNoticeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.xs,
+  },
+  summaryNoticeText: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  bottomBarTotalWrapper: {
+    flex: 1,
+  },
+  bottomBarTotalLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bottomBarPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  bottomBarCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 2,
+  },
+  bottomBarAmount: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  checkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  checkoutButtonIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  checkoutButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textInverse,
   },
 });

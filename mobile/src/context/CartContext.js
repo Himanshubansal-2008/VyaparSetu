@@ -431,8 +431,7 @@ export function CartProvider({ children }) {
   // Derived aggregates
   const cartItemCount = cartItems.length;
 
-  /* total aggregates added in step 13 */
-  const tempTotal = useMemo(() => {
+  const totalUnits = useMemo(() => {
     return cartItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
   }, [cartItems]);
 
@@ -450,6 +449,10 @@ export function CartProvider({ children }) {
     () => ({
       cartItems,
       cartItemCount,
+      totalUnits,
+      subtotal,
+      totalSavings,
+      totalAmount,
       isLoaded,
       addToCart,
       updateQuantity,
@@ -463,6 +466,10 @@ export function CartProvider({ children }) {
     [
       cartItems,
       cartItemCount,
+      totalUnits,
+      subtotal,
+      totalSavings,
+      totalAmount,
       isLoaded,
       addToCart,
       updateQuantity,
