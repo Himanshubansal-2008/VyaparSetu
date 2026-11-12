@@ -8,6 +8,7 @@ import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen'
 import AddProductScreen from '../screens/AddProductScreen';
 import CartScreen from '../screens/CartScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
+import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -25,6 +26,7 @@ const VALID_ROUTES = [
   'EditProduct',
   'Cart',
   'Checkout',
+  'OrderConfirmation',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -253,6 +255,16 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     navigate('Checkout');
   }, [navigate]);
 
+  const handleNavigateToConfirmation = useCallback(
+    (order) => {
+      navigate('OrderConfirmation', {
+        order,
+        orderId: order?.id || order?.orderNumber,
+      });
+    },
+    [navigate]
+  );
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -402,12 +414,23 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}
+            onNavigateToConfirmation={handleNavigateToConfirmation}
             onNavigateToHome={() => navigate('Home')}
           />
         </View>
       )}
 
-
+      {/* Order Confirmation Screen */}
+      {currentRoute.name === 'OrderConfirmation' && (
+        <View style={styles.screen}>
+          <OrderConfirmationScreen
+            navigation={navigation}
+            route={currentRoute}
+            onNavigateToHome={() => navigate('Home')}
+            onNavigateToCatalog={() => navigate('ProductListing')}
+          />
+        </View>
+      )}
     </View>
   );
 }
