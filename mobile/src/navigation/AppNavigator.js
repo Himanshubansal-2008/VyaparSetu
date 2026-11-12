@@ -6,6 +6,7 @@ import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import BusinessProfileScreen from '../screens/BusinessProfileScreen';
 import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen';
 import AddProductScreen from '../screens/AddProductScreen';
+import CartScreen from '../screens/CartScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -374,7 +375,18 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         </View>
       )}
 
-
+      {/* Wholesale Cart Screen */}
+      {currentRoute.name === 'Cart' && (
+        <View style={styles.screen}>
+          <CartScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToHome={() => navigate('Home')}
+          />
+        </View>
+      )}
     </View>
   );
 }
