@@ -5,6 +5,123 @@ const storage = AsyncStorage.default || AsyncStorage;
 export const STORAGE_KEY_ORDERS = '@vyaparsetu_orders';
 export const STORAGE_KEY_ADDRESS = '@vyaparsetu_delivery_address';
 
+/**
+ * Default previous orders to provide immediate buyer order history on initial launch.
+ */
+export const DEFAULT_SEED_ORDERS = [
+  {
+    id: 'VS-M1K9P2-4018',
+    orderNumber: 'VS-M1K9P2-4018',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Dispatched',
+    carrierName: 'Delhivery B2B Freight',
+    trackingNumber: 'DELHIVERY-B2B-894102',
+    estimatedDelivery: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+    items: [
+      {
+        productId: 'prod-002',
+        title: 'Wireless Bluetooth Earphones',
+        image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600',
+        category: 'Electronics',
+        unit: 'piece',
+        quantity: 25,
+        unitPrice: 480,
+        originalPrice: 650,
+        itemTotal: 12000,
+        activeTier: { minQuantity: 20, maxQuantity: 49, pricePerUnit: 480 },
+        savings: 4250,
+      },
+    ],
+    totalItems: 1,
+    totalUnits: 25,
+    subtotal: 12000,
+    totalSavings: 4250,
+    totalAmount: 12000,
+    deliveryAddress: {
+      fullName: 'Rajesh Kumar',
+      businessName: 'Kumar Electronics & Retail',
+      phone: '9876543210',
+      streetAddress: 'Plot 42, GIDC Electronic Zone, Gandhinagar Highway',
+      city: 'Ahmedabad',
+      state: 'Gujarat',
+      pincode: '380015',
+      gstin: '24AAECK1234F1Z5',
+    },
+    paymentMethod: 'Trade Credit / RTGS / NEFT',
+    orderDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  },
+  {
+    id: 'VS-M1D7J4-2915',
+    orderNumber: 'VS-M1D7J4-2915',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'Delivered',
+    carrierName: 'Gati-KWE Supply Chain',
+    trackingNumber: 'GATI-KWE-552140',
+    deliveredAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+    items: [
+      {
+        productId: 'prod-001',
+        title: 'Handwoven Cotton Tote Bag',
+        image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600',
+        category: 'Clothing',
+        unit: 'piece',
+        quantity: 50,
+        unitPrice: 160,
+        originalPrice: 220,
+        itemTotal: 8000,
+        activeTier: { minQuantity: 50, maxQuantity: 99, pricePerUnit: 160 },
+        savings: 3000,
+      },
+      {
+        productId: 'prod-003',
+        title: 'Jaipur Blue Pottery Ceramic Vase',
+        image: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=600',
+        category: 'Handicrafts',
+        unit: 'piece',
+        quantity: 15,
+        unitPrice: 320,
+        originalPrice: 420,
+        itemTotal: 4800,
+        activeTier: { minQuantity: 10, maxQuantity: 49, pricePerUnit: 320 },
+        savings: 1500,
+      },
+    ],
+    totalItems: 2,
+    totalUnits: 65,
+    subtotal: 12800,
+    totalSavings: 4500,
+    totalAmount: 12800,
+    deliveryAddress: {
+      fullName: 'Rajesh Kumar',
+      businessName: 'Kumar Handicrafts & Emporium',
+      phone: '9876543210',
+      streetAddress: 'Shop 14, Commercial Complex, Ring Road',
+      city: 'Ahmedabad',
+      state: 'Gujarat',
+      pincode: '380015',
+      gstin: '24AAECK1234F1Z5',
+    },
+    paymentMethod: 'Cash on Delivery (COD)',
+    orderDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+  },
+];
+
 let inMemoryOrders = [];
 let inMemoryAddress = null;
 const orderListeners = new Set();
@@ -40,20 +157,29 @@ export const generateOrderId = () => {
 
 /**
  * Loads orders from AsyncStorage on startup.
+ * Seeds initial mock previous orders if storage is empty.
  */
 export const loadPersistedOrders = async () => {
   try {
     const raw = await storage.getItem(STORAGE_KEY_ORDERS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         inMemoryOrders = parsed;
         notifyOrderListeners();
         return inMemoryOrders;
       }
     }
+    // If not in storage yet, seed initial mock orders and save
+    inMemoryOrders = [...DEFAULT_SEED_ORDERS];
+    await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    notifyOrderListeners();
+    return inMemoryOrders;
   } catch (error) {
     console.warn('[orders] Failed to load persisted orders:', error);
+  }
+  if (!inMemoryOrders.length) {
+    inMemoryOrders = [...DEFAULT_SEED_ORDERS];
   }
   return inMemoryOrders;
 };
@@ -158,6 +284,7 @@ export const saveDeliveryAddress = async (addressData) => {
 export default {
   STORAGE_KEY_ORDERS,
   STORAGE_KEY_ADDRESS,
+  DEFAULT_SEED_ORDERS,
   generateOrderId,
   loadPersistedOrders,
   getOrders,

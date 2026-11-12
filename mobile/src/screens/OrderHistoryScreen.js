@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   FlatList,
+  TextInput,
   RefreshControl,
   SafeAreaView,
   StatusBar,
   Platform,
   Image,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import {
@@ -19,6 +20,14 @@ import {
   subscribeOrders,
   loadPersistedOrders,
 } from '../data/orders';
+import EmptyState from '../components/EmptyState';
+
+const FILTER_TABS = [
+  { key: 'All', label: 'All Orders' },
+  { key: 'Active', label: 'In Progress' },
+  { key: 'Delivered', label: 'Delivered' },
+  { key: 'Cancelled', label: 'Cancelled' },
+];
 
 export default function OrderHistoryScreen({
   navigation,
@@ -30,8 +39,11 @@ export default function OrderHistoryScreen({
   onCartPress,
 }) {
   const [orders, setOrders] = useState(getOrders());
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Subscribe to reactive order updates
   useEffect(() => {
     setOrders(getOrders());
     return subscribeOrders((updatedOrders) => {
@@ -51,6 +63,21 @@ export default function OrderHistoryScreen({
     }
   }, []);
 
+  const handleOrderPress = useCallback(
+    (order) => {
+      if (!order) return;
+      if (onNavigateToOrderDetails) {
+        onNavigateToOrderDetails({ order, orderId: order.id });
+      } else if (navigation?.navigate) {
+        navigation.navigate('OrderDetails', {
+          order,
+          orderId: order.id,
+        });
+      }
+    },
+    [onNavigateToOrderDetails, navigation]
+  );
+
   const handleBack = useCallback(() => {
     if (onBackPress) {
       onBackPress();
@@ -69,6 +96,88 @@ export default function OrderHistoryScreen({
     }
   }, [onNavigateToCatalog, navigation]);
 
+  // Compute counts for tabs
+  const counts = useMemo(() => {
+    let active = 0;
+    let delivered = 0;
+    let cancelled = 0;
+
+    orders.forEach((o) => {
+      const st = String(o.status || '').toLowerCase();
+      if (st === 'delivered') delivered += 1;
+      else if (st === 'cancelled') cancelled += 1;
+      else active += 1;
+    });
+
+    return {
+      all: orders.length,
+      active,
+      delivered,
+      cancelled,
+    };
+  }, [orders]);
+
+  // Filter and search
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+
+    // Filter by tab
+    if (activeFilter === 'Active') {
+      result = result.filter((o) => {
+        const st = String(o.status || '').toLowerCase();
+        return st !== 'delivered' && st !== 'cancelled';
+      });
+    } else if (activeFilter === 'Delivered') {
+      result = result.filter(
+        (o) => String(o.status || '').toLowerCase() === 'delivered'
+      );
+    } else if (activeFilter === 'Cancelled') {
+      result = result.filter(
+        (o) => String(o.status || '').toLowerCase() === 'cancelled'
+      );
+    }
+
+    // Filter by search query
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((o) => {
+        const idMatch = String(o.id || o.orderNumber || '')
+          .toLowerCase()
+          .includes(q);
+        const itemMatch = Array.isArray(o.items)
+          ? o.items.some((item) =>
+              String(item.title || item.name || '')
+                .toLowerCase()
+                .includes(q)
+            )
+          : false;
+        const buyerMatch = String(
+          o.deliveryAddress?.businessName ||
+            o.deliveryAddress?.fullName ||
+            ''
+        )
+          .toLowerCase()
+          .includes(q);
+        return idMatch || itemMatch || buyerMatch;
+      });
+    }
+
+    return result;
+  }, [orders, activeFilter, searchQuery]);
+
+  // Overall analytics KPI summary
+  const summaryKpis = useMemo(() => {
+    const totalSpend = orders.reduce(
+      (sum, o) => sum + (Number(o.totalAmount) || 0),
+      0
+    );
+    return {
+      totalOrders: orders.length,
+      activeOrders: counts.active,
+      totalSpend,
+    };
+  }, [orders, counts.active]);
+
   const renderOrderItem = ({ item }) => {
     const firstItem = item.items?.[0] || {};
     const moreItemsCount = (item.items?.length || 1) - 1;
@@ -77,10 +186,11 @@ export default function OrderHistoryScreen({
       <TouchableOpacity
         style={styles.orderCard}
         activeOpacity={0.85}
-        onPress={() => onNavigateToOrderDetails && onNavigateToOrderDetails({ order: item, orderId: item.id })}
+        onPress={() => handleOrderPress(item)}
         accessibilityRole="button"
-        accessibilityLabel={`Order ${item.id}, Amount: ₹${item.totalAmount}`}
+        accessibilityLabel={`Order ${item.id}, Status: ${item.status}, Amount: ₹${item.totalAmount}`}
       >
+        {/* Card Header: Order ID & Date */}
         <View style={styles.cardHeader}>
           <View style={styles.orderIdGroup}>
             <Ionicons
@@ -96,10 +206,14 @@ export default function OrderHistoryScreen({
               </Text>
             </View>
           </View>
+
+
         </View>
 
+        {/* Divider */}
         <View style={styles.divider} />
 
+        {/* Middle: Product Thumbnail & Items info */}
         <View style={styles.cardBody}>
           <View style={styles.thumbnailWrapper}>
             {firstItem.image ? (
@@ -161,6 +275,9 @@ export default function OrderHistoryScreen({
           </View>
         </View>
 
+
+
+        {/* Card Footer: Total Amount & Action CTA */}
         <View style={styles.cardFooter}>
           <View>
             <Text style={styles.totalLabel}>Consignment Value</Text>
@@ -170,7 +287,7 @@ export default function OrderHistoryScreen({
           </View>
 
           <View style={styles.viewDetailsBtn}>
-            <Text style={styles.viewDetailsText}>View Details</Text>
+            <Text style={styles.viewDetailsText}>View & Track</Text>
             <Ionicons
               name="chevron-forward"
               size={15}
@@ -186,6 +303,7 @@ export default function OrderHistoryScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
 
+      {/* 1. Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -226,13 +344,107 @@ export default function OrderHistoryScreen({
         )}
       </View>
 
+      {/* 2. Top Summary KPI Row */}
+      <View style={styles.kpiContainer}>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiValue}>{summaryKpis.totalOrders}</Text>
+          <Text style={styles.kpiLabel}>Total Orders</Text>
+        </View>
+        <View style={styles.kpiDivider} />
+        <View style={styles.kpiCard}>
+          <Text style={[styles.kpiValue, { color: colors.primary }]}>
+            {summaryKpis.activeOrders}
+          </Text>
+          <Text style={styles.kpiLabel}>In Transit</Text>
+        </View>
+        <View style={styles.kpiDivider} />
+        <View style={styles.kpiCard}>
+          <Text style={[styles.kpiValue, { color: colors.success }]}>
+            ₹{summaryKpis.totalSpend > 99999 ? `${(summaryKpis.totalSpend / 100000).toFixed(1)}L` : summaryKpis.totalSpend.toLocaleString('en-IN')}
+          </Text>
+          <Text style={styles.kpiLabel}>Total Spent</Text>
+        </View>
+      </View>
+
+      {/* 3. Search Bar */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchBar}>
+          <Ionicons
+            name="search-outline"
+            size={18}
+            color={colors.textMuted}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by Order ID, item, or location..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearBtn}
+            >
+              <Ionicons
+                name="close-circle"
+                size={18}
+                color={colors.textMuted}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* 4. Filter Tabs */}
+      <View style={styles.tabsContainer}>
+        {FILTER_TABS.map((tab) => {
+          const isActive = activeFilter === tab.key;
+          let count = counts.all;
+          if (tab.key === 'Active') count = counts.active;
+          if (tab.key === 'Delivered') count = counts.delivered;
+          if (tab.key === 'Cancelled') count = counts.cancelled;
+
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tabButton, isActive && styles.tabButtonActive]}
+              onPress={() => setActiveFilter(tab.key)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[styles.tabText, isActive && styles.tabTextActive]}
+              >
+                {tab.label}
+              </Text>
+              <View
+                style={[styles.tabBadge, isActive && styles.tabBadgeActive]}
+              >
+                <Text
+                  style={[
+                    styles.tabBadgeText,
+                    isActive && styles.tabBadgeTextActive,
+                  ]}
+                >
+                  {count}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* 5. Orders List / Empty State */}
       <FlatList
-        data={orders}
+        data={filteredOrders}
         keyExtractor={(item) => String(item.id || item.orderNumber)}
         renderItem={renderOrderItem}
         contentContainerStyle={[
           styles.listContent,
-          orders.length === 0 && styles.emptyListContent,
+          filteredOrders.length === 0 && styles.emptyListContent,
         ]}
         refreshControl={
           <RefreshControl
@@ -251,9 +463,17 @@ export default function OrderHistoryScreen({
                 color={colors.primary}
               />
             </View>
-            <Text style={styles.emptyTitle}>No wholesale orders yet</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery.trim()
+                ? 'No matching orders found'
+                : activeFilter !== 'All'
+                ? `No ${activeFilter.toLowerCase()} orders`
+                : 'No wholesale orders yet'}
+            </Text>
             <Text style={styles.emptyDescription}>
-              Discover verified manufacturers and wholesalers to place bulk orders with tiered pricing.
+              {searchQuery.trim()
+                ? `We couldn't find any orders matching "${searchQuery}". Try searching with a different ID or keyword.`
+                : 'Discover verified manufacturers and wholesalers to place bulk orders with tiered pricing.'}
             </Text>
 
             <TouchableOpacity
@@ -315,6 +535,113 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 32,
   },
+  kpiContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  kpiCard: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  kpiValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  kpiLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  kpiDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+  searchSection: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    height: 42,
+  },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textPrimary,
+    paddingVertical: 0,
+  },
+  clearBtn: {
+    padding: spacing.xs,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.sm,
+  },
+  tabButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tabButtonActive: {
+    backgroundColor: colors.primaryLight + '15',
+    borderColor: colors.primary,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  tabTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  tabBadge: {
+    marginLeft: 5,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  tabBadgeActive: {
+    backgroundColor: colors.primary,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  tabBadgeTextActive: {
+    color: colors.textInverse,
+  },
   listContent: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
@@ -366,6 +693,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   divider: {
     height: 1,
@@ -428,6 +767,66 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     fontWeight: '500',
+  },
+  progressTrackContainer: {
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm + 2,
+    marginTop: spacing.sm + 2,
+  },
+  progressTrackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs + 2,
+  },
+  progressStageLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  progressEtaText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  stepDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  stepDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.borderDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
+  stepDotDone: {
+    backgroundColor: colors.success,
+  },
+  stepDotCurrent: {
+    backgroundColor: colors.primary,
+  },
+  stepDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surface,
+  },
+  stepConnector: {
+    flex: 1,
+    height: 2.5,
+    backgroundColor: colors.borderDark,
+    marginHorizontal: 2,
+  },
+  stepConnectorDone: {
+    backgroundColor: colors.success,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -517,3 +916,4 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
   },
 });
+
