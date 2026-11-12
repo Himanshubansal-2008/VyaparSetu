@@ -21,11 +21,32 @@ export default function OrderConfirmationScreen({
   route,
   onNavigateToHome,
   onNavigateToCatalog,
+  onNavigateToOrderDetails,
+  onNavigateToOrders,
+  onNavigateToOrderHistory,
 }) {
   const order = route?.params?.order || {};
   const orderId = order.id || route?.params?.orderId || 'VS-ORDER';
   const items = order.items || [];
   const address = order.deliveryAddress || {};
+
+  const handleTrackOrder = () => {
+    if (onNavigateToOrderDetails) {
+      onNavigateToOrderDetails({ order, orderId });
+    } else if (navigation?.navigate) {
+      navigation.navigate('OrderDetails', { order, orderId });
+    }
+  };
+
+  const handleGoOrders = () => {
+    if (onNavigateToOrderHistory) {
+      onNavigateToOrderHistory();
+    } else if (onNavigateToOrders) {
+      onNavigateToOrders();
+    } else if (navigation?.navigate) {
+      navigation.navigate('OrderHistory');
+    }
+  };
 
   const handleGoHome = () => {
     if (onNavigateToHome) {
@@ -321,6 +342,40 @@ export default function OrderConfirmationScreen({
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity
             style={styles.primaryActionButton}
+            onPress={handleTrackOrder}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Track Order & Details"
+          >
+            <Ionicons
+              name="trail-sign-outline"
+              size={20}
+              color={colors.textInverse}
+              style={styles.actionButtonIcon}
+            />
+            <Text style={styles.primaryActionText}>Track Order & Details</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryActionButton}
+            onPress={handleGoOrders}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="View All Orders"
+          >
+            <Ionicons
+              name="receipt-outline"
+              size={18}
+              color={colors.primary}
+              style={styles.actionButtonIcon}
+            />
+            <Text style={styles.secondaryActionText}>
+              View All Orders
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryActionButton}
             onPress={handleGoHome}
             activeOpacity={0.8}
             accessibilityRole="button"
@@ -328,28 +383,12 @@ export default function OrderConfirmationScreen({
           >
             <Ionicons
               name="home-outline"
-              size={20}
-              color={colors.textInverse}
-              style={styles.actionButtonIcon}
-            />
-            <Text style={styles.primaryActionText}>Back to Home</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryActionButton}
-            onPress={handleGoCatalog}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Browse Wholesale Catalog"
-          >
-            <Ionicons
-              name="storefront-outline"
               size={18}
-              color={colors.primary}
+              color={colors.textSecondary}
               style={styles.actionButtonIcon}
             />
-            <Text style={styles.secondaryActionText}>
-              Browse Wholesale Catalog
+            <Text style={[styles.secondaryActionText, { color: colors.textSecondary }]}>
+              Back to Home
             </Text>
           </TouchableOpacity>
         </View>

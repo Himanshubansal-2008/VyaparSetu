@@ -10,6 +10,7 @@ import CartScreen from '../screens/CartScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
 import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
 import OrderHistoryScreen from '../screens/OrderHistoryScreen';
+import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -34,6 +35,7 @@ const VALID_ROUTES = [
   'OrderConfirmation',
   'OrderHistory',
   'Orders',
+  'OrderDetails',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -278,6 +280,28 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     navigate('OrderHistory');
   }, [navigate]);
 
+  const handleNavigateToOrderDetails = useCallback(
+    (orderOrParams) => {
+      if (orderOrParams && typeof orderOrParams === 'object') {
+        const orderObj = orderOrParams.order || orderOrParams;
+        const ordId =
+          orderOrParams.orderId ||
+          orderOrParams.id ||
+          orderObj?.id ||
+          orderObj?.orderNumber;
+        navigate('OrderDetails', {
+          order: orderObj,
+          orderId: ordId,
+        });
+      } else if (typeof orderOrParams === 'string') {
+        navigate('OrderDetails', { orderId: orderOrParams });
+      } else {
+        navigate('OrderDetails', {});
+      }
+    },
+    [navigate]
+  );
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -443,6 +467,9 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={currentRoute}
             onNavigateToHome={() => navigate('Home')}
             onNavigateToCatalog={() => navigate('ProductListing')}
+            onNavigateToOrderDetails={handleNavigateToOrderDetails}
+            onNavigateToOrders={handleNavigateToOrderHistory}
+            onNavigateToOrderHistory={handleNavigateToOrderHistory}
           />
         </View>
       )}
@@ -455,10 +482,30 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}
-            onNavigateToOrderDetails={() => {}}
+            onNavigateToOrderDetails={handleNavigateToOrderDetails}
             onNavigateToCatalog={() => navigate('ProductListing')}
             onNavigateToHome={() => navigate('Home')}
             onCartPress={handleNavigateToCart}
+          />
+        </View>
+      )}
+
+      {/* Order Details Screen */}
+      {currentRoute.name === 'OrderDetails' && (
+        <View style={styles.screen}>
+          <OrderDetailsScreen
+            key={
+              currentRoute.params?.orderId ||
+              currentRoute.params?.order?.id ||
+              'order_details'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToOrderHistory={handleNavigateToOrderHistory}
+            onNavigateToHome={() => navigate('Home')}
+            onNavigateToCart={handleNavigateToCart}
           />
         </View>
       )}
