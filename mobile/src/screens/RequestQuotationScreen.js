@@ -46,6 +46,8 @@ export default function RequestQuotationScreen({
   product: propProduct,
   onBackPress,
   onNavigateToBuyerQuotations,
+  onNavigateToCatalog,
+  onNavigateToHome,
 }) {
   const product = useMemo(() => {
     return propProduct || route?.params?.product || {};
@@ -120,10 +122,28 @@ export default function RequestQuotationScreen({
   const handleBack = useCallback(() => {
     if (onBackPress) {
       onBackPress();
-    } else if (navigation?.goBack) {
+    } else if (navigation?.canGoBack?.()) {
       navigation.goBack();
+    } else if (onNavigateToCatalog) {
+      onNavigateToCatalog();
+    } else if (onNavigateToHome) {
+      onNavigateToHome();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Home');
     }
-  }, [onBackPress, navigation]);
+  }, [onBackPress, navigation, onNavigateToCatalog, onNavigateToHome]);
+
+  const handleContinueShopping = useCallback(() => {
+    if (onNavigateToCatalog) {
+      onNavigateToCatalog();
+    } else if (onNavigateToHome) {
+      onNavigateToHome();
+    } else if (navigation?.navigate) {
+      navigation.navigate('ProductListing');
+    } else {
+      handleBack();
+    }
+  }, [onNavigateToCatalog, onNavigateToHome, navigation, handleBack]);
 
   const handleQuantityTextChange = (text) => {
     // Sanitize non-digits
@@ -247,28 +267,33 @@ export default function RequestQuotationScreen({
 
       if (result.success) {
         Alert.alert(
-          'Quotation Request Sent',
-          `Your quotation request #${result.quotation.id} has been submitted to ${product.sellerName || 'the supplier'}.\n\nYou can track supplier responses and negotiate in My Quotations.`,
+          'Price Request Sent',
+          `Your price request #${result.quotation.id} has been submitted to ${product.sellerName || 'the seller'}.\n\nYou can track seller responses and negotiate prices in My Price Requests.`,
           [
             {
-              text: 'View My Quotations',
+              text: 'Continue Shopping',
+              style: 'cancel',
+              onPress: handleContinueShopping,
+            },
+            {
+              text: 'View My Price Requests',
               onPress: () => {
                 if (onNavigateToBuyerQuotations) {
                   onNavigateToBuyerQuotations();
                 } else if (navigation?.navigate) {
                   navigation.navigate('BuyerQuotations');
                 } else {
-                  handleBack();
+                  handleContinueShopping();
                 }
               },
             },
           ]
         );
       } else {
-        Alert.alert('Submission Error', result.message || 'Failed to submit quotation request.');
+        Alert.alert('Submission Error', result.message || 'Failed to submit price request.');
       }
     } catch (err) {
-      console.warn('Error submitting quotation request:', err);
+      console.warn('Error submitting price request:', err);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);

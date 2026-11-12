@@ -721,6 +721,8 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={currentRoute}
             onBackPress={goBack}
             onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
+            onNavigateToCatalog={() => navigate('ProductListing')}
+            onNavigateToHome={() => navigate('Home')}
           />
         </View>
       )}
