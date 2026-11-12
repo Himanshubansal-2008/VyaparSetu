@@ -33,7 +33,17 @@ export default function CartScreen({
     }
   };
 
-  const isEmpty = cartItems.length === 0;
+  const handleProductPress = (item) => {
+    const product = item?.product || item;
+    if (onNavigateToProductDetails) {
+      onNavigateToProductDetails(product);
+    } else if (navigation?.navigate) {
+      navigation.navigate('ProductDetails', {
+        productId: product.id,
+        product,
+      });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -72,7 +82,48 @@ export default function CartScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.itemsListContainer}>
-          {/* Cart items list container */}
+          {cartItems.map((item, index) => {
+            const product = item.product || {};
+            return (
+              <View key={`cart-item-${item.id || index}`} style={styles.itemCard}>
+                <TouchableOpacity
+                  style={styles.itemTopRow}
+                  onPress={() => handleProductPress(item)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View details for ${product.name}`}
+                >
+                  <View style={styles.itemDetails}>
+                    {product.categoryName && (
+                      <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryBadgeText}>
+                          {product.categoryName}
+                        </Text>
+                      </View>
+                    )}
+
+                    <Text style={styles.productName} numberOfLines={2}>
+                      {product.name || 'Wholesale Product'}
+                    </Text>
+
+                    {(product.sellerName || product.location) && (
+                      <View style={styles.sellerRow}>
+                        <Ionicons
+                          name="storefront-outline"
+                          size={13}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.sellerText} numberOfLines={1}>
+                          {product.sellerName || 'Verified Seller'}
+                          {product.location ? ` · ${product.location}` : ''}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -150,5 +201,63 @@ const styles = StyleSheet.create({
   },
   itemsListContainer: {
     gap: spacing.md,
+  },
+  itemCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md + 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  itemTopRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  itemDetails: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 3,
+  },
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    lineHeight: 19,
+  },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  sellerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
   },
 });
