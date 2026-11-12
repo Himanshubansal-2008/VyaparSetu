@@ -76,6 +76,7 @@ export default function SellerOrdersScreen({
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   // Subscribe to reactive order changes
   useEffect(() => {
@@ -96,6 +97,16 @@ export default function SellerOrdersScreen({
       setIsRefreshing(false);
     }
   }, []);
+
+  const handleBack = useCallback(() => {
+    if (onBackPress) {
+      onBackPress();
+    } else if (navigation?.goBack) {
+      navigation.goBack();
+    } else if (onNavigateToBusinessProfile) {
+      onNavigateToBusinessProfile({ businessId, business });
+    }
+  }, [onBackPress, navigation, onNavigateToBusinessProfile, businessId, business]);
 
   const handleOrderPress = useCallback(
     (order) => {
@@ -120,18 +131,6 @@ export default function SellerOrdersScreen({
     },
     [onNavigateToSellerOrderDetails, navigation, businessId, business]
   );
-
-  const handleBack = useCallback(() => {
-    if (onBackPress) {
-      onBackPress();
-    } else if (navigation?.goBack) {
-      navigation.goBack();
-    } else if (onNavigateToBusinessProfile) {
-      onNavigateToBusinessProfile({ businessId, business });
-    }
-  }, [onBackPress, navigation, onNavigateToBusinessProfile, businessId, business]);
-
-
 
   // Filter orders containing products belonging to this seller
   const sellerOrders = useMemo(() => {
@@ -251,6 +250,57 @@ export default function SellerOrdersScreen({
     };
   }, [sellerOrders, counts.pending, counts.active, businessId]);
 
+  // Handler: Accept Order
+  const handleAcceptOrder = useCallback(
+    (order) => {
+      const items = getSellerOrderItems(order, businessId, defaultProducts);
+      const subtotal = items.reduce(
+        (sum, it) =>
+          sum +
+          (Number(it.itemTotal) ||
+            Number(it.unitPrice || it.price || 0) * (Number(it.quantity) || 1)),
+        0
+      );
+
+      Alert.alert(
+        'Accept Wholesale Order',
+        `Accept order #${order.id} for ₹${subtotal.toLocaleString(
+          'en-IN'
+        )}?\n\nThis will move the order into Processing & Packing stage.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Accept Order',
+            style: 'default',
+            onPress: async () => {
+              setActionLoadingId(order.id);
+              try {
+                const res = await acceptOrder(
+                  order.id,
+                  businessId,
+                  'Accepted by seller'
+                );
+                if (res.success) {
+                  Alert.alert(
+                    'Order Accepted',
+                    `Order #${order.id} has been accepted and is now in Processing.`
+                  );
+                } else {
+                  Alert.alert('Error', res.message || 'Failed to accept order.');
+                }
+              } catch (err) {
+                console.warn('Accept order error:', err);
+              } finally {
+                setActionLoadingId(null);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [businessId]
+  );
+
   // Handler: Reject Order
   const handleRejectOrder = useCallback(
     (order) => {
@@ -312,6 +362,10 @@ export default function SellerOrdersScreen({
 
     const firstSellerItem = sellerItems[0] || {};
     const moreSellerItems = sellerItems.length - 1;
+    const isPending =
+      String(item.status || '').toLowerCase() === 'confirmed' ||
+      String(item.status || '').toLowerCase() === 'pending' ||
+      String(item.status || '').toLowerCase() === 'pending acceptance';
 
     const delivery = item.deliveryAddress || {};
 
@@ -433,14 +487,42 @@ export default function SellerOrdersScreen({
             </Text>
           </View>
 
-          <View style={styles.detailsBtn}>
-            <Text style={styles.detailsBtnText}>Manage Order</Text>
-            <Ionicons
-              name="chevron-forward"
-              size={14}
-              color={colors.primary}
-            />
-          </View>
+          {isPending ? (
+            <View style={styles.actionButtonsInline}>
+              <TouchableOpacity
+                style={styles.rejectBtnInline}
+                onPress={() => handleRejectOrder(item)}
+                disabled={actionLoadingId === item.id}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.rejectBtnText}>Reject</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.acceptBtnInline}
+                onPress={() => handleAcceptOrder(item)}
+                disabled={actionLoadingId === item.id}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="checkmark"
+                  size={14}
+                  color={colors.textInverse}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.acceptBtnText}>Accept</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.detailsBtn}>
+              <Text style={styles.detailsBtnText}>Manage Order</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={14}
+                color={colors.primary}
+              />
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );

@@ -629,6 +629,56 @@ export const getSellerOrderDetails = (orderId, sellerId, allProducts = []) => {
 };
 
 /**
+ * Allows a seller to accept an incoming order.
+ * Transitions status from 'Confirmed' to 'Processing'.
+ */
+export const acceptOrder = async (orderId, sellerId, note = '') => {
+  const order = getOrderById(orderId);
+  if (!order) return { success: false, reason: 'order_not_found' };
+
+  const currentStatus = order.status || 'Confirmed';
+  if (!canTransitionStatus(currentStatus, 'Processing')) {
+    return {
+      success: false,
+      reason: 'invalid_status_transition',
+      message: `Cannot accept order in status "${currentStatus}".`,
+    };
+  }
+
+  const updated = await updateOrderStatus(orderId, 'Processing', {
+    acceptedAt: new Date().toISOString(),
+    sellerAcceptanceNote: note || undefined,
+  });
+
+  return { success: true, order: updated };
+};
+
+/**
+ * Allows a seller to reject an incoming order with a reason.
+ * Transitions status to 'Rejected'.
+ */
+export const rejectOrder = async (orderId, sellerId, reason = '') => {
+  const order = getOrderById(orderId);
+  if (!order) return { success: false, reason: 'order_not_found' };
+
+  const currentStatus = order.status || 'Confirmed';
+  if (!canTransitionStatus(currentStatus, 'Rejected')) {
+    return {
+      success: false,
+      reason: 'invalid_status_transition',
+      message: `Cannot reject order in status "${currentStatus}".`,
+    };
+  }
+
+  const updated = await updateOrderStatus(orderId, 'Rejected', {
+    rejectedAt: new Date().toISOString(),
+    rejectionReason: reason || 'Seller unable to fulfill consignment at this time',
+  });
+
+  return { success: true, order: updated };
+};
+
+/**
  * Resets orders back to seed orders (useful for demo/testing).
  */
 export const resetOrders = async () => {
@@ -709,6 +759,8 @@ export default {
   getSellerOrderItems,
   getOrdersForSeller,
   getSellerOrderDetails,
+  acceptOrder,
+  rejectOrder,
   loadPersistedAddress,
   getSavedAddress,
   saveDeliveryAddress,

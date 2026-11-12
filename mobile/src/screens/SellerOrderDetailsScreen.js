@@ -130,9 +130,83 @@ export default function SellerOrderDetailsScreen({
     [onNavigateToProductDetails, navigation]
   );
 
+  // Handler: Accept Order
+  const handleAccept = useCallback(() => {
+    if (!order) return;
+    Alert.alert(
+      'Accept Wholesale Order',
+      `Accept order #${order.id}?\n\nThis confirms you can fulfill your products for this consignment and moves the status to Processing.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Accept Order',
+          style: 'default',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              const res = await acceptOrder(
+                order.id,
+                businessId,
+                'Accepted by supplier'
+              );
+              if (res.success) {
+                setOrder(res.order);
+                Alert.alert(
+                  'Order Accepted',
+                  `Order #${order.id} is now in Processing & Packing stage.`
+                );
+              } else {
+                Alert.alert('Error', res.message || 'Failed to accept order.');
+              }
+            } catch (err) {
+              console.warn('Failed to accept:', err);
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [order, businessId]);
 
-
-
+  // Handler: Reject Order
+  const handleReject = useCallback(() => {
+    if (!order) return;
+    Alert.alert(
+      'Reject Wholesale Order',
+      `Reject order #${order.id}?\n\nThe buyer will be notified and this order will be cancelled. This cannot be undone.`,
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Reject Order',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              const res = await rejectOrder(
+                order.id,
+                businessId,
+                'Supplier unable to fulfill stock requirements'
+              );
+              if (res.success) {
+                setOrder(res.order);
+                Alert.alert(
+                  'Order Rejected',
+                  `Order #${order.id} has been marked as Rejected.`
+                );
+              } else {
+                Alert.alert('Error', res.message || 'Failed to reject order.');
+              }
+            } catch (err) {
+              console.warn('Failed to reject:', err);
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [order, businessId]);
 
 
 
@@ -314,65 +388,7 @@ export default function SellerOrderDetailsScreen({
             </View>
           )}
 
-          {isProcessing && (
-            <TouchableOpacity
-              style={styles.advanceStatusBtn}
-              onPress={() =>
-                handleUpdateStatus(
-                  'Dispatched',
-                  'Dispatch Consignment',
-                  'Confirm that the consignment has been handed over to the freight logistics carrier?'
-                )
-              }
-              disabled={actionLoading}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="airplane-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-              <Text style={styles.advanceStatusBtnText}>
-                {actionLoading ? 'Updating...' : 'Dispatch Consignment'}
-              </Text>
-            </TouchableOpacity>
-          )}
 
-          {isDispatched && (
-            <TouchableOpacity
-              style={styles.advanceStatusBtn}
-              onPress={() =>
-                handleUpdateStatus(
-                  'Out for Delivery',
-                  'Mark Out for Delivery',
-                  'Confirm vehicle is out for destination warehouse dock delivery?'
-                )
-              }
-              disabled={actionLoading}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="car-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-              <Text style={styles.advanceStatusBtnText}>
-                {actionLoading ? 'Updating...' : 'Mark Out for Delivery'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {isOutForDelivery && (
-            <TouchableOpacity
-              style={[styles.advanceStatusBtn, { backgroundColor: colors.success }]}
-              onPress={() =>
-                handleUpdateStatus(
-                  'Delivered',
-                  'Confirm Final Delivery',
-                  'Confirm the buyer has received and signed off on the consignment?'
-                )
-              }
-              disabled={actionLoading}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="checkmark-done-circle-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-              <Text style={styles.advanceStatusBtnText}>
-                {actionLoading ? 'Updating...' : 'Mark as Delivered'}
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* 2. Buyer Information Card */}
