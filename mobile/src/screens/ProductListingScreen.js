@@ -16,6 +16,12 @@ import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
+import {
+  products as defaultProducts,
+  categories as defaultCategories,
+  isProductActive,
+  filterActiveProducts,
+} from '../data/products';
 import { getProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
@@ -59,7 +65,9 @@ export default function ProductListingScreen({
   );
 
   // Products API State
-  const [products, setProducts] = useState(propProducts || []);
+  const [products, setProducts] = useState(() =>
+    filterActiveProducts(propProducts || route?.params?.products || [])
+  );
   const [isLoading, setIsLoading] = useState(
     propProducts === undefined && route?.params?.products === undefined
   );
@@ -120,9 +128,10 @@ export default function ProductListingScreen({
         : [];
 
       const activeList = rawList.filter((cat) => cat && cat.isActive !== false);
-      setApiCategories(activeList);
+      setApiCategories(activeList.length > 0 ? activeList : defaultCategories);
     } catch (err) {
-      console.error('[ProductListingScreen] Error fetching categories:', err);
+      console.warn('[ProductListingScreen] Error fetching categories, using local fallback:', err);
+      setApiCategories(defaultCategories);
     } finally {
       setIsLoadingCategories(false);
     }
@@ -188,6 +197,8 @@ export default function ProductListingScreen({
   // Fetch Products from Backend API with Combined Search, Category, Sorting, and Pagination
   const fetchProductsList = useCallback(async () => {
     if (propProducts !== undefined || route?.params?.products !== undefined) {
+      const source = propProducts !== undefined ? propProducts : route.params.products;
+      setProducts(filterActiveProducts(source || []));
       setIsLoading(false);
       return;
     }
@@ -229,7 +240,7 @@ export default function ProductListingScreen({
           : Array.isArray(response)
           ? response
           : [];
-        setProducts(items);
+        setProducts(filterActiveProducts(items));
 
         // Normalize pagination data from backend response
         const rawPagination = response?.pagination || response?.data?.pagination || null;
@@ -259,10 +270,42 @@ export default function ProductListingScreen({
       }
     } catch (err) {
       if (requestId === activeRequestIdRef.current) {
-        console.error('[ProductListingScreen] Error fetching products:', err);
-        setError(err?.message || 'Failed to load products. Please check your connection.');
-        setProducts([]);
-        setPagination(null);
+        console.warn('[ProductListingScreen] API unavailable, attempting local fallback:', err?.message);
+        try {
+          const localActive = filterActiveProducts(defaultProducts);
+          let filtered = localActive;
+          if (selectedCategory && selectedCategory !== 'all') {
+            filtered = filtered.filter(
+              (p) => p.categoryId === selectedCategory || p.category === selectedCategory
+            );
+          }
+          if (debouncedSearch) {
+            const lower = debouncedSearch.toLowerCase();
+            filtered = filtered.filter(
+              (p) =>
+                (p.name && p.name.toLowerCase().includes(lower)) ||
+                (p.categoryName && p.categoryName.toLowerCase().includes(lower))
+            );
+          }
+          if (sortOption === 'price_asc') {
+            filtered = [...filtered].sort((a, b) => (a.price || 0) - (b.price || 0));
+          } else if (sortOption === 'price_desc') {
+            filtered = [...filtered].sort((a, b) => (b.price || 0) - (a.price || 0));
+          }
+          setProducts(filtered);
+          setPagination({
+            total: filtered.length,
+            limit: PAGE_LIMIT,
+            page: 1,
+            totalPages: Math.ceil(filtered.length / PAGE_LIMIT) || 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          });
+        } catch (_localErr) {
+          setError(err?.message || 'Failed to load products. Please check your connection.');
+          setProducts([]);
+          setPagination(null);
+        }
       }
     } finally {
       if (requestId === activeRequestIdRef.current) {

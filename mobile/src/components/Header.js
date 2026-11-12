@@ -10,6 +10,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import SearchBar from './SearchBar';
+import { useCart } from '../context/CartContext';
 
 export default function Header({
   searchQuery = '',
@@ -18,11 +19,19 @@ export default function Header({
   onSubmitSearch,
   onNotificationPress,
   onCartPress,
+  onSettingsPress,
+  onOrdersPress,
   unreadNotifications = 2,
-  cartItemCount = 0,
+  cartItemCount: propCartItemCount,
   showBack = false,
   onBackPress,
+  children,
 }) {
+  const cart = useCart();
+  const cartItemCount =
+    propCartItemCount !== undefined
+      ? propCartItemCount
+      : (cart?.cartItemCount ?? 0);
   return (
     <View style={styles.container}>
       {/* Top Branding & Action Bar */}
@@ -63,6 +72,21 @@ export default function Header({
         </View>
 
         <View style={styles.actionsContainer}>
+          {onOrdersPress && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={onOrdersPress}
+              activeOpacity={0.7}
+              accessibilityLabel="My Orders"
+            >
+              <Ionicons
+                name="receipt-outline"
+                size={21}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onNotificationPress}
@@ -83,27 +107,45 @@ export default function Header({
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={onCartPress}
-            activeOpacity={0.7}
-            accessibilityLabel="Shopping Cart"
-          >
-            <Ionicons
-              name="cart-outline"
-              size={22}
-              color={colors.textPrimary}
-            />
-            {cartItemCount > 0 && (
-              <View style={[styles.notificationBadge, styles.cartBadge]}>
-                <Text style={styles.badgeText}>
-                  {cartItemCount > 9 ? '9+' : cartItemCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {onSettingsPress ? (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={onSettingsPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Settings"
+            >
+              <Ionicons
+                name="settings-outline"
+                size={22}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={onCartPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Shopping Cart"
+            >
+              <Ionicons
+                name="cart-outline"
+                size={22}
+                color={colors.textPrimary}
+              />
+              {cartItemCount > 0 && (
+                <View style={[styles.notificationBadge, styles.cartBadge]}>
+                  <Text style={styles.badgeText}>
+                    {cartItemCount > 9 ? '9+' : cartItemCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
+      {/* Content positioned directly below header top row and above search bar */}
+      {children}
 
       {/* Search Bar Section */}
       <View style={styles.searchSection}>

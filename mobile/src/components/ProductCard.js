@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,6 +11,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import {
+  isProductOwnedByCurrentSeller,
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+} from '../data/businessProfileData';
 
 export default function ProductCard({
   product,
@@ -29,11 +34,62 @@ export default function ProductCard({
   totalReviews = product?.totalReviews,
   isSurplus = product?.isSurplus,
   isFeatured = product?.isFeatured,
+  isOwnProduct: propIsOwnProduct,
   onPress,
+  onEditPress,
   style,
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [imageError, setImageError] = useState(false);
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const isOwn = useMemo(() => {
+    if (propIsOwnProduct !== undefined) return Boolean(propIsOwnProduct);
+    return isProductOwnedByCurrentSeller(
+      product || {
+        id,
+        name,
+        price,
+        originalPrice,
+        category,
+        sellerName,
+        location,
+        image,
+        unit,
+        moq,
+        rating,
+        totalReviews,
+        isSurplus,
+        isFeatured,
+      },
+      sessionProfile
+    );
+  }, [
+    propIsOwnProduct,
+    product,
+    id,
+    name,
+    price,
+    originalPrice,
+    category,
+    sellerName,
+    location,
+    image,
+    unit,
+    moq,
+    rating,
+    totalReviews,
+    isSurplus,
+    isFeatured,
+    sessionProfile,
+  ]);
 
   // Reset image error state whenever product image URI changes
   React.useEffect(() => {
@@ -185,6 +241,13 @@ export default function ProductCard({
               <Text style={styles.featuredText}>Featured</Text>
             </View>
           )}
+
+          {isOwn && (
+            <View style={styles.myProductBadge}>
+              <Ionicons name="person" size={10} color={colors.textInverse} />
+              <Text style={styles.myProductBadgeText}>My Product</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.details}>
@@ -208,7 +271,7 @@ export default function ProductCard({
 
           {moq ? (
             <Text style={styles.moq}>
-              MOQ: {moq} {moqUnitLabel}
+              Min. Order: {moq} {moqUnitLabel}
             </Text>
           ) : null}
 
@@ -253,6 +316,40 @@ export default function ProductCard({
               </Text>
             </View>
           ) : null}
+
+          {onEditPress && (
+            <TouchableOpacity
+              style={styles.editCardButton}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                onEditPress(
+                  product || {
+                    id,
+                    name,
+                    price,
+                    originalPrice,
+                    category,
+                    sellerName,
+                    location,
+                    image,
+                    unit,
+                    moq,
+                    rating,
+                    totalReviews,
+                    isSurplus,
+                    isFeatured,
+                  }
+                );
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${product?.name || name || 'product'}`}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="create-outline" size={13} color={colors.primary} />
+              <Text style={styles.editCardButtonText}>Edit</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -351,6 +448,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.accent,
   },
+  myProductBadge: {
+    position: 'absolute',
+    bottom: spacing.xs + 2,
+    left: spacing.xs + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  myProductBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
   details: {
     padding: spacing.sm + 2,
     flex: 1,
@@ -448,5 +568,22 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
     flexShrink: 1,
+  },
+  editCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    marginTop: spacing.xs + 2,
+    gap: 4,
+  },
+  editCardButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });
