@@ -1,4 +1,25 @@
 import React, { useState, useEffect } from 'react';
+
+const PAYMENT_METHODS = [
+  {
+    id: 'bank_transfer',
+    title: 'Trade Credit / RTGS / NEFT',
+    subtitle: 'Direct factory bank transfer settlement',
+    icon: 'business-outline',
+  },
+  {
+    id: 'cod',
+    title: 'Cash on Delivery (COD)',
+    subtitle: 'Payment upon warehouse dock delivery',
+    icon: 'cash-outline',
+  },
+  {
+    id: 'invoice_credit',
+    title: '30-Day Commercial Credit',
+    subtitle: 'Pay on net-30 terms (Verified MSME buyers)',
+    icon: 'document-text-outline',
+  },
+];
 import {
   StyleSheet,
   View,
@@ -11,7 +32,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
@@ -27,7 +48,16 @@ export default function CheckoutScreen({
   onBackPress,
   onNavigateToHome,
 }) {
-  const { cartItems, cartItemCount, totalUnits } = useCart();
+  const {
+    cartItems,
+    cartItemCount,
+    totalUnits,
+    subtotal,
+    totalSavings,
+    totalAmount,
+  } = useCart();
+
+  const [selectedPayment, setSelectedPayment] = useState('bank_transfer');
 
   const [addressForm, setAddressForm] = useState({
     name: '',
@@ -395,6 +425,129 @@ export default function CheckoutScreen({
               })}
             </View>
           </View>
+
+          {/* 3. Wholesale Payment Terms */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionTitleLeft}>
+                <Ionicons
+                  name="card-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.sectionTitle}>Wholesale Payment Terms</Text>
+              </View>
+            </View>
+
+            <View style={styles.paymentList}>
+              {PAYMENT_METHODS.map((method) => {
+                const isSelected = selectedPayment === method.id;
+                return (
+                  <TouchableOpacity
+                    key={method.id}
+                    style={[
+                      styles.paymentOption,
+                      isSelected && styles.paymentOptionSelected,
+                    ]}
+                    onPress={() => setSelectedPayment(method.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.paymentRadio}>
+                      {isSelected && <View style={styles.paymentRadioInner} />}
+                    </View>
+                    <Ionicons
+                      name={method.icon}
+                      size={20}
+                      color={isSelected ? colors.primary : colors.textSecondary}
+                      style={styles.paymentIcon}
+                    />
+                    <View style={styles.paymentTextWrapper}>
+                      <Text
+                        style={[
+                          styles.paymentTitle,
+                          isSelected && styles.paymentTitleSelected,
+                        ]}
+                      >
+                        {method.title}
+                      </Text>
+                      <Text style={styles.paymentSubtitle}>
+                        {method.subtitle}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 4. Price Breakdown Card */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionTitleLeft}>
+                <Ionicons
+                  name="receipt-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.sectionTitle}>Price Breakdown</Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryTable}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Items Subtotal</Text>
+                <Text style={styles.summaryValue}>
+                  ₹{subtotal.toLocaleString('en-IN')}
+                </Text>
+              </View>
+
+              {totalSavings > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summarySavingsLabel}>
+                    Bulk Tier Discount Savings
+                  </Text>
+                  <Text style={styles.summarySavingsValue}>
+                    -₹{totalSavings.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Wholesale Cargo Freight</Text>
+                <View style={styles.freeBadge}>
+                  <Text style={styles.freeBadgeText}>FREE (Included)</Text>
+                </View>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>GST Commercial Invoicing</Text>
+                <Text style={styles.summaryValueMuted}>Included</Text>
+              </View>
+
+              <View style={styles.summaryDivider} />
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryGrandLabel}>Order Total</Text>
+                <View style={styles.grandPriceWrapper}>
+                  <Text style={styles.grandPriceCurrency}>₹</Text>
+                  <Text style={styles.grandPriceAmount}>
+                    {totalAmount.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.assuranceNotice}>
+              <MaterialCommunityIcons
+                name="shield-check"
+                size={16}
+                color={colors.primary}
+              />
+              <Text style={styles.assuranceNoticeText}>
+                Protected by VyaparSetu Trade Assurance. Direct factory invoicing & quality guarantee.
+              </Text>
+            </View>
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -672,6 +825,141 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: colors.primary,
+  },
+  paymentList: {
+    gap: spacing.sm,
+  },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    gap: spacing.sm + 2,
+  },
+  paymentOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight + '0D',
+  },
+  paymentRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.full,
+    borderWidth: 2,
+    borderColor: colors.borderDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+  },
+  paymentIcon: {
+    marginRight: 2,
+  },
+  paymentTextWrapper: {
+    flex: 1,
+  },
+  paymentTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  paymentTitleSelected: {
+    color: colors.primary,
+  },
+  paymentSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  summaryTable: {
+    gap: spacing.sm,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  summaryValueMuted: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  summarySavingsLabel: {
+    fontSize: 13,
+    color: colors.surplus,
+    fontWeight: '600',
+  },
+  summarySavingsValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.surplus,
+  },
+  freeBadge: {
+    backgroundColor: colors.successLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  freeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  },
+  summaryGrandLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  grandPriceWrapper: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  grandPriceCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 2,
+  },
+  grandPriceAmount: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  assuranceNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primaryLight + '12',
+    padding: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.xs,
+  },
+  assuranceNoticeText: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '500',
+    lineHeight: 16,
   },
   emptyCard: {
     backgroundColor: colors.surface,
