@@ -1,4 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Alert,
+  Platform,
+  StatusBar,
+  KeyboardAvoidingView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors } from '../theme/colors';
+import { spacing, borderRadius } from '../theme/spacing';
+import { useCart } from '../context/CartContext';
+import {
+  saveOrder,
+  generateOrderId,
+  loadPersistedAddress,
+  saveDeliveryAddress,
+  getSavedAddress,
+} from '../data/orders';
+import EmptyState from '../components/EmptyState';
 
 const PAYMENT_METHODS = [
   {
@@ -20,34 +46,12 @@ const PAYMENT_METHODS = [
     icon: 'document-text-outline',
   },
 ];
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Alert,
-  Platform,
-  StatusBar,
-  KeyboardAvoidingView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
-import { spacing, borderRadius } from '../theme/spacing';
-import { useCart } from '../context/CartContext';
-import {
-  loadPersistedAddress,
-  getSavedAddress,
-} from '../data/orders';
-import EmptyState from '../components/EmptyState';
 
 export default function CheckoutScreen({
   navigation,
   route,
   onBackPress,
+  onNavigateToConfirmation,
   onNavigateToHome,
 }) {
   const {
@@ -57,10 +61,8 @@ export default function CheckoutScreen({
     subtotal,
     totalSavings,
     totalAmount,
+    clearCart,
   } = useCart();
-
-  const [selectedPayment, setSelectedPayment] = useState('bank_transfer');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [addressForm, setAddressForm] = useState({
     name: '',
@@ -74,7 +76,10 @@ export default function CheckoutScreen({
   });
 
   const [errors, setErrors] = useState({});
+  const [selectedPayment, setSelectedPayment] = useState('bank_transfer');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Load previously saved delivery address if available
   useEffect(() => {
     let isMounted = true;
     async function loadAddress() {
@@ -93,6 +98,35 @@ export default function CheckoutScreen({
       isMounted = false;
     };
   }, []);
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+    } else if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Cart');
+    }
+  };
+
+  const handleGoHome = () => {
+    if (onNavigateToHome) {
+      onNavigateToHome();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Home');
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setAddressForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   const validateAddress = () => {
     const newErrors = {};
@@ -127,7 +161,7 @@ export default function CheckoutScreen({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (isSubmitting) return;
 
     if (cartItems.length === 0) {
@@ -149,39 +183,76 @@ export default function CheckoutScreen({
       return;
     }
 
-    Alert.alert(
-      'Order Validated',
-      `Ready to place order for ${totalUnits} units (₹${totalAmount.toLocaleString('en-IN')}).`,
-      [{ text: 'OK' }]
-    );
-  };
+    setIsSubmitting(true);
 
-  const handleInputChange = (field, value) => {
-    setAddressForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    }
-  };
+    try {
+      const orderId = generateOrderId();
+      const orderPayload = {
+        id: orderId,
+        orderNumber: orderId,
+        createdAt: new Date().toISOString(),
+        status: 'Confirmed',
+        items: cartItems.map((item) => ({
+          id: item.id,
+          productId: item.id,
+          name: item.product?.name || 'Wholesale Product',
+          categoryName: item.product?.categoryName || 'General',
+          sellerName: item.product?.sellerName || 'Verified Seller',
+          sellerId: item.product?.sellerId,
+          image:
+            item.product?.image ||
+            (Array.isArray(item.product?.images) && item.product.images[0]) ||
+            null,
+          quantity: item.quantity,
+          unit: item.product?.unit || 'unit',
+          unitPrice: item.unitPrice,
+          itemTotal: item.itemTotal,
+          activeTier: item.activeTier || null,
+          savings: item.savings || 0,
+        })),
+        totalItems: cartItemCount,
+        totalUnits: totalUnits,
+        subtotal: subtotal,
+        totalSavings: totalSavings,
+        totalAmount: totalAmount,
+        deliveryAddress: { ...addressForm },
+        paymentMethod:
+          PAYMENT_METHODS.find((p) => p.id === selectedPayment)?.title ||
+          'Trade Credit / NEFT / RTGS',
+        orderDate: new Date().toLocaleDateString('en-IN', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }),
+      };
 
-  const handleBack = () => {
-    if (onBackPress) {
-      onBackPress();
-    } else if (navigation?.canGoBack?.()) {
-      navigation.goBack();
-    } else if (navigation?.navigate) {
-      navigation.navigate('Cart');
-    }
-  };
+      // 1. Save placed order locally
+      const saved = await saveOrder(orderPayload);
 
-  const handleGoHome = () => {
-    if (onNavigateToHome) {
-      onNavigateToHome();
-    } else if (navigation?.navigate) {
-      navigation.navigate('Home');
+      // 2. Save delivery address for future orders
+      await saveDeliveryAddress(addressForm);
+
+      // 3. Clear the Cart only after successful order placement
+      clearCart();
+
+      // 4. Navigate to Order Confirmation Screen
+      if (onNavigateToConfirmation) {
+        onNavigateToConfirmation(saved || orderPayload);
+      } else if (navigation?.navigate) {
+        navigation.navigate('OrderConfirmation', {
+          order: saved || orderPayload,
+          orderId: orderPayload.id,
+        });
+      }
+    } catch (err) {
+      console.warn('[CheckoutScreen] Failed to place order:', err);
+      Alert.alert(
+        'Order Placement Error',
+        'An error occurred while saving your wholesale order. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -239,385 +310,385 @@ export default function CheckoutScreen({
         >
           <ScrollView
             style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* 1. Delivery Address Card */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionTitleLeft}>
-                <Ionicons
-                  name="location-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.sectionTitle}>Delivery Address</Text>
-              </View>
-              <View style={styles.b2bTag}>
-                <Text style={styles.b2bTagText}>Warehouse / Premises</Text>
-              </View>
-            </View>
-
-            <Text style={styles.sectionDescription}>
-              Enter the delivery destination for your wholesale cargo freight.
-            </Text>
-
-            {/* Form Fields */}
-            <View style={styles.formContainer}>
-              {/* Contact Name & Phone Row */}
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  Contact Person Name <Text style={styles.requiredStar}>*</Text>
-                </Text>
-                <TextInput
-                  style={[styles.input, errors.name && styles.inputError]}
-                  placeholder="e.g. Ramesh Kumar"
-                  value={addressForm.name}
-                  onChangeText={(val) => handleInputChange('name', val)}
-                  placeholderTextColor={colors.textMuted}
-                />
-                {errors.name && (
-                  <Text style={styles.errorText}>{errors.name}</Text>
-                )}
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  Mobile Number <Text style={styles.requiredStar}>*</Text>
-                </Text>
-                <View
-                  style={[
-                    styles.phoneInputWrapper,
-                    errors.phone && styles.inputError,
-                  ]}
-                >
-                  <Text style={styles.phonePrefix}>+91</Text>
-                  <TextInput
-                    style={styles.phoneInput}
-                    placeholder="9876543210"
-                    value={addressForm.phone}
-                    onChangeText={(val) => handleInputChange('phone', val)}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    placeholderTextColor={colors.textMuted}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* 1. Delivery Address Card */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleLeft}>
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={colors.primary}
                   />
+                  <Text style={styles.sectionTitle}>Delivery Address</Text>
                 </View>
-                {errors.phone && (
-                  <Text style={styles.errorText}>{errors.phone}</Text>
-                )}
+                <View style={styles.b2bTag}>
+                  <Text style={styles.b2bTagText}>Warehouse / Premises</Text>
+                </View>
               </View>
 
-              {/* Company / Business Name (Optional) */}
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  Company / Trade Name <Text style={styles.optionalText}>(Optional)</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Kumar Retail & Distribution Ltd."
-                  value={addressForm.businessName}
-                  onChangeText={(val) => handleInputChange('businessName', val)}
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
+              <Text style={styles.sectionDescription}>
+                Enter the delivery destination for your wholesale cargo freight.
+              </Text>
 
-              {/* Street Address */}
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  Street Address / Warehouse Unit <Text style={styles.requiredStar}>*</Text>
-                </Text>
-                <TextInput
-                  style={[styles.input, errors.street && styles.inputError]}
-                  placeholder="e.g. Plot No. 18, Industrial Area, Phase II"
-                  value={addressForm.street}
-                  onChangeText={(val) => handleInputChange('street', val)}
-                  placeholderTextColor={colors.textMuted}
-                />
-                {errors.street && (
-                  <Text style={styles.errorText}>{errors.street}</Text>
-                )}
-              </View>
-
-              {/* City & State Row */}
-              <View style={styles.twoColRow}>
-                <View style={[styles.fieldGroup, styles.flexOne]}>
+              {/* Form Fields */}
+              <View style={styles.formContainer}>
+                {/* Contact Name & Phone Row */}
+                <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>
-                    City / Town <Text style={styles.requiredStar}>*</Text>
+                    Contact Person Name <Text style={styles.requiredStar}>*</Text>
                   </Text>
                   <TextInput
-                    style={[styles.input, errors.city && styles.inputError]}
-                    placeholder="e.g. Jaipur"
-                    value={addressForm.city}
-                    onChangeText={(val) => handleInputChange('city', val)}
+                    style={[styles.input, errors.name && styles.inputError]}
+                    placeholder="e.g. Ramesh Kumar"
+                    value={addressForm.name}
+                    onChangeText={(val) => handleInputChange('name', val)}
                     placeholderTextColor={colors.textMuted}
                   />
-                  {errors.city && (
-                    <Text style={styles.errorText}>{errors.city}</Text>
+                  {errors.name && (
+                    <Text style={styles.errorText}>{errors.name}</Text>
                   )}
                 </View>
 
-                <View style={[styles.fieldGroup, styles.flexOne]}>
+                <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>
-                    State <Text style={styles.requiredStar}>*</Text>
+                    Mobile Number <Text style={styles.requiredStar}>*</Text>
                   </Text>
-                  <TextInput
-                    style={[styles.input, errors.state && styles.inputError]}
-                    placeholder="e.g. Rajasthan"
-                    value={addressForm.state}
-                    onChangeText={(val) => handleInputChange('state', val)}
-                    placeholderTextColor={colors.textMuted}
-                  />
-                  {errors.state && (
-                    <Text style={styles.errorText}>{errors.state}</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* PIN Code & GSTIN Row */}
-              <View style={styles.twoColRow}>
-                <View style={[styles.fieldGroup, styles.flexOne]}>
-                  <Text style={styles.fieldLabel}>
-                    PIN Code <Text style={styles.requiredStar}>*</Text>
-                  </Text>
-                  <TextInput
-                    style={[styles.input, errors.pincode && styles.inputError]}
-                    placeholder="302022"
-                    value={addressForm.pincode}
-                    onChangeText={(val) => handleInputChange('pincode', val)}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    placeholderTextColor={colors.textMuted}
-                  />
-                  {errors.pincode && (
-                    <Text style={styles.errorText}>{errors.pincode}</Text>
+                  <View
+                    style={[
+                      styles.phoneInputWrapper,
+                      errors.phone && styles.inputError,
+                    ]}
+                  >
+                    <Text style={styles.phonePrefix}>+91</Text>
+                    <TextInput
+                      style={styles.phoneInput}
+                      placeholder="9876543210"
+                      value={addressForm.phone}
+                      onChangeText={(val) => handleInputChange('phone', val)}
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  {errors.phone && (
+                    <Text style={styles.errorText}>{errors.phone}</Text>
                   )}
                 </View>
 
-                <View style={[styles.fieldGroup, styles.flexOne]}>
+                {/* Company / Business Name (Optional) */}
+                <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>
-                    GSTIN <Text style={styles.optionalText}>(Tax Invoicing)</Text>
+                    Company / Trade Name <Text style={styles.optionalText}>(Optional)</Text>
                   </Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="08AAAAA0000A1Z5"
-                    value={addressForm.gstin}
-                    onChangeText={(val) => handleInputChange('gstin', val.toUpperCase())}
-                    autoCapitalize="characters"
-                    maxLength={15}
+                    placeholder="e.g. Kumar Retail & Distribution Ltd."
+                    value={addressForm.businessName}
+                    onChangeText={(val) => handleInputChange('businessName', val)}
                     placeholderTextColor={colors.textMuted}
                   />
                 </View>
+
+                {/* Street Address */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>
+                    Street Address / Warehouse Unit <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={[styles.input, errors.street && styles.inputError]}
+                    placeholder="e.g. Plot No. 18, Industrial Area, Phase II"
+                    value={addressForm.street}
+                    onChangeText={(val) => handleInputChange('street', val)}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  {errors.street && (
+                    <Text style={styles.errorText}>{errors.street}</Text>
+                  )}
+                </View>
+
+                {/* City & State Row */}
+                <View style={styles.twoColRow}>
+                  <View style={[styles.fieldGroup, styles.flexOne]}>
+                    <Text style={styles.fieldLabel}>
+                      City / Town <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={[styles.input, errors.city && styles.inputError]}
+                      placeholder="e.g. Jaipur"
+                      value={addressForm.city}
+                      onChangeText={(val) => handleInputChange('city', val)}
+                      placeholderTextColor={colors.textMuted}
+                    />
+                    {errors.city && (
+                      <Text style={styles.errorText}>{errors.city}</Text>
+                    )}
+                  </View>
+
+                  <View style={[styles.fieldGroup, styles.flexOne]}>
+                    <Text style={styles.fieldLabel}>
+                      State <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={[styles.input, errors.state && styles.inputError]}
+                      placeholder="e.g. Rajasthan"
+                      value={addressForm.state}
+                      onChangeText={(val) => handleInputChange('state', val)}
+                      placeholderTextColor={colors.textMuted}
+                    />
+                    {errors.state && (
+                      <Text style={styles.errorText}>{errors.state}</Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* PIN Code & GSTIN Row */}
+                <View style={styles.twoColRow}>
+                  <View style={[styles.fieldGroup, styles.flexOne]}>
+                    <Text style={styles.fieldLabel}>
+                      PIN Code <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={[styles.input, errors.pincode && styles.inputError]}
+                      placeholder="302022"
+                      value={addressForm.pincode}
+                      onChangeText={(val) => handleInputChange('pincode', val)}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      placeholderTextColor={colors.textMuted}
+                    />
+                    {errors.pincode && (
+                      <Text style={styles.errorText}>{errors.pincode}</Text>
+                    )}
+                  </View>
+
+                  <View style={[styles.fieldGroup, styles.flexOne]}>
+                    <Text style={styles.fieldLabel}>
+                      GSTIN <Text style={styles.optionalText}>(Tax Invoicing)</Text>
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="08AAAAA0000A1Z5"
+                      value={addressForm.gstin}
+                      onChangeText={(val) => handleInputChange('gstin', val.toUpperCase())}
+                      autoCapitalize="characters"
+                      maxLength={15}
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* 2. Order Summary (Items List) */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionTitleLeft}>
-                <Ionicons
-                  name="cube-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.sectionTitle}>
-                  Order Items ({cartItemCount})
+            {/* 2. Order Summary (Items List) */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleLeft}>
+                  <Ionicons
+                    name="cube-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>
+                    Order Items ({cartItemCount})
+                  </Text>
+                </View>
+                <Text style={styles.totalUnitsHeader}>
+                  {totalUnits} Total Units
                 </Text>
               </View>
-              <Text style={styles.totalUnitsHeader}>
-                {totalUnits} Total Units
-              </Text>
-            </View>
 
-            <View style={styles.itemsList}>
-              {cartItems.map((item, index) => {
-                const product = item.product || {};
-                const unitSingular = product.unit || 'unit';
-                const imageUri =
-                  product.image ||
-                  (Array.isArray(product.images) && product.images[0]) ||
-                  null;
+              <View style={styles.itemsList}>
+                {cartItems.map((item, index) => {
+                  const product = item.product || {};
+                  const unitSingular = product.unit || 'unit';
+                  const imageUri =
+                    product.image ||
+                    (Array.isArray(product.images) && product.images[0]) ||
+                    null;
 
-                return (
-                  <View
-                    key={`checkout-item-${item.id || index}`}
-                    style={[
-                      styles.itemRow,
-                      index > 0 && styles.itemRowBorder,
-                    ]}
-                  >
-                    <View style={styles.itemImageContainer}>
-                      {imageUri ? (
-                        <Image
-                          source={{ uri: imageUri }}
-                          style={styles.itemImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.itemImageFallback}>
-                          <Ionicons
-                            name="cube-outline"
-                            size={22}
-                            color={colors.textMuted}
+                  return (
+                    <View
+                      key={`checkout-item-${item.id || index}`}
+                      style={[
+                        styles.itemRow,
+                        index > 0 && styles.itemRowBorder,
+                      ]}
+                    >
+                      <View style={styles.itemImageContainer}>
+                        {imageUri ? (
+                          <Image
+                            source={{ uri: imageUri }}
+                            style={styles.itemImage}
+                            resizeMode="cover"
                           />
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.itemDetails}>
-                      <Text style={styles.itemTitle} numberOfLines={2}>
-                        {product.name || 'Wholesale Product'}
-                      </Text>
-                      <Text style={styles.itemSeller} numberOfLines={1}>
-                        By {product.sellerName || 'Verified Seller'}
-                      </Text>
-
-                      <View style={styles.itemPricingRow}>
-                        <Text style={styles.itemQtyPrice}>
-                          {item.quantity} {unitSingular}s × ₹{item.unitPrice}
-                        </Text>
-                        {item.activeTier && (
-                          <View style={styles.tierPill}>
-                            <Text style={styles.tierPillText}>Bulk Tier</Text>
+                        ) : (
+                          <View style={styles.itemImageFallback}>
+                            <Ionicons
+                              name="cube-outline"
+                              size={22}
+                              color={colors.textMuted}
+                            />
                           </View>
                         )}
                       </View>
-                    </View>
 
-                    <View style={styles.itemTotalRight}>
-                      <Text style={styles.itemTotal}>
-                        ₹{item.itemTotal.toLocaleString('en-IN')}
-                      </Text>
+                      <View style={styles.itemDetails}>
+                        <Text style={styles.itemTitle} numberOfLines={2}>
+                          {product.name || 'Wholesale Product'}
+                        </Text>
+                        <Text style={styles.itemSeller} numberOfLines={1}>
+                          By {product.sellerName || 'Verified Seller'}
+                        </Text>
+
+                        <View style={styles.itemPricingRow}>
+                          <Text style={styles.itemQtyPrice}>
+                            {item.quantity} {unitSingular}s × ₹{item.unitPrice}
+                          </Text>
+                          {item.activeTier && (
+                            <View style={styles.tierPill}>
+                              <Text style={styles.tierPillText}>Bulk Tier</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.itemTotalRight}>
+                        <Text style={styles.itemTotal}>
+                          ₹{item.itemTotal.toLocaleString('en-IN')}
+                        </Text>
+                      </View>
                     </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* 3. Wholesale Payment Terms */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleLeft}>
+                  <Ionicons
+                    name="card-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Wholesale Payment Terms</Text>
+                </View>
+              </View>
+
+              <View style={styles.paymentList}>
+                {PAYMENT_METHODS.map((method) => {
+                  const isSelected = selectedPayment === method.id;
+                  return (
+                    <TouchableOpacity
+                      key={method.id}
+                      style={[
+                        styles.paymentOption,
+                        isSelected && styles.paymentOptionSelected,
+                      ]}
+                      onPress={() => setSelectedPayment(method.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.paymentRadio}>
+                        {isSelected && <View style={styles.paymentRadioInner} />}
+                      </View>
+                      <Ionicons
+                        name={method.icon}
+                        size={20}
+                        color={isSelected ? colors.primary : colors.textSecondary}
+                        style={styles.paymentIcon}
+                      />
+                      <View style={styles.paymentTextWrapper}>
+                        <Text
+                          style={[
+                            styles.paymentTitle,
+                            isSelected && styles.paymentTitleSelected,
+                          ]}
+                        >
+                          {method.title}
+                        </Text>
+                        <Text style={styles.paymentSubtitle}>
+                          {method.subtitle}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* 4. Price Breakdown Card */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleLeft}>
+                  <Ionicons
+                    name="receipt-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Price Breakdown</Text>
+                </View>
+              </View>
+
+              <View style={styles.summaryTable}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Items Subtotal</Text>
+                  <Text style={styles.summaryValue}>
+                    ₹{subtotal.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+
+                {totalSavings > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summarySavingsLabel}>
+                      Bulk Tier Discount Savings
+                    </Text>
+                    <Text style={styles.summarySavingsValue}>
+                      -₹{totalSavings.toLocaleString('en-IN')}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
-          </View>
+                )}
 
-          {/* 3. Wholesale Payment Terms */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionTitleLeft}>
-                <Ionicons
-                  name="card-outline"
-                  size={20}
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Wholesale Cargo Freight</Text>
+                  <View style={styles.freeBadge}>
+                    <Text style={styles.freeBadgeText}>FREE (Included)</Text>
+                  </View>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>GST Commercial Invoicing</Text>
+                  <Text style={styles.summaryValueMuted}>Included</Text>
+                </View>
+
+                <View style={styles.summaryDivider} />
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryGrandLabel}>Order Total</Text>
+                  <View style={styles.grandPriceWrapper}>
+                    <Text style={styles.grandPriceCurrency}>₹</Text>
+                    <Text style={styles.grandPriceAmount}>
+                      {totalAmount.toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.assuranceNotice}>
+                <MaterialCommunityIcons
+                  name="shield-check"
+                  size={16}
                   color={colors.primary}
                 />
-                <Text style={styles.sectionTitle}>Wholesale Payment Terms</Text>
-              </View>
-            </View>
-
-            <View style={styles.paymentList}>
-              {PAYMENT_METHODS.map((method) => {
-                const isSelected = selectedPayment === method.id;
-                return (
-                  <TouchableOpacity
-                    key={method.id}
-                    style={[
-                      styles.paymentOption,
-                      isSelected && styles.paymentOptionSelected,
-                    ]}
-                    onPress={() => setSelectedPayment(method.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.paymentRadio}>
-                      {isSelected && <View style={styles.paymentRadioInner} />}
-                    </View>
-                    <Ionicons
-                      name={method.icon}
-                      size={20}
-                      color={isSelected ? colors.primary : colors.textSecondary}
-                      style={styles.paymentIcon}
-                    />
-                    <View style={styles.paymentTextWrapper}>
-                      <Text
-                        style={[
-                          styles.paymentTitle,
-                          isSelected && styles.paymentTitleSelected,
-                        ]}
-                      >
-                        {method.title}
-                      </Text>
-                      <Text style={styles.paymentSubtitle}>
-                        {method.subtitle}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* 4. Price Breakdown Card */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionTitleLeft}>
-                <Ionicons
-                  name="receipt-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-                <Text style={styles.sectionTitle}>Price Breakdown</Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryTable}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Items Subtotal</Text>
-                <Text style={styles.summaryValue}>
-                  ₹{subtotal.toLocaleString('en-IN')}
+                <Text style={styles.assuranceNoticeText}>
+                  Protected by VyaparSetu Trade Assurance. Direct factory invoicing & quality guarantee.
                 </Text>
               </View>
-
-              {totalSavings > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summarySavingsLabel}>
-                    Bulk Tier Discount Savings
-                  </Text>
-                  <Text style={styles.summarySavingsValue}>
-                    -₹{totalSavings.toLocaleString('en-IN')}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Wholesale Cargo Freight</Text>
-                <View style={styles.freeBadge}>
-                  <Text style={styles.freeBadgeText}>FREE (Included)</Text>
-                </View>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>GST Commercial Invoicing</Text>
-                <Text style={styles.summaryValueMuted}>Included</Text>
-              </View>
-
-              <View style={styles.summaryDivider} />
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryGrandLabel}>Order Total</Text>
-                <View style={styles.grandPriceWrapper}>
-                  <Text style={styles.grandPriceCurrency}>₹</Text>
-                  <Text style={styles.grandPriceAmount}>
-                    {totalAmount.toLocaleString('en-IN')}
-                  </Text>
-                </View>
-              </View>
             </View>
-
-            <View style={styles.assuranceNotice}>
-              <MaterialCommunityIcons
-                name="shield-check"
-                size={16}
-                color={colors.primary}
-              />
-              <Text style={styles.assuranceNoticeText}>
-                Protected by VyaparSetu Trade Assurance. Direct factory invoicing & quality guarantee.
-              </Text>
-            </View>
-          </View>
           </ScrollView>
 
           {/* Sticky Bottom Bar */}
@@ -738,6 +809,13 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingTop: spacing.xxl,
   },
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   sectionCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -782,6 +860,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: colors.info,
+  },
+  totalUnitsHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   sectionDescription: {
     fontSize: 12,
@@ -855,11 +938,6 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontWeight: '500',
     marginTop: 2,
-  },
-  totalUnitsHeader: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
   },
   itemsList: {
     gap: spacing.sm,
@@ -1072,13 +1150,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 16,
   },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -1161,3 +1232,4 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
   },
 });
+
