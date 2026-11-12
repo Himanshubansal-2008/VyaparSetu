@@ -16,6 +16,24 @@ export function getProductMoq(product) {
   return !isNaN(parsed) && parsed > 0 ? parsed : 1;
 }
 
+export function getProductStock(product) {
+  if (!product) return Infinity;
+  const rawStock =
+    product.stock !== undefined
+      ? product.stock
+      : product.availableQuantity !== undefined
+      ? product.availableQuantity
+      : null;
+
+  if (rawStock === null || rawStock === undefined) return Infinity;
+  const parsed = Number(rawStock);
+  return !isNaN(parsed) && parsed >= 0 ? parsed : Infinity;
+}
+  if (!product) return 1;
+  const parsed = Number(product.moq);
+  return !isNaN(parsed) && parsed > 0 ? parsed : 1;
+}
+
 export const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
@@ -75,6 +93,16 @@ export function CartProvider({ children }) {
 
       const existingItem = cartItems.find((item) => item.id === product.id);
       const moq = getProductMoq(product);
+      const stock = getProductStock(product);
+
+      if (stock <= 0) {
+        return {
+          success: false,
+          reason: 'out_of_stock',
+          message: 'This product is currently out of stock.',
+        };
+      }
+
       let targetQuantity = options.replace
         ? (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq)
         : existingItem
@@ -84,6 +112,20 @@ export function CartProvider({ children }) {
       targetQuantity = Math.round(targetQuantity);
       if (targetQuantity < moq) {
         targetQuantity = moq;
+      }
+
+      let clampedToStock = false;
+      if (stock !== Infinity && targetQuantity > stock) {
+        targetQuantity = stock;
+        clampedToStock = true;
+      }
+
+      if (targetQuantity < moq) {
+        return {
+          success: false,
+          reason: 'stock_below_moq',
+          message: `Available stock (${stock}) is lower than minimum order quantity (${moq}).`,
+        };
       }
 
       const unitPrice = Number(product.price) || 0;
@@ -122,8 +164,16 @@ export function CartProvider({ children }) {
       const item = prevItems.find((i) => i.id === productId);
       if (!item) return prevItems;
 
+      const stock = getProductStock(item.product);
+      if (stock !== Infinity && item.quantity >= stock) {
+        return prevItems; // Already at max stock
+      }
+
       const increment = Math.max(1, Math.round(Number(step) || 1));
-      const nextQty = item.quantity + increment;
+      let nextQty = item.quantity + increment;
+      if (stock !== Infinity && nextQty > stock) {
+        nextQty = stock;
+      }
       const unitPrice = item.unitPrice || Number(item.product?.price) || 0;
 
       return prevItems.map((i) =>

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
-import { useCart, getProductMoq } from '../context/CartContext';
+import { useCart, getProductMoq, getProductStock } from '../context/CartContext';
 
 export default function CartScreen({
   navigation,
@@ -78,6 +78,16 @@ export default function CartScreen({
   };
 
   const handleIncrement = (item) => {
+    const stock = getProductStock(item.product);
+    const unit = item.product?.unit || 'units';
+    if (stock !== Infinity && item.quantity >= stock) {
+      Alert.alert(
+        'Maximum Available Stock Reached',
+        `Only ${stock} ${unit} are currently available in inventory for this product.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     increaseQuantity(item.id);
   };
 
@@ -157,7 +167,9 @@ export default function CartScreen({
             const product = item.product || {};
             const moq = getProductMoq(product);
             const unitSingular = product.unit || 'unit';
+            const stock = getProductStock(product);
             const isAtMoq = item.quantity <= moq;
+            const isAtMaxStock = stock !== Infinity && item.quantity >= stock;
             const imageUri =
               product.image ||
               (Array.isArray(product.images) && product.images[0]) ||
@@ -276,21 +288,43 @@ export default function CartScreen({
                     </View>
 
                     <TouchableOpacity
-                      style={styles.stepperBtn}
+                      style={[
+                        styles.stepperBtn,
+                        isAtMaxStock && styles.stepperBtnDisabled,
+                      ]}
                       onPress={() => handleIncrement(item)}
+                      disabled={isAtMaxStock}
                       activeOpacity={0.7}
                       accessibilityLabel="Increase quantity"
                     >
                       <Ionicons
                         name="add"
                         size={18}
-                        color={colors.primary}
+                        color={
+                          isAtMaxStock ? colors.textMuted : colors.primary
+                        }
                       />
                     </TouchableOpacity>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.removeButton}
+                  <View style={styles.itemFooterRow}>
+                    <View style={styles.constraintsRow}>
+                      <Text style={styles.constraintText}>
+                        MOQ: <Text style={styles.boldText}>{moq}</Text>
+                      </Text>
+                      <Text style={styles.constraintDot}>·</Text>
+                      <Text style={styles.constraintText}>
+                        Stock:{' '}
+                        <Text style={styles.boldText}>
+                          {stock !== Infinity
+                            ? stock.toLocaleString('en-IN')
+                            : 'Available'}
+                        </Text>
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.removeButton}
                     onPress={() => handleRemoveItem(item)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
@@ -303,6 +337,7 @@ export default function CartScreen({
                     />
                     <Text style={styles.removeButtonText}>Remove</Text>
                   </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -391,6 +426,33 @@ const styles = StyleSheet.create({
   stepperBtnMoq: {
     backgroundColor: colors.warningLight,
     borderColor: colors.warning + '55',
+  },
+  stepperBtnDisabled: {
+    opacity: 0.5,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  itemFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+  },
+  constraintsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  constraintText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  boldText: {
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  constraintDot: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   removeButton: {
     flexDirection: 'row',
