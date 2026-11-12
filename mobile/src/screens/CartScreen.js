@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  Image,
   Platform,
   StatusBar,
 } from 'react-native';
@@ -84,6 +85,12 @@ export default function CartScreen({
         <View style={styles.itemsListContainer}>
           {cartItems.map((item, index) => {
             const product = item.product || {};
+            const unitSingular = product.unit || 'unit';
+            const imageUri =
+              product.image ||
+              (Array.isArray(product.images) && product.images[0]) ||
+              null;
+
             return (
               <View key={`cart-item-${item.id || index}`} style={styles.itemCard}>
                 <TouchableOpacity
@@ -93,6 +100,24 @@ export default function CartScreen({
                   accessibilityRole="button"
                   accessibilityLabel={`View details for ${product.name}`}
                 >
+                  <View style={styles.thumbnailContainer}>
+                    {imageUri ? (
+                      <Image
+                        source={{ uri: imageUri }}
+                        style={styles.thumbnailImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.thumbnailFallback}>
+                        <Ionicons
+                          name="cube-outline"
+                          size={28}
+                          color={colors.textMuted}
+                        />
+                      </View>
+                    )}
+                  </View>
+
                   <View style={styles.itemDetails}>
                     {product.categoryName && (
                       <View style={styles.categoryBadge}>
@@ -121,6 +146,33 @@ export default function CartScreen({
                     )}
                   </View>
                 </TouchableOpacity>
+
+                {/* Pricing Breakdown Row */}
+                <View style={styles.pricingRow}>
+                  <View style={styles.unitPriceContainer}>
+                    <Text style={styles.unitPriceLabel}>Unit Price:</Text>
+                    <View style={styles.unitPriceValues}>
+                      <Text style={styles.unitPriceCurrent}>
+                        ₹{item.unitPrice.toLocaleString('en-IN')}
+                      </Text>
+                      <Text style={styles.unitPriceUnit}>
+                        /{unitSingular}
+                      </Text>
+                      {product.originalPrice && product.originalPrice > item.unitPrice && (
+                        <Text style={styles.unitPriceOriginal}>
+                          ₹{Number(product.originalPrice).toLocaleString('en-IN')}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.itemTotalContainer}>
+                    <Text style={styles.itemTotalLabel}>Item Total</Text>
+                    <Text style={styles.itemTotalAmount}>
+                      ₹{item.itemTotal.toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                </View>
               </View>
             );
           })}
@@ -225,6 +277,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
   },
+  thumbnailContainer: {
+    width: 76,
+    height: 76,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSubtle,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   itemDetails: {
     flex: 1,
     justifyContent: 'center',
@@ -259,5 +330,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     flex: 1,
+  },
+  pricingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.md,
+  },
+  unitPriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  unitPriceLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  unitPriceValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  unitPriceCurrent: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  unitPriceUnit: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  unitPriceOriginal: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+    marginLeft: 4,
+  },
+  itemTotalContainer: {
+    alignItems: 'flex-end',
+  },
+  itemTotalLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  itemTotalAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
   },
 });
