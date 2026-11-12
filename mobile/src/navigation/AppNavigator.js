@@ -7,6 +7,7 @@ import BusinessProfileScreen from '../screens/BusinessProfileScreen';
 import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen';
 import AddProductScreen from '../screens/AddProductScreen';
 import CartScreen from '../screens/CartScreen';
+import CheckoutScreen from '../screens/CheckoutScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -23,6 +24,7 @@ const VALID_ROUTES = [
   'AddProduct',
   'EditProduct',
   'Cart',
+  'Checkout',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -247,6 +249,10 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     navigate('Cart');
   }, [navigate]);
 
+  const handleNavigateToCheckout = useCallback(() => {
+    navigate('Checkout');
+  }, [navigate]);
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -384,9 +390,24 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
             onNavigateToHome={() => navigate('Home')}
+            onNavigateToCheckout={handleNavigateToCheckout}
           />
         </View>
       )}
+
+      {/* Checkout Screen */}
+      {currentRoute.name === 'Checkout' && (
+        <View style={styles.screen}>
+          <CheckoutScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToHome={() => navigate('Home')}
+          />
+        </View>
+      )}
+
+
     </View>
   );
 }

@@ -27,6 +27,7 @@ export default function CartScreen({
   onBackPress,
   onNavigateToProductDetails,
   onNavigateToHome,
+  onNavigateToCheckout,
 }) {
   const {
     cartItems,
@@ -140,25 +141,12 @@ export default function CartScreen({
   };
 
   const handleCheckoutPress = () => {
-    Alert.alert(
-      'Request Wholesale Quotation',
-      `Your bulk order request for ${totalUnits} units totaling ₹${totalAmount.toLocaleString(
-        'en-IN'
-      )} has been prepared.\n\nIn VyaparSetu, submitting your cart initiates direct negotiations with verified manufacturers for GST invoicing, volume freight, and credit financing terms.`,
-      [
-        { text: 'Continue Browsing', style: 'cancel' },
-        {
-          text: 'Confirm Quotation',
-          onPress: () => {
-            Alert.alert(
-              'Quotation Submitted!',
-              'Sellers will review your quotation request and reply via Business Chat within 24 hours.',
-              [{ text: 'Done', onPress: handleBrowseProducts }]
-            );
-          },
-        },
-      ]
-    );
+    if (isEmpty) return;
+    if (onNavigateToCheckout) {
+      onNavigateToCheckout();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Checkout');
+    }
   };
 
   const isEmpty = cartItems.length === 0;
@@ -606,15 +594,15 @@ export default function CartScreen({
             onPress={handleCheckoutPress}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Request Wholesale Quotation"
+            accessibilityLabel="Proceed to Checkout"
           >
             <Ionicons
-              name="document-text-outline"
-              size={19}
+              name="card-outline"
+              size={18}
               color={colors.textInverse}
               style={styles.checkoutButtonIcon}
             />
-            <Text style={styles.checkoutButtonText}>Request Quotation</Text>
+            <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
           </TouchableOpacity>
         </View>
       )}
