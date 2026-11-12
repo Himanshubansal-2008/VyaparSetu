@@ -8,6 +8,60 @@ export const STORAGE_KEY_ADDRESS = '@vyaparsetu_delivery_address';
 /**
  * Default previous orders to provide immediate buyer order history on initial launch.
  */
+/**
+ * Returns color tokens and icons for order status badge.
+ */
+export const getStatusColor = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'delivered':
+      return {
+        bg: '#D1FAE5',
+        text: '#065F46',
+        border: '#10B981',
+        icon: 'checkmark-circle-outline',
+      };
+    case 'dispatched':
+    case 'in transit':
+      return {
+        bg: '#E0E7FF',
+        text: '#3730A3',
+        border: '#6366F1',
+        icon: 'airplane-outline',
+      };
+    case 'out for delivery':
+      return {
+        bg: '#CCFBF1',
+        text: '#115E59',
+        border: '#14B8A6',
+        icon: 'car-outline',
+      };
+    case 'processing':
+    case 'in production':
+      return {
+        bg: '#FEF3C7',
+        text: '#92400E',
+        border: '#F59E0B',
+        icon: 'cube-outline',
+      };
+    case 'cancelled':
+      return {
+        bg: '#FEE2E2',
+        text: '#991B1B',
+        border: '#EF4444',
+        icon: 'close-circle-outline',
+      };
+    case 'confirmed':
+    default:
+      return {
+        bg: '#DBEAFE',
+        text: '#1E40AF',
+        border: '#3B82F6',
+        icon: 'receipt-outline',
+      };
+  }
+};
+
 export const DEFAULT_SEED_ORDERS = [
   {
     id: 'VS-M1K9P2-4018',
@@ -233,6 +287,42 @@ export const saveOrder = async (orderData) => {
 };
 
 /**
+ * Updates an existing order's status and persists to AsyncStorage.
+ */
+export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
+  if (!orderId || !newStatus) return null;
+  const cleanId = String(orderId).trim().toLowerCase();
+  let updatedOrder = null;
+
+  inMemoryOrders = inMemoryOrders.map((order) => {
+    if (
+      String(order.id || '').trim().toLowerCase() === cleanId ||
+      String(order.orderNumber || '').trim().toLowerCase() === cleanId
+    ) {
+      updatedOrder = {
+        ...order,
+        ...extraData,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      };
+      return updatedOrder;
+    }
+    return order;
+  });
+
+  if (updatedOrder) {
+    notifyOrderListeners();
+    try {
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    } catch (error) {
+      console.warn('[orders] Failed to persist updated order status:', error);
+    }
+  }
+
+  return updatedOrder;
+};
+
+/**
  * Loads previously saved buyer delivery address from AsyncStorage.
  */
 export const loadPersistedAddress = async () => {
@@ -290,6 +380,8 @@ export default {
   getOrders,
   getOrderById,
   saveOrder,
+  updateOrderStatus,
+  getStatusColor,
   loadPersistedAddress,
   getSavedAddress,
   saveDeliveryAddress,

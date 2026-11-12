@@ -19,6 +19,7 @@ import {
   getOrders,
   subscribeOrders,
   loadPersistedOrders,
+  getStatusColor,
 } from '../data/orders';
 import EmptyState from '../components/EmptyState';
 
@@ -179,8 +180,10 @@ export default function OrderHistoryScreen({
   }, [orders, counts.active]);
 
   const renderOrderItem = ({ item }) => {
+    const statusCfg = getStatusColor(item.status);
     const firstItem = item.items?.[0] || {};
     const moreItemsCount = (item.items?.length || 1) - 1;
+    
 
     return (
       <TouchableOpacity
@@ -207,7 +210,26 @@ export default function OrderHistoryScreen({
             </View>
           </View>
 
-
+          {/* Status Badge */}
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: statusCfg.bg,
+                borderColor: statusCfg.border,
+              },
+            ]}
+          >
+            <Ionicons
+              name={statusCfg.icon}
+              size={13}
+              color={statusCfg.text}
+              style={{ marginRight: 4 }}
+            />
+            <Text style={[styles.statusBadgeText, { color: statusCfg.text }]}>
+              {item.status || 'Confirmed'}
+            </Text>
+          </View>
         </View>
 
         {/* Divider */}

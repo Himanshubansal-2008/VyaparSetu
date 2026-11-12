@@ -18,6 +18,8 @@ import { spacing, borderRadius } from '../theme/spacing';
 import {
   getOrderById,
   subscribeOrders,
+  updateOrderStatus,
+  getStatusColor,
 } from '../data/orders';
 import { useCart } from '../context/CartContext';
 import EmptyState from '../components/EmptyState';
@@ -221,6 +223,8 @@ export default function OrderDetailsScreen({
     );
   }
 
+  const statusCfg = getStatusColor(order.status);
+  
   const delivery = order.deliveryAddress || {};
   const items = Array.isArray(order.items) ? order.items : [];
 
@@ -262,19 +266,75 @@ export default function OrderDetailsScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* 2. Order Header Card */}
+        {/* 2. Hero Status Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
+            <View
+              style={[
+                styles.heroStatusBadge,
+                {
+                  backgroundColor: statusCfg.bg,
+                  borderColor: statusCfg.border,
+                },
+              ]}
+            >
+              <Ionicons
+                name={statusCfg.icon}
+                size={16}
+                color={statusCfg.text}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.heroStatusText, { color: statusCfg.text }]}>
+                {order.status || 'Confirmed'}
+              </Text>
+            </View>
+
             <Text style={styles.heroOrderNumber}>
-              Order #{order.id || order.orderNumber}
+              {order.id || order.orderNumber}
             </Text>
           </View>
+
           <Text style={styles.heroStatusHeadline}>
-            Wholesale Consignment #{order.id || order.orderNumber}
+            {order.status === 'Delivered'
+              ? 'Wholesale Consignment Delivered'
+              : order.status === 'Dispatched'
+              ? 'Consignment In Transit with Carrier'
+              : order.status === 'Out for Delivery'
+              ? 'Out for Warehouse Dock Delivery'
+              : order.status === 'Processing'
+              ? 'Consignment Being Packed & Inspected'
+              : order.status === 'Cancelled'
+              ? 'Order Has Been Cancelled'
+              : 'Order Confirmed by Supplier'}
           </Text>
+
           <Text style={styles.heroStatusDetail}>
-            Placed on {order.orderDate || new Date(order.createdAt).toLocaleDateString('en-IN')}
+            {order.status === 'Delivered'
+              ? `Delivered on ${order.deliveredAt || order.orderDate || 'recent date'}. Signed off at destination dock.`
+              : order.status === 'Dispatched'
+              ? `Carrier: ${order.carrierName || 'Delhivery B2B Freight'} • Tracking: ${order.trackingNumber || 'DELHIVERY-B2B-894102'}`
+              : order.status === 'Cancelled'
+              ? 'This consignment has been cancelled and any paid amounts are reversed.'
+              : `Estimated delivery by ${order.estimatedDelivery || '3-5 business days'} via freight transport.`}
           </Text>
+
+          {/* Status Progression Demo Simulator Pill */}
+          <TouchableOpacity
+            style={styles.advanceStatusBtn}
+            onPress={handleAdvanceStatus}
+            disabled={isUpdatingStatus}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="refresh-circle-outline"
+              size={16}
+              color={colors.primary}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.advanceStatusText}>
+              {isUpdatingStatus ? 'Updating...' : 'Advance Status Stage (Demo)'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
 
