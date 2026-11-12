@@ -185,14 +185,10 @@ export default function ProductDetailsScreen({
 
   const currentImage = productImages[selectedImageIndex] || null;
 
-  // Reset image error state whenever selected image or category image changes
+  // Reset image error state whenever selected image changes
   useEffect(() => {
     setImageError(false);
   }, [currentImage]);
-
-  useEffect(() => {
-    setCategoryImageError(false);
-  }, [categoryImageUrl]);
 
   const handleSelectImage = (index) => {
     if (index !== selectedImageIndex) {
@@ -230,6 +226,10 @@ export default function ProductDetailsScreen({
       ? product.category.imageUrl
       : null;
   }, [product?.category]);
+
+  useEffect(() => {
+    setCategoryImageError(false);
+  }, [categoryImageUrl]);
 
   const sellerBusiness = useMemo(() => {
     if (product?.business && typeof product.business === 'object') {
