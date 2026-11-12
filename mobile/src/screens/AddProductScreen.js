@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -26,6 +26,18 @@ const PRODUCT_CATEGORIES = categories
   .filter((cat) => cat.id !== 'all')
   .map((cat) => cat.name);
 
+// Standard wholesale selling unit presets
+const COMMON_UNITS = [
+  'piece',
+  'pair',
+  'pack',
+  'set',
+  'box',
+  'meter',
+  'kg',
+  'dozen',
+];
+
 export default function AddProductScreen({ navigation, route, onBackPress }) {
   // 1. Form State
   const [formData, setFormData] = useState({
@@ -35,6 +47,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     description: '',
     category: '',
     productImages: [],
+    price: '',
+    originalPrice: '',
+    unit: 'piece',
   });
 
   const productImages = Array.isArray(formData.productImages)
@@ -153,6 +168,16 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
       );
     }
   };
+
+  // Live discount percentage calculation
+  const discountPercent = useMemo(() => {
+    const p = parseFloat(formData.price);
+    const op = parseFloat(formData.originalPrice);
+    if (!isNaN(p) && !isNaN(op) && op > p && p > 0) {
+      return Math.round(((op - p) / op) * 100);
+    }
+    return 0;
+  }, [formData.price, formData.originalPrice]);
 
   // Back Navigation
   const handleBack = () => {
@@ -384,6 +409,108 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   color={colors.textSecondary}
                 />
               </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Section 3: Pricing & Selling Unit */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Pricing & Unit</Text>
+
+            {/* Row: Product Price & Original Price */}
+            <View style={styles.rowInputs}>
+              {/* Product Price (Wholesale) */}
+              <View style={[styles.inputGroup, styles.inputHalf]}>
+                <Text style={styles.label}>Product Price (₹)</Text>
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.currencyPrefix}>₹</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.price}
+                    onChangeText={(val) => handleFieldChange('price', val)}
+                    placeholder="e.g. 450"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Original Price / MRP */}
+              <View
+                style={[styles.inputGroup, styles.inputHalf, styles.inputHalfLast]}
+              >
+                <Text style={styles.label}>Original Price / MRP (₹)</Text>
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.currencyPrefix}>₹</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.originalPrice}
+                    onChangeText={(val) =>
+                      handleFieldChange('originalPrice', val)
+                    }
+                    placeholder="e.g. 600"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Discount Pill if Original Price is higher */}
+            {discountPercent > 0 && (
+              <View style={styles.discountBanner}>
+                <Ionicons
+                  name="pricetag"
+                  size={14}
+                  color={colors.success}
+                />
+                <Text style={styles.discountBannerText}>
+                  Buyers will see a {discountPercent}% discount off MRP!
+                </Text>
+              </View>
+            )}
+
+            {/* Selling Unit */}
+            <View style={[styles.inputGroup, styles.inputGroupLast, { marginTop: spacing.sm }]}>
+              <Text style={styles.label}>Selling Unit</Text>
+
+              {/* Common Unit Preset Chips */}
+              <View style={styles.unitChipsWrapper}>
+                {COMMON_UNITS.map((u) => {
+                  const isSelected =
+                    formData.unit.toLowerCase() === u.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={`unit-${u}`}
+                      style={[
+                        styles.unitChip,
+                        isSelected && styles.unitChipSelected,
+                      ]}
+                      onPress={() => handleFieldChange('unit', u)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.unitChipText,
+                          isSelected && styles.unitChipTextSelected,
+                        ]}
+                      >
+                        {u}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Editable Unit Input */}
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={formData.unit}
+                  onChangeText={(val) => handleFieldChange('unit', val)}
+                  placeholder="Or enter custom unit (e.g. bundle, roll, carton)"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -658,6 +785,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 46,
   },
+  currencyPrefix: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginRight: spacing.xs,
+  },
   input: {
     flex: 1,
     fontSize: 14,
@@ -683,6 +816,62 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     color: colors.textMuted,
+  },
+  rowInputs: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  inputHalf: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  inputHalfLast: {
+    marginRight: 0,
+    marginLeft: spacing.sm,
+  },
+  discountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.successLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.success,
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  discountBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  unitChipsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  unitChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  unitChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  unitChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  unitChipTextSelected: {
+    color: colors.textInverse,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
