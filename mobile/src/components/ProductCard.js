@@ -23,12 +23,13 @@ export default function ProductCard({
   name = product?.name,
   price = product?.price,
   originalPrice = product?.originalPrice,
-  category = product?.categoryName || product?.category,
-  sellerName = product?.sellerName,
-  location = product?.location,
-  image = product?.image,
+  category = product?.categoryName ||
+    (typeof product?.category === 'object' ? product?.category?.name : product?.category),
+  sellerName,
+  location,
+  image = product?.imageUrl || product?.image,
   unit = product?.unit || 'piece',
-  moq = product?.moq,
+  moq = product?.minOrderQuantity !== undefined ? product?.minOrderQuantity : product?.moq,
   rating = product?.rating,
   totalReviews = product?.totalReviews,
   isSurplus = product?.isSurplus,
@@ -90,6 +91,24 @@ export default function ProductCard({
     sessionProfile,
   ]);
 
+  // Reset image error state whenever product image URI changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [image]);
+
+  // Correctly resolve seller/business name and location from database or props
+  const resolvedSellerName =
+    sellerName ||
+    product?.sellerName ||
+    product?.business?.name ||
+    product?.businessName ||
+    null;
+
+  const resolvedLocation =
+    location ||
+    product?.location ||
+    ([product?.business?.city, product?.business?.state].filter(Boolean).join(', ') || null);
+
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.97,
@@ -108,21 +127,24 @@ export default function ProductCard({
     }).start();
   };
 
+  const numPrice = typeof price === 'number' ? price : Number(price);
+  const numOrigPrice = typeof originalPrice === 'number' ? originalPrice : Number(originalPrice);
+
   const discountPercent =
-    originalPrice && price && originalPrice > price
-      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    !isNaN(numOrigPrice) && !isNaN(numPrice) && numOrigPrice > numPrice
+      ? Math.round(((numOrigPrice - numPrice) / numOrigPrice) * 100)
       : 0;
 
   const formattedPrice =
-    typeof price === 'number'
-      ? price.toLocaleString('en-IN')
+    !isNaN(numPrice) && price !== '' && price !== null && price !== undefined
+      ? numPrice.toLocaleString('en-IN')
       : price !== undefined && price !== null
       ? String(price)
       : '0';
 
   const formattedOriginalPrice =
-    typeof originalPrice === 'number'
-      ? originalPrice.toLocaleString('en-IN')
+    !isNaN(numOrigPrice) && originalPrice !== '' && originalPrice !== null && originalPrice !== undefined
+      ? numOrigPrice.toLocaleString('en-IN')
       : originalPrice !== undefined && originalPrice !== null
       ? String(originalPrice)
       : null;
@@ -172,8 +194,8 @@ export default function ProductCard({
               price,
               originalPrice,
               category,
-              sellerName,
-              location,
+              sellerName: resolvedSellerName,
+              location: resolvedLocation,
               image,
               unit,
               moq,
@@ -253,7 +275,7 @@ export default function ProductCard({
             </Text>
           ) : null}
 
-          {(rating || location) && (
+          {(rating || resolvedLocation) && (
             <View style={styles.metaRow}>
               {rating ? (
                 <View style={styles.ratingChip}>
@@ -267,7 +289,7 @@ export default function ProductCard({
                 <View />
               )}
 
-              {location ? (
+              {resolvedLocation ? (
                 <View style={styles.locationChip}>
                   <Ionicons
                     name="location-outline"
@@ -275,14 +297,14 @@ export default function ProductCard({
                     color={colors.textMuted}
                   />
                   <Text style={styles.locationText} numberOfLines={1}>
-                    {location}
+                    {resolvedLocation}
                   </Text>
                 </View>
               ) : null}
             </View>
           )}
 
-          {sellerName ? (
+          {resolvedSellerName ? (
             <View style={styles.sellerRow}>
               <Ionicons
                 name="storefront-outline"
@@ -290,7 +312,7 @@ export default function ProductCard({
                 color={colors.success}
               />
               <Text style={styles.sellerName} numberOfLines={1}>
-                {sellerName}
+                {resolvedSellerName}
               </Text>
             </View>
           ) : null}

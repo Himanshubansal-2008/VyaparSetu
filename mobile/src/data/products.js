@@ -591,6 +591,41 @@ const storage =
     : (AsyncStorage && AsyncStorage.default) || AsyncStorage;
 
 const productListeners = new Set();
+let cachedDeletedIds = new Set();
+let cachedArchivedIds = new Set();
+
+export const isProductDeletedLocally = (id) => {
+  if (!id) return false;
+  return cachedDeletedIds.has(String(id).trim().toLowerCase());
+};
+
+export const isProductArchivedLocally = (id) => {
+  if (!id) return false;
+  return cachedArchivedIds.has(String(id).trim().toLowerCase());
+};
+
+export const sanitizeApiProduct = (product) => {
+  if (!product || !product.id) return null;
+  const cleanId = String(product.id).trim().toLowerCase();
+  if (cachedDeletedIds.has(cleanId)) return null;
+  if (cachedArchivedIds.has(cleanId)) {
+    return {
+      ...product,
+      isDeleted: true,
+      isArchived: true,
+      status: 'archived',
+      isActive: false,
+    };
+  }
+  return product;
+};
+
+export const filterActiveProducts = (items) => {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map(sanitizeApiProduct)
+    .filter((p) => p && isProductActive(p));
+};
 
 export const subscribeProducts = (listener) => {
   if (typeof listener !== 'function') return () => {};
@@ -801,6 +836,7 @@ export const deleteProduct = async (productId, customProfile) => {
     };
     products[index] = archivedProduct;
 
+    cachedArchivedIds.add(String(product.id).trim().toLowerCase());
     await persistArchivedProductId(product.id);
     await persistCustomProducts();
     await updateCartOnProductDeleted(product.id);
@@ -816,6 +852,7 @@ export const deleteProduct = async (productId, customProfile) => {
     // Hard-delete: permanently remove product from catalog
     products.splice(index, 1);
 
+    cachedDeletedIds.add(String(product.id).trim().toLowerCase());
     await persistDeletedProductId(product.id);
     await persistCustomProducts();
     await updateCartOnProductDeleted(product.id);
@@ -850,6 +887,9 @@ export const loadPersistedProducts = async () => {
           : []
       );
 
+      cachedDeletedIds = deletedIds;
+      cachedArchivedIds = archivedIds;
+
       // 1. Remove any permanently deleted products
       for (let i = products.length - 1; i >= 0; i--) {
         const p = products[i];
@@ -858,20 +898,7 @@ export const loadPersistedProducts = async () => {
         }
       }
 
-      // 2. Mark any archived products
-      products.forEach((p, idx) => {
-        if (p && p.id && archivedIds.has(String(p.id).trim().toLowerCase())) {
-          products[idx] = {
-            ...p,
-            isDeleted: true,
-            isArchived: true,
-            status: 'archived',
-            isActive: false,
-          };
-        }
-      });
-
-      // 3. Load custom products
+      // 2. Load custom products
       if (customJson) {
         const customProducts = JSON.parse(customJson);
         if (Array.isArray(customProducts)) {
@@ -891,6 +918,19 @@ export const loadPersistedProducts = async () => {
           });
         }
       }
+
+      // 3. Mark any archived products (for both seed and custom products)
+      products.forEach((p, idx) => {
+        if (p && p.id && archivedIds.has(String(p.id).trim().toLowerCase())) {
+          products[idx] = {
+            ...p,
+            isDeleted: true,
+            isArchived: true,
+            status: 'archived',
+            isActive: false,
+          };
+        }
+      });
     }
   } catch (error) {
     console.warn('[products] Failed to load persisted products:', error);

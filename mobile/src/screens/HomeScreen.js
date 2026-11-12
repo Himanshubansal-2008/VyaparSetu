@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import {
   categories as defaultCategories,
   subscribeProducts,
   isProductActive,
+  filterActiveProducts,
 } from '../data/products';
 import {
   getSessionBusinessProfile,
@@ -33,6 +35,8 @@ import {
   isProductOwnedByCurrentSeller,
   STORAGE_KEY_SESSION_PROFILE,
 } from '../data/businessProfileData';
+import { getFeaturedProducts, getProducts } from '../services/productService';
+import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -41,6 +45,7 @@ export default function HomeScreen({
   route,
   products: propProducts,
   categories: propCategories,
+  featuredProducts: propFeaturedProducts,
   onNavigateToProductListing,
   onNavigateToProductDetails,
   onNavigateToAddProduct,
@@ -57,27 +62,169 @@ export default function HomeScreen({
   onNavigateToBuyerQuotations,
   onNavigateToSellerQuotations,
 }) {
-  const [productList, setProductList] = useState(defaultProducts);
+  const [localProducts, setLocalProducts] = useState(defaultProducts);
 
   useEffect(() => {
     return subscribeProducts((updated) => {
-      setProductList([...updated]);
+      setLocalProducts([...updated]);
     });
   }, []);
 
-  const allProducts =
-    propProducts !== undefined
-      ? propProducts
-      : route?.params?.products !== undefined
-      ? route.params.products
-      : productList;
+  // --- Products State & Real API Integration ---
+  const [apiProducts, setApiProducts] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(
+    propProducts === undefined && route?.params?.products === undefined
+  );
+  const [productsError, setProductsError] = useState(null);
 
-  const allCategories =
-    propCategories !== undefined
-      ? propCategories
-      : route?.params?.categories !== undefined
-      ? route.params.categories
-      : defaultCategories;
+  const fetchProductsList = useCallback(async () => {
+    // If explicitly provided via props or route params, skip API call
+    if (propProducts !== undefined || route?.params?.products !== undefined) {
+      setIsLoadingProducts(false);
+      return;
+    }
+
+    setIsLoadingProducts(true);
+    setProductsError(null);
+    try {
+      // Home screen product grid loads curated products using limit parameter
+      const response = await getProducts({ limit: 12, page: 1 });
+      const items = Array.isArray(response?.products)
+        ? response.products
+        : Array.isArray(response?.data?.products)
+        ? response.data.products
+        : Array.isArray(response)
+        ? response
+        : [];
+      // Sanitize API items to ensure locally deleted/archived products are excluded
+      const sanitized = filterActiveProducts(items);
+      setApiProducts(sanitized);
+    } catch (err) {
+      console.warn('[HomeScreen] Error fetching products from API, falling back to local products:', err);
+      setProductsError(err?.message || 'Failed to load products.');
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [propProducts, route?.params?.products]);
+
+  useEffect(() => {
+    fetchProductsList();
+  }, [fetchProductsList]);
+
+  const allProducts = useMemo(() => {
+    if (propProducts !== undefined) return propProducts;
+    if (route?.params?.products !== undefined) return route.params.products;
+    if (apiProducts.length > 0) {
+      // Merge custom locally created products with API products
+      const customLocals = localProducts.filter(
+        (p) => p && isProductActive(p) && (p.isCustom || String(p.id).startsWith('prod-custom-'))
+      );
+      const combined = [...customLocals];
+      apiProducts.forEach((ap) => {
+        if (!combined.some((c) => String(c.id).trim().toLowerCase() === String(ap.id).trim().toLowerCase())) {
+          combined.push(ap);
+        }
+      });
+      return combined;
+    }
+    return localProducts;
+  }, [propProducts, route?.params?.products, apiProducts, localProducts]);
+
+  // --- Categories State & API Integration ---
+  const [apiCategories, setApiCategories] = useState([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(
+    propCategories === undefined && route?.params?.categories === undefined
+  );
+  const [categoriesError, setCategoriesError] = useState(null);
+
+  const fetchCategoriesList = useCallback(async () => {
+    // If explicitly provided via props or route params, skip API call
+    if (propCategories !== undefined || route?.params?.categories !== undefined) {
+      setIsLoadingCategories(false);
+      return;
+    }
+
+    setIsLoadingCategories(true);
+    setCategoriesError(null);
+    try {
+      const response = await getCategories();
+      const rawList = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.categories)
+        ? response.categories
+        : [];
+
+      // Filter only active categories (isActive !== false)
+      const activeList = rawList.filter((cat) => cat && cat.isActive !== false);
+      setApiCategories(activeList);
+    } catch (err) {
+      console.error('[HomeScreen] Error fetching categories:', err);
+      setCategoriesError(err?.message || 'Failed to load categories.');
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [propCategories, route?.params?.categories]);
+
+  useEffect(() => {
+    fetchCategoriesList();
+  }, [fetchCategoriesList]);
+
+  const allCategories = useMemo(() => {
+    if (propCategories !== undefined) return propCategories;
+    if (route?.params?.categories !== undefined) return route.params.categories;
+    if (apiCategories.length > 0) return apiCategories;
+    return defaultCategories;
+  }, [propCategories, route?.params?.categories, apiCategories]);
+
+  // --- Featured Products State & API Integration ---
+  const [apiFeaturedProducts, setApiFeaturedProducts] = useState([]);
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(
+    propFeaturedProducts === undefined && route?.params?.featuredProducts === undefined
+  );
+  const [featuredError, setFeaturedError] = useState(null);
+
+  const fetchFeatured = useCallback(async () => {
+    // If explicitly provided via props or route params, skip API call
+    if (propFeaturedProducts !== undefined || route?.params?.featuredProducts !== undefined) {
+      setIsLoadingFeatured(false);
+      return;
+    }
+
+    setIsLoadingFeatured(true);
+    setFeaturedError(null);
+    try {
+      const response = await getFeaturedProducts({ limit: 10 });
+      const items = Array.isArray(response?.products)
+        ? response.products
+        : Array.isArray(response?.data?.products)
+        ? response.data.products
+        : Array.isArray(response)
+        ? response
+        : [];
+      const sanitized = filterActiveProducts(items);
+      setApiFeaturedProducts(sanitized);
+    } catch (err) {
+      console.warn('[HomeScreen] Error fetching featured products from API:', err);
+      setFeaturedError(err?.message || 'Failed to load featured products.');
+    } finally {
+      setIsLoadingFeatured(false);
+    }
+  }, [propFeaturedProducts, route?.params?.featuredProducts]);
+
+  useEffect(() => {
+    fetchFeatured();
+  }, [fetchFeatured]);
+
+  const featuredProducts = useMemo(() => {
+    if (propFeaturedProducts !== undefined) return propFeaturedProducts;
+    if (route?.params?.featuredProducts !== undefined) return route.params.featuredProducts;
+    if (apiFeaturedProducts.length > 0) {
+      return filterActiveProducts(apiFeaturedProducts);
+    }
+    return allProducts.filter((product) => isProductActive(product) && product.isFeatured);
+  }, [propFeaturedProducts, route?.params?.featuredProducts, apiFeaturedProducts, allProducts]);
 
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
@@ -115,6 +262,11 @@ export default function HomeScreen({
     } else {
       setInternalSelectedCategory(catId);
     }
+    // Navigate to Product Listing screen passing categoryId
+    handleNavigateToProductListing({
+      selectedCategory: catId,
+      categoryId: catId,
+    });
   };
 
   const handleClearFilters = () => {
@@ -126,6 +278,8 @@ export default function HomeScreen({
     const listingParams = {
       selectedCategory:
         selectedCategory !== 'all' ? selectedCategory : 'all',
+      categoryId:
+        selectedCategory !== 'all' ? selectedCategory : undefined,
       searchQuery: searchQuery || '',
       ...params,
     };
@@ -268,22 +422,30 @@ export default function HomeScreen({
     return allProducts.filter((product) => {
       if (!product || !isProductActive(product)) return false;
 
+      const categoryIdVal =
+        product.categoryId ||
+        (typeof product.category === 'object' ? product.category?.id : product.category);
+
       const matchesCategory =
         !hasCategory ||
-        product.categoryId === selectedCategory ||
-        product.category === selectedCategory;
+        categoryIdVal === selectedCategory ||
+        product.category === selectedCategory ||
+        (typeof product.category === 'object' && product.category?.name === selectedCategory);
 
       if (!matchesCategory) return false;
 
       if (hasSearch) {
         const searchableText = [
           product.name,
+          typeof product.category === 'object' ? product.category?.name : product.category,
           product.categoryName,
-          product.category,
           product.brand,
           product.manufacturer,
           product.sellerName,
+          product.business?.name,
           product.location,
+          product.business?.city,
+          product.business?.state,
           ...(Array.isArray(product.tags) ? product.tags : []),
         ]
           .filter(Boolean)
@@ -299,11 +461,6 @@ export default function HomeScreen({
       return true;
     });
   }, [allProducts, hasCategory, selectedCategory, hasSearch, searchTokens]);
-
-  const featuredProducts = useMemo(
-    () => allProducts.filter((product) => isProductActive(product) && product.isFeatured),
-    [allProducts]
-  );
 
   const quickSearches = [
     'Cotton Bags',
@@ -510,11 +667,17 @@ export default function HomeScreen({
         categories={allCategories}
         selectedCategory={selectedCategory}
         onSelectCategory={handleSelectCategory}
+        loading={isLoadingCategories}
+        error={categoriesError}
+        onRetry={fetchCategoriesList}
       />
 
       {/* 3. Featured Products — horizontal carousel */}
       <FeaturedProducts
         products={featuredProducts}
+        loading={isLoadingFeatured}
+        error={featuredError}
+        onRetry={fetchFeatured}
         onProductPress={handleProductPress}
         onViewAllPress={() => handleNavigateToProductListing()}
       />
@@ -605,8 +768,11 @@ export default function HomeScreen({
                         : categoryName}
                 </Text>
                 <Text style={styles.productCount}>
-                  {filteredProducts.length} item
-                  {filteredProducts.length !== 1 ? 's' : ''}
+                  {isLoadingProducts
+                    ? 'Loading...'
+                    : `${filteredProducts.length} item${
+                        filteredProducts.length !== 1 ? 's' : ''
+                      }`}
                 </Text>
               </View>
 
@@ -659,7 +825,37 @@ export default function HomeScreen({
           ) : null
         }
         ListEmptyComponent={
-          !allProducts || allProducts.length === 0 ? (
+          isLoadingProducts ? (
+            <View style={styles.stateContainer} testID="home-products-loading">
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.stateLoadingText}>Loading products...</Text>
+            </View>
+          ) : productsError ? (
+            <View style={styles.stateErrorContainer} testID="home-products-error">
+              <Ionicons
+                name="alert-circle-outline"
+                size={28}
+                color={colors.error || '#EF4444'}
+              />
+              <Text style={styles.stateErrorTitle}>Failed to load products</Text>
+              <Text style={styles.stateErrorSubtitle}>{productsError}</Text>
+              <TouchableOpacity
+                style={styles.stateRetryButton}
+                onPress={fetchProductsList}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading products"
+              >
+                <Ionicons
+                  name="refresh"
+                  size={14}
+                  color={colors.textInverse}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.stateRetryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !allProducts || allProducts.length === 0 ? (
             <EmptyState
               icon="cube-outline"
               title="No products available right now"
@@ -1404,5 +1600,50 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     lineHeight: 14,
+  },
+  stateContainer: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  stateLoadingText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginTop: spacing.xs,
+  },
+  stateErrorContainer: {
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stateErrorTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginTop: spacing.xs,
+  },
+  stateErrorSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
+    marginBottom: spacing.md,
+  },
+  stateRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  stateRetryText: {
+    color: colors.textInverse,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

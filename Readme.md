@@ -172,6 +172,10 @@ The mobile application is expected to include the following sections:
 
 The final interface and navigation will be refined as the application is developed.
 
+## 🚀 Module Documentation
+
+- [Mobile Marketplace Frontend Documentation](mobile/README.md) – Detailed guide on the React Native marketplace screens, services, environment configuration, wholesale pricing/MOQ validation, and troubleshooting.
+
 ## 🔮 Future Scope
 
 Potential future enhancements may include:
