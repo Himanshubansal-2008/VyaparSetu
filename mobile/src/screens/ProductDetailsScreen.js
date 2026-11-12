@@ -11,6 +11,7 @@ import {
   Platform,
   Pressable,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
@@ -18,6 +19,7 @@ import { products as defaultProducts, subscribeProducts } from '../data/products
 import { getSessionBusinessProfile } from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import { useCart } from '../context/CartContext';
 
 function ThumbnailItem({
   uri,
@@ -67,7 +69,9 @@ export default function ProductDetailsScreen({
   products: propProducts,
   onNavigateToBusinessProfile,
   onNavigateToEditProduct,
+  onCartPress,
 }) {
+  const { addToCart, isInCart, cartItemCount } = useCart();
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
@@ -723,6 +727,33 @@ export default function ProductDetailsScreen({
     return extracted;
   }, [product]);
 
+  const itemInCart = isInCart(product?.id);
+
+  const handleCartPress = () => {
+    if (onCartPress) {
+      onCartPress();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Cart');
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!product || isOutOfStock || isStockBelowMoq || !isValidQuantity) return;
+    const result = addToCart(product, quantity, { replace: itemInCart });
+    if (result?.success) {
+      Alert.alert(
+        itemInCart ? 'Wholesale Cart Updated' : 'Added to Cart',
+        `Added ${quantity} ${unitPlural} of "${product.name}" to your wholesale cart at ₹${formattedApplicableUnitPrice}/${unitSingular}.`,
+        [
+          { text: 'Continue Browsing', style: 'cancel' },
+          { text: 'View Cart', onPress: handleCartPress },
+        ]
+      );
+    } else if (result?.message) {
+      Alert.alert('Unable to Add to Cart', result.message);
+    }
+  };
+
   if (!product) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -741,7 +772,23 @@ export default function ProductDetailsScreen({
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Product Details</Text>
-          <View style={styles.headerRightSpacer} />
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleCartPress}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Shopping Cart"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
+            {cartItemCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {cartItemCount > 9 ? '9+' : cartItemCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Empty / Not Found State */}
@@ -776,20 +823,37 @@ export default function ProductDetailsScreen({
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Product Details</Text>
-        {isOwner ? (
+        <View style={styles.headerRightActions}>
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleEditProduct}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Edit Product"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={styles.headerEditButton}
-            onPress={handleEditProduct}
+            style={styles.headerActionButton}
+            onPress={handleCartPress}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Edit Product"
+            accessibilityLabel="Shopping Cart"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="create-outline" size={20} color={colors.primary} />
+            <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
+            {cartItemCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {cartItemCount > 9 ? '9+' : cartItemCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
-        ) : (
-          <View style={styles.headerRightSpacer} />
-        )}
+        </View>
       </View>
 
       {/* Scrollable Content Container */}
@@ -1531,6 +1595,53 @@ export default function ProductDetailsScreen({
           )}
         </View>
       </ScrollView>
+
+      {/* Sticky Bottom Action Bar */}
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomBarPriceContainer}>
+          <Text style={styles.bottomBarPriceLabel}>
+            {isValidQuantity ? `Total (${quantity} ${unitPlural})` : 'Wholesale Price'}
+          </Text>
+          <View style={styles.bottomBarPriceRow}>
+            <Text style={styles.bottomBarCurrency}>₹</Text>
+            <Text style={styles.bottomBarAmount}>
+              {isValidQuantity ? formattedEstimatedTotal : formattedApplicableUnitPrice}
+            </Text>
+            {!isValidQuantity && product?.unit && (
+              <Text style={styles.bottomBarUnit}>/{product.unit}</Text>
+            )}
+          </View>
+          {activeTier && (
+            <View style={styles.bottomBarTierBadge}>
+              <Ionicons name="sparkles" size={10} color={colors.surplus} />
+              <Text style={styles.bottomBarTierText}>Bulk Tier Applied</Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.addToCartButton,
+            (isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
+              styles.addToCartButtonDisabled,
+          ]}
+          onPress={handleAddToCart}
+          disabled={isOutOfStock || isStockBelowMoq || !isValidQuantity}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={itemInCart ? 'Update Wholesale Cart' : 'Add to Wholesale Cart'}
+        >
+          <Ionicons
+            name={itemInCart ? 'checkmark-circle-outline' : 'cart-outline'}
+            size={20}
+            color={colors.textInverse}
+            style={styles.addToCartIcon}
+          />
+          <Text style={styles.addToCartButtonText}>
+            {itemInCart ? 'Update Cart' : 'Add to Cart'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1585,6 +1696,41 @@ const styles = StyleSheet.create({
   headerRightSpacer: {
     width: 38,
   },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  headerActionButton: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.primary,
+    minWidth: 18,
+    height: 18,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
+  cartBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '800',
+  },
   headerEditButton: {
     width: 38,
     height: 38,
@@ -1595,11 +1741,106 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  bottomBar: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  bottomBarPriceContainer: {
+    flex: 1,
+  },
+  bottomBarPriceLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bottomBarPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  bottomBarCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 2,
+  },
+  bottomBarAmount: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  bottomBarUnit: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginLeft: 2,
+  },
+  bottomBarTierBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  bottomBarTierText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.surplus,
+  },
+  addToCartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg + 2,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  addToCartButtonDisabled: {
+    backgroundColor: colors.textMuted,
+    opacity: 0.6,
+  },
+  addToCartIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  addToCartButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xxxl * 1.5,
+    paddingBottom: spacing.xxxl * 2.5,
   },
   galleryContainer: {
     backgroundColor: colors.surface,

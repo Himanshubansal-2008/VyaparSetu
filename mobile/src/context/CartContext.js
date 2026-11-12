@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
   useMemo,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -56,6 +57,63 @@ export function CartProvider({ children }) {
     saveCart();
   }, [cartItems, isLoaded]);
 
+  const addToCart = useCallback(
+    (product, requestedQuantity = null, options = {}) => {
+      if (!product || !product.id) {
+        return {
+          success: false,
+          reason: 'invalid_product',
+          message: 'Invalid product details.',
+        };
+      }
+
+      const existingItem = cartItems.find((item) => item.id === product.id);
+      const targetQuantity = options.replace
+        ? (Number(requestedQuantity) || 1)
+        : existingItem
+        ? existingItem.quantity + (Number(requestedQuantity) || 1)
+        : (Number(requestedQuantity) || 1);
+
+      const unitPrice = Number(product.price) || 0;
+      const newItem = {
+        id: product.id,
+        product: { ...product },
+        quantity: targetQuantity,
+        unitPrice,
+        itemTotal: targetQuantity * unitPrice,
+        addedAt: existingItem?.addedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      setCartItems((prevItems) => {
+        const index = prevItems.findIndex((item) => item.id === product.id);
+        if (index >= 0) {
+          const next = [...prevItems];
+          next[index] = newItem;
+          return next;
+        }
+        return [...prevItems, newItem];
+      });
+
+      return {
+        success: true,
+        item: newItem,
+        isNew: !existingItem,
+      };
+    },
+    [cartItems]
+  );
+
+  const isInCart = useCallback(
+    (productId) => {
+      if (!productId) return false;
+      return cartItems.some(
+        (item) => item.id === productId || item.product?.id === productId
+      );
+    },
+    [cartItems]
+  );
+
   const cartItemCount = cartItems.length;
 
   const value = useMemo(
@@ -63,8 +121,10 @@ export function CartProvider({ children }) {
       cartItems,
       cartItemCount,
       isLoaded,
+      addToCart,
+      isInCart,
     }),
-    [cartItems, cartItemCount, isLoaded]
+    [cartItems, cartItemCount, isLoaded, addToCart, isInCart]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
@@ -77,6 +137,8 @@ export function useCart() {
       cartItems: [],
       cartItemCount: 0,
       isLoaded: true,
+      addToCart: () => ({ success: false, reason: 'no_provider' }),
+      isInCart: () => false,
     };
   }
   return context;
