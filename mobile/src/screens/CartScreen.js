@@ -170,6 +170,14 @@ export default function CartScreen({
             const stock = getProductStock(product);
             const isAtMoq = item.quantity <= moq;
             const isAtMaxStock = stock !== Infinity && item.quantity >= stock;
+            const unitPlural =
+              unitSingular.endsWith('s') || unitSingular === 'pair'
+                ? `${unitSingular}s`
+                : `${unitSingular}s`;
+            const hasBulkDiscount =
+              Boolean(item.activeTier) &&
+              product.price &&
+              item.unitPrice < product.price;
             const imageUri =
               product.image ||
               (Array.isArray(product.images) && product.images[0]) ||
@@ -251,16 +259,46 @@ export default function CartScreen({
                   </View>
 
                   {/* Item Total */}
-                  <View style={styles.itemTotalContainer}>
-                    <Text style={styles.itemTotalLabel}>Item Total</Text>
-                    <Text style={styles.itemTotalAmount}>
-                      ₹{item.itemTotal.toLocaleString('en-IN')}
-                    </Text>
-                  </View>
+                  {item.activeTier ? (
+                    <View style={styles.tierAppliedBadge}>
+                      <Ionicons
+                        name="sparkles"
+                        size={12}
+                        color={colors.surplus}
+                      />
+                      <Text style={styles.tierAppliedText}>
+                        Bulk Tier Applied
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.standardPriceBadge}>
+                      <Text style={styles.standardPriceText}>
+                        Standard Price
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* Controls Row: Stepper */}
+                {/* Bulk Savings Highlight */}
+                {item.savings > 0 && (
+                  <View style={styles.savingsBanner}>
+                    <Ionicons
+                      name="trending-down-outline"
+                      size={14}
+                      color={colors.surplus}
+                    />
+                    <Text style={styles.savingsBannerText}>
+                      Saving ₹{item.savings.toLocaleString('en-IN')} with bulk
+                      tier ({item.quantity} {unitPlural})
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.cardDivider} />
+
+                {/* Controls Row: Stepper + Item Total */}
                 <View style={styles.controlsRow}>
+                  {/* Quantity Stepper */}
                   <View style={styles.stepperWrapper}>
                     <TouchableOpacity
                       style={[
@@ -306,6 +344,17 @@ export default function CartScreen({
                       />
                     </TouchableOpacity>
                   </View>
+
+                  {/* Item Total */}
+                  <View style={styles.itemTotalContainer}>
+                    <Text style={styles.itemTotalLabel}>Item Total</Text>
+                    <Text style={styles.itemTotalAmount}>
+                      ₹{item.itemTotal.toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+                </View>
+
+
 
                   <View style={styles.itemFooterRow}>
                     <View style={styles.constraintsRow}>
@@ -593,6 +642,51 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textDecorationLine: 'line-through',
     marginLeft: 4,
+  },
+  tierAppliedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.surplusLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  tierAppliedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.surplus,
+  },
+  standardPriceBadge: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  standardPriceText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  savingsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surplusLight,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  savingsBannerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.surplus,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: colors.border,
   },
   itemTotalContainer: {
     alignItems: 'flex-end',

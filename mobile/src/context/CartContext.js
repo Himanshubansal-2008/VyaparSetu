@@ -10,12 +10,80 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const CART_STORAGE_KEY = '@vyaparsetu_cart';
 
+/**
+ * Calculates the applicable per-unit price for a given product and quantity,
+ * respecting tiered bulk pricing if configured on the product.
+ */
+export function getApplicableUnitPrice(product, quantity) {
+  if (!product) return 0;
+  const qty = Number(quantity) || 0;
+
+  if (Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0 && qty > 0) {
+    const matchingTier = product.bulkPricing.find((tier) => {
+      const min =
+        tier.minQuantity !== null && tier.minQuantity !== undefined
+          ? Number(tier.minQuantity)
+          : 0;
+      const minMatch = qty >= min;
+      const maxMatch =
+        tier.maxQuantity === null || tier.maxQuantity === undefined
+          ? true
+          : qty <= Number(tier.maxQuantity);
+      return minMatch && maxMatch;
+    });
+
+    if (
+      matchingTier &&
+      matchingTier.pricePerUnit !== undefined &&
+      matchingTier.pricePerUnit !== null
+    ) {
+      return Number(matchingTier.pricePerUnit);
+    }
+  }
+
+  return product.price !== undefined && product.price !== null
+    ? Number(product.price)
+    : 0;
+}
+
+/**
+ * Finds the active bulk pricing tier for a product at a given quantity.
+ */
+export function getActiveTier(product, quantity) {
+  if (!product || !Array.isArray(product.bulkPricing) || product.bulkPricing.length === 0) {
+    return null;
+  }
+  const qty = Number(quantity) || 0;
+  if (qty <= 0) return null;
+
+  const found = product.bulkPricing.find((tier) => {
+    const min =
+      tier.minQuantity !== null && tier.minQuantity !== undefined
+        ? Number(tier.minQuantity)
+        : 0;
+    const minMatch = qty >= min;
+    const maxMatch =
+      tier.maxQuantity === null || tier.maxQuantity === undefined
+        ? true
+        : qty <= Number(tier.maxQuantity);
+    return minMatch && maxMatch;
+  });
+
+  return found || null;
+}
+
+/**
+ * Returns minimum order quantity (MOQ) for a product (defaults to 1).
+ */
 export function getProductMoq(product) {
   if (!product) return 1;
   const parsed = Number(product.moq);
   return !isNaN(parsed) && parsed > 0 ? parsed : 1;
 }
 
+/**
+ * Returns maximum available stock for a product, or Infinity if not specified.
+ */
 export function getProductStock(product) {
   if (!product) return Infinity;
   const rawStock =
@@ -29,9 +97,27 @@ export function getProductStock(product) {
   const parsed = Number(rawStock);
   return !isNaN(parsed) && parsed >= 0 ? parsed : Infinity;
 }
-  if (!product) return 1;
-  const parsed = Number(product.moq);
-  return !isNaN(parsed) && parsed > 0 ? parsed : 1;
+
+/**
+ * Re-computes unit price, item total, and savings for a product at a quantity.
+ */
+export function calculateItemValues(product, quantity) {
+  const qty = Math.max(1, Number(quantity) || 1);
+  const unitPrice = getApplicableUnitPrice(product, qty);
+  const itemTotal = qty * unitPrice;
+  const regularPrice =
+    product && product.price !== undefined && product.price !== null
+      ? Number(product.price)
+      : unitPrice;
+  const savings = Math.max(0, (regularPrice - unitPrice) * qty);
+  const activeTier = getActiveTier(product, qty);
+
+  return {
+    unitPrice,
+    itemTotal,
+    savings,
+    activeTier,
+  };
 }
 
 export const CartContext = createContext(null);
@@ -49,7 +135,20 @@ export function CartProvider({ children }) {
         if (stored && isMounted) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) {
-            setCartItems(parsed);
+            // Re-validate and re-calculate pricing based on current product definitions
+            const sanitized = parsed.map((item) => {
+              const product = item.product || {};
+              const qty = Math.max(1, Number(item.quantity) || 1);
+              const values = calculateItemValues(product, qty);
+              return {
+                ...item,
+                id: item.id || product.id,
+                product,
+                quantity: qty,
+                ...values,
+              };
+            });
+            setCartItems(sanitized);
           }
         }
       } catch (err) {
@@ -81,6 +180,11 @@ export function CartProvider({ children }) {
     saveCart();
   }, [cartItems, isLoaded]);
 
+  /**
+   * Adds a product to the cart with the given quantity.
+   * If the item already exists in the cart, increases or replaces its quantity.
+   * Enforces MOQ and available stock constraints.
+   */
   const addToCart = useCallback(
     (product, requestedQuantity = null, options = {}) => {
       if (!product || !product.id) {
@@ -91,7 +195,6 @@ export function CartProvider({ children }) {
         };
       }
 
-      const existingItem = cartItems.find((item) => item.id === product.id);
       const moq = getProductMoq(product);
       const stock = getProductStock(product);
 
@@ -103,23 +206,42 @@ export function CartProvider({ children }) {
         };
       }
 
-      let targetQuantity = options.replace
-        ? (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq)
-        : existingItem
-        ? existingItem.quantity + (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq)
-        : (requestedQuantity !== null && requestedQuantity !== undefined ? Number(requestedQuantity) : moq);
+      const existingItem = cartItems.find((item) => item.id === product.id);
+      let targetQuantity;
+
+      if (options.replace) {
+        targetQuantity =
+          requestedQuantity !== null && requestedQuantity !== undefined
+            ? Number(requestedQuantity)
+            : moq;
+      } else if (existingItem) {
+        const addedQty =
+          requestedQuantity !== null && requestedQuantity !== undefined
+            ? Number(requestedQuantity)
+            : moq;
+        targetQuantity = existingItem.quantity + addedQty;
+      } else {
+        targetQuantity =
+          requestedQuantity !== null && requestedQuantity !== undefined
+            ? Number(requestedQuantity)
+            : moq;
+      }
 
       targetQuantity = Math.round(targetQuantity);
+
+      // Clamp to MOQ
       if (targetQuantity < moq) {
         targetQuantity = moq;
       }
 
+      // Clamp to Stock
       let clampedToStock = false;
       if (stock !== Infinity && targetQuantity > stock) {
         targetQuantity = stock;
         clampedToStock = true;
       }
 
+      // Re-verify if stock cannot fulfill even MOQ
       if (targetQuantity < moq) {
         return {
           success: false,
@@ -128,13 +250,13 @@ export function CartProvider({ children }) {
         };
       }
 
-      const unitPrice = Number(product.price) || 0;
+      const values = calculateItemValues(product, targetQuantity);
+
       const newItem = {
         id: product.id,
         product: { ...product },
         quantity: targetQuantity,
-        unitPrice,
-        itemTotal: targetQuantity * unitPrice,
+        ...values,
         addedAt: existingItem?.addedAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -153,11 +275,49 @@ export function CartProvider({ children }) {
         success: true,
         item: newItem,
         isNew: !existingItem,
+        clampedToStock,
       };
     },
     [cartItems]
   );
 
+  /**
+   * Updates the quantity of an existing item in the cart.
+   * Clamps within [MOQ, Stock].
+   */
+  const updateQuantity = useCallback((productId, newQuantity) => {
+    if (!productId) return;
+    setCartItems((prevItems) => {
+      const index = prevItems.findIndex((item) => item.id === productId);
+      if (index === -1) return prevItems;
+
+      const item = prevItems[index];
+      const moq = getProductMoq(item.product);
+      const stock = getProductStock(item.product);
+
+      let qty = Math.round(Number(newQuantity));
+      if (isNaN(qty) || qty < moq) {
+        qty = moq;
+      }
+      if (stock !== Infinity && qty > stock) {
+        qty = stock;
+      }
+
+      const values = calculateItemValues(item.product, qty);
+      const next = [...prevItems];
+      next[index] = {
+        ...item,
+        quantity: qty,
+        ...values,
+        updatedAt: new Date().toISOString(),
+      };
+      return next;
+    });
+  }, []);
+
+  /**
+   * Increases item quantity by step (default 1), clamped to maximum stock.
+   */
   const increaseQuantity = useCallback((productId, step = 1) => {
     if (!productId) return;
     setCartItems((prevItems) => {
@@ -174,14 +334,14 @@ export function CartProvider({ children }) {
       if (stock !== Infinity && nextQty > stock) {
         nextQty = stock;
       }
-      const unitPrice = item.unitPrice || Number(item.product?.price) || 0;
 
+      const values = calculateItemValues(item.product, nextQty);
       return prevItems.map((i) =>
         i.id === productId
           ? {
               ...i,
               quantity: nextQty,
-              itemTotal: nextQty * unitPrice,
+              ...values,
               updatedAt: new Date().toISOString(),
             }
           : i
@@ -189,6 +349,9 @@ export function CartProvider({ children }) {
     });
   }, []);
 
+  /**
+   * Decreases item quantity by step (default 1), clamped to MOQ.
+   */
   const decreaseQuantity = useCallback((productId, step = 1) => {
     if (!productId) return;
     setCartItems((prevItems) => {
@@ -199,19 +362,20 @@ export function CartProvider({ children }) {
       if (item.quantity <= moq) {
         return prevItems; // Cannot decrease below MOQ
       }
+
       const decrement = Math.max(1, Math.round(Number(step) || 1));
       let nextQty = item.quantity - decrement;
       if (nextQty < moq) {
         nextQty = moq;
       }
-      const unitPrice = item.unitPrice || Number(item.product?.price) || 0;
 
+      const values = calculateItemValues(item.product, nextQty);
       return prevItems.map((i) =>
         i.id === productId
           ? {
               ...i,
               quantity: nextQty,
-              itemTotal: nextQty * unitPrice,
+              ...values,
               updatedAt: new Date().toISOString(),
             }
           : i
@@ -219,6 +383,9 @@ export function CartProvider({ children }) {
     });
   }, []);
 
+  /**
+   * Removes an item completely from the cart by its product ID.
+   */
   const removeFromCart = useCallback((productId) => {
     if (!productId) return;
     setCartItems((prevItems) =>
@@ -226,10 +393,16 @@ export function CartProvider({ children }) {
     );
   }, []);
 
+  /**
+   * Clears all items from the cart.
+   */
   const clearCart = useCallback(() => {
     setCartItems([]);
   }, []);
 
+  /**
+   * Checks whether a product is currently present in the cart.
+   */
   const isInCart = useCallback(
     (productId) => {
       if (!productId) return false;
@@ -240,7 +413,38 @@ export function CartProvider({ children }) {
     [cartItems]
   );
 
+  /**
+   * Retrieves an item from the cart by its product ID.
+   */
+  const getCartItem = useCallback(
+    (productId) => {
+      if (!productId) return null;
+      return (
+        cartItems.find(
+          (item) => item.id === productId || item.product?.id === productId
+        ) || null
+      );
+    },
+    [cartItems]
+  );
+
+  // Derived aggregates
   const cartItemCount = cartItems.length;
+
+  /* total aggregates added in step 13 */
+  const tempTotal = useMemo(() => {
+    return cartItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  }, [cartItems]);
+
+  const subtotal = useMemo(() => {
+    return cartItems.reduce((acc, item) => acc + (Number(item.itemTotal) || 0), 0);
+  }, [cartItems]);
+
+  const totalSavings = useMemo(() => {
+    return cartItems.reduce((acc, item) => acc + (Number(item.savings) || 0), 0);
+  }, [cartItems]);
+
+  const totalAmount = subtotal;
 
   const value = useMemo(
     () => ({
@@ -248,34 +452,58 @@ export function CartProvider({ children }) {
       cartItemCount,
       isLoaded,
       addToCart,
+      updateQuantity,
       increaseQuantity,
       decreaseQuantity,
       removeFromCart,
       clearCart,
       isInCart,
+      getCartItem,
     }),
-    [cartItems, cartItemCount, isLoaded, addToCart, isInCart]
+    [
+      cartItems,
+      cartItemCount,
+      isLoaded,
+      addToCart,
+      updateQuantity,
+      increaseQuantity,
+      decreaseQuantity,
+      removeFromCart,
+      clearCart,
+      isInCart,
+      getCartItem,
+    ]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
+/**
+ * Hook to consume the CartContext with safe fallbacks.
+ */
 export function useCart() {
   const context = useContext(CartContext);
   if (!context) {
     return {
       cartItems: [],
       cartItemCount: 0,
+      totalUnits: 0,
+      subtotal: 0,
+      totalSavings: 0,
+      totalAmount: 0,
       isLoaded: true,
       addToCart: () => ({ success: false, reason: 'no_provider' }),
+      updateQuantity: () => {},
       increaseQuantity: () => {},
       decreaseQuantity: () => {},
       removeFromCart: () => {},
       clearCart: () => {},
       isInCart: () => false,
+      getCartItem: () => null,
     };
   }
   return context;
 }
 
 export default CartContext;
+
