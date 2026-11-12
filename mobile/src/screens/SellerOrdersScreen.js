@@ -45,6 +45,7 @@ export default function SellerOrdersScreen({
   navigation,
   route,
   onBackPress,
+  onNavigateToSellerOrderDetails,
   onNavigateToBusinessProfile,
 }) {
   const sessionProfile = getSessionBusinessProfile();
@@ -95,6 +96,30 @@ export default function SellerOrdersScreen({
       setIsRefreshing(false);
     }
   }, []);
+
+  const handleOrderPress = useCallback(
+    (order) => {
+      if (!order) return;
+      if (onNavigateToSellerOrderDetails) {
+        onNavigateToSellerOrderDetails({
+          order,
+          orderId: order.id,
+          businessId,
+          sellerId: businessId,
+          business,
+        });
+      } else if (navigation?.navigate) {
+        navigation.navigate('SellerOrderDetails', {
+          order,
+          orderId: order.id,
+          businessId,
+          sellerId: businessId,
+          business,
+        });
+      }
+    },
+    [onNavigateToSellerOrderDetails, navigation, businessId, business]
+  );
 
   const handleBack = useCallback(() => {
     if (onBackPress) {
@@ -294,6 +319,7 @@ export default function SellerOrdersScreen({
       <TouchableOpacity
         style={styles.orderCard}
         activeOpacity={0.85}
+        onPress={() => handleOrderPress(item)}
         accessibilityRole="button"
         accessibilityLabel={`Order ${item.id}, Status ${item.status}`}
       >
@@ -408,7 +434,7 @@ export default function SellerOrdersScreen({
           </View>
 
           <View style={styles.detailsBtn}>
-            <Text style={styles.detailsBtnText}>View Order</Text>
+            <Text style={styles.detailsBtnText}>Manage Order</Text>
             <Ionicons
               name="chevron-forward"
               size={14}

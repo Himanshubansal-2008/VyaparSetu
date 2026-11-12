@@ -587,6 +587,48 @@ export const getOrdersForSeller = (sellerId, allProducts = []) => {
 };
 
 /**
+ * Returns comprehensive seller-filtered details for a specific order.
+ */
+export const getSellerOrderDetails = (orderId, sellerId, allProducts = []) => {
+  const order = getOrderById(orderId);
+  if (!order || !sellerId) return null;
+
+  const sellerItems = getSellerOrderItems(order, sellerId, allProducts);
+  const sellerSubtotal = sellerItems.reduce((sum, item) => {
+    const lineTotal =
+      Number(item.itemTotal) ||
+      Number(item.unitPrice || item.price || 0) * (Number(item.quantity) || 1);
+    return sum + lineTotal;
+  }, 0);
+
+  const sellerUnits = sellerItems.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 1),
+    0
+  );
+
+  const sellerSavings = sellerItems.reduce(
+    (sum, item) => sum + (Number(item.savings) || 0),
+    0
+  );
+
+  const totalOrderItemsCount = Array.isArray(order.items)
+    ? order.items.length
+    : 0;
+
+  return {
+    order,
+    sellerItems,
+    sellerItemCount: sellerItems.length,
+    sellerUnits,
+    sellerSubtotal,
+    sellerSavings,
+    sellerTotalAmount: sellerSubtotal,
+    hasOtherSellerItems: totalOrderItemsCount > sellerItems.length,
+    totalOrderItemsCount,
+  };
+};
+
+/**
  * Resets orders back to seed orders (useful for demo/testing).
  */
 export const resetOrders = async () => {
@@ -666,6 +708,7 @@ export default {
   isOrderForSeller,
   getSellerOrderItems,
   getOrdersForSeller,
+  getSellerOrderDetails,
   loadPersistedAddress,
   getSavedAddress,
   saveDeliveryAddress,

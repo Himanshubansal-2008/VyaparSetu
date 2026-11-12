@@ -12,6 +12,7 @@ import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
 import OrderHistoryScreen from '../screens/OrderHistoryScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import SellerOrdersScreen from '../screens/SellerOrdersScreen';
+import SellerOrderDetailsScreen from '../screens/SellerOrderDetailsScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -38,6 +39,7 @@ const VALID_ROUTES = [
   'Orders',
   'OrderDetails',
   'SellerOrders',
+  'SellerOrderDetails',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -329,6 +331,29 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToSellerOrderDetails = useCallback(
+    (orderOrParams) => {
+      if (orderOrParams && typeof orderOrParams === 'object') {
+        const orderObj = orderOrParams.order || orderOrParams;
+        const ordId =
+          orderOrParams.orderId ||
+          orderOrParams.id ||
+          orderObj?.id ||
+          orderObj?.orderNumber;
+        navigate('SellerOrderDetails', {
+          ...orderOrParams,
+          order: orderObj,
+          orderId: ordId,
+        });
+      } else if (typeof orderOrParams === 'string') {
+        navigate('SellerOrderDetails', { orderId: orderOrParams });
+      } else {
+        navigate('SellerOrderDetails', {});
+      }
+    },
+    [navigate]
+  );
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -550,12 +575,30 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             navigation={navigation}
             route={currentRoute}
             onBackPress={goBack}
+            onNavigateToSellerOrderDetails={handleNavigateToSellerOrderDetails}
             onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
           />
         </View>
       )}
 
-
+      {/* Seller Order Details Screen */}
+      {currentRoute.name === 'SellerOrderDetails' && (
+        <View style={styles.screen}>
+          <SellerOrderDetailsScreen
+            key={
+              currentRoute.params?.orderId ||
+              currentRoute.params?.order?.id ||
+              'seller_order_details'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToSellerOrders={handleNavigateToSellerOrders}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+          />
+        </View>
+      )}
     </View>
   );
 }
