@@ -379,6 +379,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           onCartPress={handleNavigateToCart}
           onNavigateToOrderHistory={handleNavigateToOrderHistory}
           onOrdersPress={handleNavigateToOrderHistory}
+          onNavigateToSellerOrders={handleNavigateToSellerOrders}
         />
       </View>
 

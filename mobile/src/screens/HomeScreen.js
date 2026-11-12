@@ -7,6 +7,7 @@ import {
   StatusBar,
   Platform,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   Modal,
   Alert,
@@ -50,6 +51,7 @@ export default function HomeScreen({
   onOrdersPress,
   onNavigateToOrderHistory,
   onNavigateToEditProduct,
+  onNavigateToSellerOrders,
 }) {
   const [productList, setProductList] = useState(defaultProducts);
 
@@ -209,6 +211,20 @@ export default function HomeScreen({
     }
   };
 
+  const handleSellerOrdersPress = () => {
+    const profile = getSessionBusinessProfile() || savedProfile;
+    const params = {
+      business: profile,
+      businessId: profile?.id,
+      sellerId: profile?.sellerId || profile?.id,
+    };
+    if (onNavigateToSellerOrders) {
+      onNavigateToSellerOrders(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('SellerOrders', params);
+    }
+  };
+
   const trimmedQuery = searchQuery.trim();
   const searchTokens = useMemo(() => {
     return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
@@ -292,103 +308,98 @@ export default function HomeScreen({
         onCartPress={onCartPress}
         onOrdersPress={handleOrdersPress}
       >
-        {/* Create Business Profile Card: positioned directly below header top row and above search bar */}
-        <TouchableOpacity
-          style={styles.createBusinessCard}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={
-            hasSavedProfile
-              ? 'My Business Profile - Start selling on VyaparSetu'
-              : 'Create Business Profile - Start selling on VyaparSetu'
-          }
-          onPress={handleBusinessCardPress}
+        {/* Horizontal Quick Actions: Single scrollable row with compact cards */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={styles.actionCardsScrollView}
+          contentContainerStyle={styles.actionCardsScrollContent}
         >
-          <View style={styles.createBusinessIconBox}>
-            <Ionicons
-              name="storefront-outline"
-              size={20}
-              color={colors.primary}
-            />
-          </View>
-          <View style={styles.createBusinessTextCol}>
-            <Text style={styles.createBusinessHeading}>
-              {hasSavedProfile
+          {/* 1. Business Profile Card */}
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={
+              hasSavedProfile
                 ? 'My Business Profile'
-                : 'Create Business Profile'}
+                : 'Create Business Profile'
+            }
+            onPress={handleBusinessCardPress}
+          >
+            <View style={[styles.actionIconBox, styles.businessIconBox]}>
+              <Ionicons
+                name="storefront-outline"
+                size={16}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.actionCardHeading} numberOfLines={1}>
+              {hasSavedProfile ? 'My Business Profile' : 'Create Business Profile'}
             </Text>
-            <Text style={styles.createBusinessSubtitle} numberOfLines={1}>
-              Start selling on VyaparSetu
-            </Text>
-          </View>
-          <View style={styles.createBusinessArrowBox}>
-            <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={colors.primary}
-            />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* Add Product Card: positioned directly below Business Profile card and above search bar */}
-        <TouchableOpacity
-          style={styles.addProductCard}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Add Product - List a new product on VyaparSetu"
-          onPress={handleAddProductPress}
-        >
-          <View style={styles.addProductIconBox}>
-            <Ionicons
-              name="add-circle-outline"
-              size={20}
-              color={colors.success}
-            />
-          </View>
-          <View style={styles.addProductTextCol}>
-            <Text style={styles.addProductHeading}>Add Product</Text>
-            <Text style={styles.addProductSubtitle} numberOfLines={1}>
-              List a new product on VyaparSetu
+          {/* 2. Add Product Card */}
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Add Product"
+            onPress={handleAddProductPress}
+          >
+            <View style={[styles.actionIconBox, styles.addProductIconBox]}>
+              <Ionicons
+                name="add-circle-outline"
+                size={17}
+                color={colors.success}
+              />
+            </View>
+            <Text style={styles.actionCardHeading} numberOfLines={1}>
+              Add Product
             </Text>
-          </View>
-          <View style={styles.addProductArrowBox}>
-            <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={colors.primary}
-            />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* My Orders Card: positioned directly below Add Product card and above search bar */}
-        <TouchableOpacity
-          style={styles.myOrdersCard}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="My Orders - View order history and tracking"
-          onPress={handleOrdersPress}
-        >
-          <View style={styles.myOrdersIconBox}>
-            <Ionicons
-              name="receipt-outline"
-              size={20}
-              color={colors.primary}
-            />
-          </View>
-          <View style={styles.createBusinessTextCol}>
-            <Text style={styles.createBusinessHeading}>My Orders</Text>
-            <Text style={styles.createBusinessSubtitle} numberOfLines={1}>
-              Track wholesale orders & view history
+          {/* 3. My Orders Card */}
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="My Orders"
+            onPress={handleOrdersPress}
+          >
+            <View style={[styles.actionIconBox, styles.myOrdersIconBox]}>
+              <Ionicons
+                name="receipt-outline"
+                size={16}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.actionCardHeading} numberOfLines={1}>
+              My Orders
             </Text>
-          </View>
-          <View style={styles.createBusinessArrowBox}>
-            <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={colors.primary}
-            />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+
+          {/* 4. Seller Orders Card */}
+          <TouchableOpacity
+            style={[styles.actionCard, styles.actionCardLast]}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Seller Orders"
+            onPress={handleSellerOrdersPress}
+          >
+            <View style={[styles.actionIconBox, styles.sellerOrdersIconBox]}>
+              <Ionicons
+                name="cube-outline"
+                size={16}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.actionCardHeading} numberOfLines={1}>
+              Seller Orders
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </Header>
 
       {/* 2. Product Categories — horizontal scroll strip */}
@@ -870,158 +881,67 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  createBusinessCard: {
+  actionCardsScrollView: {
+    marginHorizontal: -spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  actionCardsScrollContent: {
+    paddingHorizontal: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSubtle,
     borderRadius: borderRadius.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm + 2,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: spacing.sm,
+    marginRight: spacing.sm,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.03,
-        shadowRadius: 3,
+        shadowRadius: 2,
       },
       android: {
         elevation: 1,
       },
     }),
   },
-  createBusinessIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.infoLight,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
+  actionCardLast: {
+    marginRight: 0,
   },
-  createBusinessTextCol: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  createBusinessHeading: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    letterSpacing: -0.2,
-    marginBottom: 2,
-  },
-  createBusinessSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  createBusinessArrowBox: {
+  actionIconBox: {
     width: 28,
     height: 28,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: spacing.xs + 2,
+    marginRight: spacing.xs + 2,
   },
-  addProductCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm + 2,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+  businessIconBox: {
+    backgroundColor: colors.infoLight,
   },
   addProductIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: borderRadius.md,
     backgroundColor: colors.successLight,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
   },
-  addProductTextCol: {
-    flex: 1,
-    justifyContent: 'center',
+  myOrdersIconBox: {
+    backgroundColor: colors.primaryLight + '20',
   },
-  addProductHeading: {
-    fontSize: 14,
+  sellerOrdersIconBox: {
+    backgroundColor: colors.primaryLight + '20',
+  },
+  actionCardHeading: {
+    fontSize: 13,
     fontWeight: '700',
     color: colors.textPrimary,
     letterSpacing: -0.2,
-    marginBottom: 2,
-  },
-  addProductSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  myOrdersCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm + 2,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
-  },
-  myOrdersIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primaryLight + '20',
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  addProductArrowBox: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.xs + 2,
   },
   modalOverlay: {
     flex: 1,
