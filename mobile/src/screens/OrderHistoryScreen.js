@@ -20,6 +20,7 @@ import {
   subscribeOrders,
   loadPersistedOrders,
   getStatusColor,
+  getStatusProgress,
 } from '../data/orders';
 import EmptyState from '../components/EmptyState';
 
@@ -183,7 +184,7 @@ export default function OrderHistoryScreen({
     const statusCfg = getStatusColor(item.status);
     const firstItem = item.items?.[0] || {};
     const moreItemsCount = (item.items?.length || 1) - 1;
-    
+    const progressIndex = getStatusProgress(item.status);
 
     return (
       <TouchableOpacity
@@ -297,7 +298,63 @@ export default function OrderHistoryScreen({
           </View>
         </View>
 
+        {/* Tracking Milestone Indicator Bar */}
+        <View style={styles.progressTrackContainer}>
+          <View style={styles.progressTrackHeader}>
+            <Text style={styles.progressStageLabel}>
+              {item.status === 'Delivered'
+                ? 'Delivery Completed'
+                : item.status === 'Cancelled'
+                ? 'Order Cancelled'
+                : `Stage: ${item.status || 'Order Confirmed'}`}
+            </Text>
+            {item.estimatedDelivery && item.status !== 'Delivered' && (
+              <Text style={styles.progressEtaText}>
+                ETA: {item.estimatedDelivery}
+              </Text>
+            )}
+          </View>
 
+          {item.status !== 'Cancelled' ? (
+            <View style={styles.stepDotsRow}>
+              {['Confirmed', 'Processing', 'Dispatched', 'Out for Delivery', 'Delivered'].map(
+                (stageName, idx) => {
+                  const isDone = progressIndex >= idx;
+                  const isCurrent = progressIndex === idx;
+                  return (
+                    <React.Fragment key={stageName}>
+                      <View
+                        style={[
+                          styles.stepDot,
+                          isDone && styles.stepDotDone,
+                          isCurrent && styles.stepDotCurrent,
+                        ]}
+                      >
+                        {isDone ? (
+                          <Ionicons
+                            name="checkmark"
+                            size={10}
+                            color={colors.textInverse}
+                          />
+                        ) : (
+                          <View style={styles.stepDotInner} />
+                        )}
+                      </View>
+                      {idx < 4 && (
+                        <View
+                          style={[
+                            styles.stepConnector,
+                            progressIndex > idx && styles.stepConnectorDone,
+                          ]}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                }
+              )}
+            </View>
+          ) : null}
+        </View>
 
         {/* Card Footer: Total Amount & Action CTA */}
         <View style={styles.cardFooter}>

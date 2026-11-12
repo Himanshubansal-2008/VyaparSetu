@@ -19,6 +19,8 @@ import {
   getOrderById,
   subscribeOrders,
   updateOrderStatus,
+  ORDER_STAGES,
+  getStatusProgress,
   getStatusColor,
 } from '../data/orders';
 import { useCart } from '../context/CartContext';
@@ -224,7 +226,7 @@ export default function OrderDetailsScreen({
   }
 
   const statusCfg = getStatusColor(order.status);
-  
+  const currentStageIndex = getStatusProgress(order.status);
   const delivery = order.deliveryAddress || {};
   const items = Array.isArray(order.items) ? order.items : [];
 
@@ -337,7 +339,109 @@ export default function OrderDetailsScreen({
           </TouchableOpacity>
         </View>
 
+        {/* 3. Visual Tracking Timeline */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons
+                name="trail-sign-outline"
+                size={18}
+                color={colors.primary}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.sectionTitle}>Consignment Progression</Text>
+            </View>
+            <Text style={styles.sectionBadge}>
+              {currentStageIndex >= 0
+                ? `Step ${currentStageIndex + 1} of 5`
+                : 'Cancelled'}
+            </Text>
+          </View>
 
+          <View style={styles.timelineContainer}>
+            {ORDER_STAGES.map((stage, idx) => {
+              const isPassed = currentStageIndex > idx;
+              const isCurrent = currentStageIndex === idx;
+              const isPending = currentStageIndex < idx;
+              const isLast = idx === ORDER_STAGES.length - 1;
+
+              return (
+                <View key={stage.key} style={styles.timelineRow}>
+                  {/* Left Column: Icon node & connector line */}
+                  <View style={styles.timelineNodeCol}>
+                    <View
+                      style={[
+                        styles.timelineNode,
+                        isPassed && styles.timelineNodePassed,
+                        isCurrent && styles.timelineNodeCurrent,
+                        isPending && styles.timelineNodePending,
+                      ]}
+                    >
+                      {isPassed ? (
+                        <Ionicons
+                          name="checkmark"
+                          size={14}
+                          color={colors.textInverse}
+                        />
+                      ) : isCurrent ? (
+                        <View style={styles.timelineNodePulse} />
+                      ) : (
+                        <Text style={styles.timelineNodePendingNumber}>
+                          {idx + 1}
+                        </Text>
+                      )}
+                    </View>
+                    {!isLast && (
+                      <View
+                        style={[
+                          styles.timelineConnectorLine,
+                          isPassed && styles.timelineConnectorLineDone,
+                        ]}
+                      />
+                    )}
+                  </View>
+
+                  {/* Right Column: Stage Details */}
+                  <View style={styles.timelineTextCol}>
+                    <View style={styles.timelineStageHeader}>
+                      <Text
+                        style={[
+                          styles.timelineStageTitle,
+                          (isPassed || isCurrent) && styles.timelineStageTitleActive,
+                        ]}
+                      >
+                        {stage.label}
+                      </Text>
+                      {isCurrent && (
+                        <View style={styles.currentStageTag}>
+                          <Text style={styles.currentStageTagText}>CURRENT</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.timelineStageDesc}>
+                      {stage.description}
+                    </Text>
+
+                    {/* Metadata for specific active stage */}
+                    {stage.key === 'Dispatched' && order.trackingNumber && (
+                      <View style={styles.trackingInfoBox}>
+                        <Ionicons
+                          name="barcode-outline"
+                          size={14}
+                          color={colors.primary}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={styles.trackingInfoText}>
+                          {order.carrierName || 'Freight Carrier'}: {order.trackingNumber}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
 
         {/* 4. Ordered Wholesale Products */}
         <View style={styles.sectionCard}>
