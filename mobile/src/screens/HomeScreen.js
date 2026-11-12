@@ -86,6 +86,8 @@ export default function HomeScreen({
   const [savedProfile, setSavedProfile] = useState(getSessionBusinessProfile);
   const [isProfileRequiredModalVisible, setIsProfileRequiredModalVisible] =
     useState(false);
+  const [isAllActionsModalVisible, setIsAllActionsModalVisible] =
+    useState(false);
 
   useEffect(() => {
     setSavedProfile(getSessionBusinessProfile());
@@ -332,6 +334,21 @@ export default function HomeScreen({
         onCartPress={onCartPress}
         onOrdersPress={handleOrdersPress}
       >
+        {/* Quick Actions Header: Title + View All (6) */}
+        <View style={styles.quickActionsBar}>
+          <Text style={styles.quickActionsHeading}>Quick Actions</Text>
+          <TouchableOpacity
+            style={styles.quickActionsViewAll}
+            onPress={() => setIsAllActionsModalVisible(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="View all Quick Actions"
+          >
+            <Text style={styles.quickActionsViewAllText}>View All</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+
         {/* Horizontal Quick Actions: Single scrollable row with compact cards */}
         <ScrollView
           horizontal
@@ -347,8 +364,8 @@ export default function HomeScreen({
             accessibilityRole="button"
             accessibilityLabel={
               hasSavedProfile
-                ? 'My Business Profile'
-                : 'Create Business Profile'
+                ? 'My Business'
+                : 'Create Business'
             }
             onPress={handleBusinessCardPress}
           >
@@ -360,7 +377,7 @@ export default function HomeScreen({
               />
             </View>
             <Text style={styles.actionCardHeading} numberOfLines={1}>
-              {hasSavedProfile ? 'My Business Profile' : 'Create Business Profile'}
+              {hasSavedProfile ? 'My Business' : 'Create Business'}
             </Text>
           </TouchableOpacity>
 
@@ -404,12 +421,12 @@ export default function HomeScreen({
             </Text>
           </TouchableOpacity>
 
-          {/* 4. Seller Orders Card */}
+          {/* 4. Customer Orders Card */}
           <TouchableOpacity
             style={styles.actionCard}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="Seller Orders"
+            accessibilityLabel="Customer Orders"
             onPress={handleSellerOrdersPress}
           >
             <View style={[styles.actionIconBox, styles.sellerOrdersIconBox]}>
@@ -420,16 +437,16 @@ export default function HomeScreen({
               />
             </View>
             <Text style={styles.actionCardHeading} numberOfLines={1}>
-              Seller Orders
+              Customer Orders
             </Text>
           </TouchableOpacity>
 
-          {/* 5. My Quotations Card */}
+          {/* 5. My Price Requests Card */}
           <TouchableOpacity
             style={styles.actionCard}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="My Quotations"
+            accessibilityLabel="My Price Requests"
             onPress={handleBuyerQuotationsPress}
           >
             <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
@@ -440,16 +457,16 @@ export default function HomeScreen({
               />
             </View>
             <Text style={styles.actionCardHeading} numberOfLines={1}>
-              My Quotations
+              My Price Requests
             </Text>
           </TouchableOpacity>
 
-          {/* 6. Seller RFQs Card */}
+          {/* 6. Customer Price Requests Card */}
           <TouchableOpacity
-            style={[styles.actionCard, styles.actionCardLast]}
+            style={styles.actionCard}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="Seller RFQs"
+            accessibilityLabel="Customer Price Requests"
             onPress={handleSellerQuotationsPress}
           >
             <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
@@ -460,7 +477,27 @@ export default function HomeScreen({
               />
             </View>
             <Text style={styles.actionCardHeading} numberOfLines={1}>
-              Seller RFQs
+              Customer Price Requests
+            </Text>
+          </TouchableOpacity>
+
+          {/* 7. More (6) Card */}
+          <TouchableOpacity
+            style={[styles.actionCard, styles.actionCardLast, styles.moreActionCard]}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="View All Quick Actions"
+            onPress={() => setIsAllActionsModalVisible(true)}
+          >
+            <View style={[styles.actionIconBox, styles.moreIconBox]}>
+              <Ionicons
+                name="grid-outline"
+                size={15}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={[styles.actionCardHeading, styles.moreCardHeading]} numberOfLines={1}>
+              More (6)
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -734,6 +771,165 @@ export default function HomeScreen({
           </View>
         </View>
       </Modal>
+
+      {/* All Quick Actions Modal */}
+      <Modal
+        visible={isAllActionsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAllActionsModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsAllActionsModalVisible(false)}
+        >
+          <View
+            style={styles.actionsModalCard}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.actionsModalHeader}>
+              <View>
+                <Text style={styles.actionsModalTitle}>Quick Actions</Text>
+                <Text style={styles.actionsModalSubtitle}>
+                  All 6 management and trading shortcuts
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.actionsModalCloseBtn}
+                onPress={() => setIsAllActionsModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close Quick Actions modal"
+              >
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.actionsGrid}>
+              {/* Item 1: My Business */}
+              <TouchableOpacity
+                style={styles.actionsGridItem}
+                onPress={() => {
+                  setIsAllActionsModalVisible(false);
+                  handleBusinessCardPress();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionModalIconBox, styles.businessIconBox]}>
+                  <Ionicons name="storefront-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                  {hasSavedProfile ? 'My Business' : 'Create Business'}
+                </Text>
+                <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                  Profile & contact details
+                </Text>
+              </TouchableOpacity>
+
+              {/* Item 2: Add Product */}
+              <TouchableOpacity
+                style={styles.actionsGridItem}
+                onPress={() => {
+                  setIsAllActionsModalVisible(false);
+                  handleAddProductPress();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionModalIconBox, styles.addProductIconBox]}>
+                  <Ionicons name="add-circle-outline" size={24} color={colors.success} />
+                </View>
+                <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                  Add Product
+                </Text>
+                <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                  List wholesale products
+                </Text>
+              </TouchableOpacity>
+
+              {/* Item 3: My Orders */}
+              <TouchableOpacity
+                style={styles.actionsGridItem}
+                onPress={() => {
+                  setIsAllActionsModalVisible(false);
+                  handleOrdersPress();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionModalIconBox, styles.myOrdersIconBox]}>
+                  <Ionicons name="receipt-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                  My Orders
+                </Text>
+                <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                  Track orders you placed
+                </Text>
+              </TouchableOpacity>
+
+              {/* Item 4: Customer Orders */}
+              <TouchableOpacity
+                style={styles.actionsGridItem}
+                onPress={() => {
+                  setIsAllActionsModalVisible(false);
+                  handleSellerOrdersPress();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionModalIconBox, styles.sellerOrdersIconBox]}>
+                  <Ionicons name="cube-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                  Customer Orders
+                </Text>
+                <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                  Orders placed by customers
+                </Text>
+              </TouchableOpacity>
+
+              {/* Item 5: My Price Requests */}
+              <TouchableOpacity
+                style={styles.actionsGridItem}
+                onPress={() => {
+                  setIsAllActionsModalVisible(false);
+                  handleBuyerQuotationsPress();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
+                  <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                  My Price Requests
+                </Text>
+                <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                  Custom price requests sent
+                </Text>
+              </TouchableOpacity>
+
+              {/* Item 6: Customer Price Requests */}
+              <TouchableOpacity
+                style={styles.actionsGridItem}
+                onPress={() => {
+                  setIsAllActionsModalVisible(false);
+                  handleSellerQuotationsPress();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                  Customer Price Requests
+                </Text>
+                <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                  Price requests from buyers
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -945,6 +1141,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  quickActionsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.xs + 2,
+    marginTop: spacing.xs,
+  },
+  quickActionsHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  quickActionsViewAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    gap: 2,
+  },
+  quickActionsViewAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
   actionCardsScrollView: {
     marginHorizontal: -spacing.lg,
     marginBottom: spacing.sm,
@@ -1098,5 +1320,94 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  moreActionCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.primaryLight + '60',
+  },
+  moreIconBox: {
+    backgroundColor: colors.primaryLight + '20',
+    borderColor: colors.primaryLight + '50',
+  },
+  moreCardHeading: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  actionsModalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  actionsModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  actionsModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  actionsModalSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  actionsModalCloseBtn: {
+    padding: spacing.xs,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
+  },
+  actionsGridItem: {
+    width: '48%',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'flex-start',
+  },
+  actionModalIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs + 2,
+  },
+  actionsGridTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  actionsGridDesc: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 14,
   },
 });
