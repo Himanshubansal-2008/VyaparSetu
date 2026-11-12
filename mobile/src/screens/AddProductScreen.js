@@ -110,6 +110,50 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     }));
   };
 
+  // Image Replacement (Single Image replacement at index)
+  const handleReplaceImage = async (indexToReplace) => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Permission to access your photo gallery is required to replace product images.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: false,
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const newUri = result.assets[0]?.uri;
+      if (!newUri) return;
+
+      setFormData((prev) => {
+        const updated = [...(prev.productImages || [])];
+        updated[indexToReplace] = newUri;
+        return {
+          ...prev,
+          productImages: updated,
+        };
+      });
+    } catch (error) {
+      console.warn('[AddProductScreen] Image replace error:', error);
+      Alert.alert(
+        'Image Replace Error',
+        'Could not replace the image. Please try again.'
+      );
+    }
+  };
+
   // Back Navigation
   const handleBack = () => {
     if (onBackPress) {
@@ -152,7 +196,12 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           {/* Section: Product Images */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Product Images</Text>
+              <View>
+                <Text style={styles.sectionTitle}>Product Images</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Add photos of your product from your photo gallery
+                </Text>
+              </View>
               {productImages.length > 0 && (
                 <View style={styles.badgeContainer}>
                   <Text style={styles.badgeText}>
@@ -200,6 +249,14 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                     style={styles.thumbnailWrapper}
                   >
                     <Image source={{ uri }} style={styles.thumbnailImage} />
+
+                    {index === 0 && (
+                      <View style={styles.mainImageBadge}>
+                        <Text style={styles.mainImageBadgeText}>Main</Text>
+                      </View>
+                    )}
+
+                    {/* Remove Image Button */}
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => handleRemoveImage(index)}
@@ -213,6 +270,23 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                         size={13}
                         color={colors.textInverse}
                       />
+                    </TouchableOpacity>
+
+                    {/* Replace Image Button */}
+                    <TouchableOpacity
+                      style={styles.replaceImageButton}
+                      onPress={() => handleReplaceImage(index)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Replace image ${index + 1}`}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Ionicons
+                        name="sync-outline"
+                        size={12}
+                        color={colors.surface}
+                      />
+                      <Text style={styles.replaceImageText}>Replace</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -431,9 +505,20 @@ const styles = StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   badgeContainer: {
     backgroundColor: colors.infoLight,
@@ -484,21 +569,35 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   imageThumbnailsContainer: {
-    gap: spacing.sm,
+    gap: spacing.md,
     paddingVertical: spacing.xs,
   },
   thumbnailWrapper: {
     position: 'relative',
-    width: 76,
-    height: 76,
+    width: 88,
+    height: 88,
   },
   thumbnailImage: {
-    width: 76,
-    height: 76,
+    width: 88,
+    height: 88,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceSubtle,
+  },
+  mainImageBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+  },
+  mainImageBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.textInverse,
   },
   removeImageButton: {
     position: 'absolute',
@@ -512,6 +611,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: colors.surface,
+  },
+  replaceImageButton: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    borderRadius: borderRadius.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    gap: 2,
+  },
+  replaceImageText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.surface,
   },
   sectionTitle: {
     fontSize: 16,
