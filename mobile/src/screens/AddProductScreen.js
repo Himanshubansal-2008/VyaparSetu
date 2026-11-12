@@ -50,6 +50,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     price: '',
     originalPrice: '',
     unit: 'piece',
+    moq: '1',
+    stock: '',
+    bulkPricing: [],
   });
 
   const productImages = Array.isArray(formData.productImages)
@@ -167,6 +170,32 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         'Could not replace the image. Please try again.'
       );
     }
+  };
+
+  // Bulk Pricing Tier Helpers
+  const handleAddTier = () => {
+    setFormData((prev) => ({
+      ...prev,
+      bulkPricing: [
+        ...prev.bulkPricing,
+        { minQuantity: '', maxQuantity: '', pricePerUnit: '' },
+      ],
+    }));
+  };
+
+  const handleRemoveTier = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      bulkPricing: prev.bulkPricing.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleTierChange = (index, field, value) => {
+    setFormData((prev) => {
+      const updated = [...prev.bulkPricing];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, bulkPricing: updated };
+    });
   };
 
   // Live discount percentage calculation
@@ -513,6 +542,160 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
               </View>
             </View>
           </View>
+
+          {/* Section 4: MOQ, Stock and Bulk Pricing */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Inventory & Bulk Pricing</Text>
+
+            {/* Row: MOQ & Available Stock */}
+            <View style={styles.rowInputs}>
+              {/* MOQ */}
+              <View style={[styles.inputGroup, styles.inputHalf]}>
+                <Text style={styles.label}>MOQ</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.moq}
+                    onChangeText={(val) => handleFieldChange('moq', val)}
+                    placeholder="Min Order Qty"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <Text style={styles.inputHint}>Minimum order quantity</Text>
+              </View>
+
+              {/* Available Stock */}
+              <View
+                style={[styles.inputGroup, styles.inputHalf, styles.inputHalfLast]}
+              >
+                <Text style={styles.label}>Available Stock</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.stock}
+                    onChangeText={(val) => handleFieldChange('stock', val)}
+                    placeholder="e.g. 500"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <Text style={styles.inputHint}>Total units in stock</Text>
+              </View>
+            </View>
+
+            {/* Bulk Pricing Tiers Subsection */}
+            <View style={styles.bulkPricingHeaderRow}>
+              <View>
+                <Text style={styles.bulkPricingSectionTitle}>
+                  Bulk Pricing Tiers
+                </Text>
+                <Text style={styles.bulkPricingSectionSub}>
+                  Optional: Offer discounted unit prices for high volume orders
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.addTierButton}
+                onPress={handleAddTier}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Add bulk pricing tier"
+              >
+                <Ionicons name="add" size={16} color={colors.primary} />
+                <Text style={styles.addTierButtonText}>Add Tier</Text>
+              </TouchableOpacity>
+            </View>
+
+            {formData.bulkPricing.length > 0 ? (
+              <View style={styles.tiersContainer}>
+                {formData.bulkPricing.map((tier, index) => (
+                  <View
+                    key={`tier-${index}`}
+                    style={styles.tierRowCard}
+                  >
+                    <View style={styles.tierHeader}>
+                      <Text style={styles.tierIndexLabel}>
+                        Tier #{index + 1}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveTier(index)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove tier ${index + 1}`}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={18}
+                          color={colors.error}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.tierFieldsRow}>
+                      {/* Min Qty */}
+                      <View style={styles.tierFieldCol}>
+                        <Text style={styles.tierFieldLabel}>Min Qty</Text>
+                        <TextInput
+                          style={styles.tierInput}
+                          value={tier.minQuantity}
+                          onChangeText={(val) =>
+                            handleTierChange(index, 'minQuantity', val)
+                          }
+                          placeholder="e.g. 20"
+                          placeholderTextColor={colors.textMuted}
+                          keyboardType="number-pad"
+                        />
+                      </View>
+
+                      {/* Max Qty (optional) */}
+                      <View style={styles.tierFieldCol}>
+                        <Text style={styles.tierFieldLabel}>
+                          Max Qty (or blank)
+                        </Text>
+                        <TextInput
+                          style={styles.tierInput}
+                          value={tier.maxQuantity}
+                          onChangeText={(val) =>
+                            handleTierChange(index, 'maxQuantity', val)
+                          }
+                          placeholder="e.g. 49"
+                          placeholderTextColor={colors.textMuted}
+                          keyboardType="number-pad"
+                        />
+                      </View>
+
+                      {/* Price Per Unit */}
+                      <View style={styles.tierFieldCol}>
+                        <Text style={styles.tierFieldLabel}>Price/Unit (₹)</Text>
+                        <TextInput
+                          style={styles.tierInput}
+                          value={tier.pricePerUnit}
+                          onChangeText={(val) =>
+                            handleTierChange(index, 'pricePerUnit', val)
+                          }
+                          placeholder="e.g. 410"
+                          placeholderTextColor={colors.textMuted}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyTiersBox}>
+                <Ionicons
+                  name="pricetags-outline"
+                  size={20}
+                  color={colors.textMuted}
+                />
+                <Text style={styles.emptyTiersText}>
+                  No bulk pricing tiers added. Tap "+ Add Tier" to create
+                  volume discounts.
+                </Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -797,6 +980,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     paddingVertical: Platform.OS === 'ios' ? spacing.sm : 6,
   },
+  inputHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 3,
+  },
   multilineWrapper: {
     minHeight: 100,
     alignItems: 'flex-start',
@@ -872,6 +1060,101 @@ const styles = StyleSheet.create({
   unitChipTextSelected: {
     color: colors.textInverse,
     fontWeight: '700',
+  },
+  bulkPricingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  bulkPricingSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  bulkPricingSectionSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  addTierButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+    gap: 3,
+  },
+  addTierButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  tiersContainer: {
+    gap: spacing.sm,
+  },
+  tierRowCard: {
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  tierHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  tierIndexLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  tierFieldsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  tierFieldCol: {
+    flex: 1,
+  },
+  tierFieldLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+    marginBottom: 4,
+  },
+  tierInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: Platform.OS === 'ios' ? spacing.xs : 4,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
+  emptyTiersBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptyTiersText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,
