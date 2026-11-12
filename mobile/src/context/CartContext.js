@@ -139,7 +139,17 @@ export function CartProvider({ children }) {
             const sanitized = parsed.map((item) => {
               const product = item.product || {};
               const qty = Math.max(1, Number(item.quantity) || 1);
-              const values = calculateItemValues(product, qty);
+              let values = calculateItemValues(product, qty);
+              if (item.quotationId && item.unitPrice) {
+                const qPrice = Number(item.unitPrice);
+                const regPrice = Number(product.price) || qPrice;
+                values = {
+                  unitPrice: qPrice,
+                  itemTotal: qty * qPrice,
+                  savings: Math.max(0, (regPrice - qPrice) * qty),
+                  activeTier: values.activeTier,
+                };
+              }
               return {
                 ...item,
                 id: item.id || product.id,
@@ -250,13 +260,34 @@ export function CartProvider({ children }) {
         };
       }
 
-      const values = calculateItemValues(product, targetQuantity);
+      let values = calculateItemValues(product, targetQuantity);
+
+      // Support custom negotiated quotation unit price
+      const customUnitPrice =
+        options.unitPrice !== undefined && options.unitPrice !== null
+          ? Number(options.unitPrice)
+          : existingItem?.quotationId && existingItem?.unitPrice
+          ? Number(existingItem.unitPrice)
+          : null;
+
+      if (customUnitPrice !== null) {
+        const regularPrice = Number(product.price) || customUnitPrice;
+        values = {
+          unitPrice: customUnitPrice,
+          itemTotal: targetQuantity * customUnitPrice,
+          savings: Math.max(0, (regularPrice - customUnitPrice) * targetQuantity),
+          activeTier: values.activeTier,
+        };
+      }
 
       const newItem = {
         id: product.id,
         product: { ...product },
         quantity: targetQuantity,
         ...values,
+        quotationId: options.quotationId || existingItem?.quotationId,
+        quotationNumber: options.quotationNumber || existingItem?.quotationNumber,
+        quotationDetails: options.quotationDetails || existingItem?.quotationDetails,
         addedAt: existingItem?.addedAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -303,7 +334,17 @@ export function CartProvider({ children }) {
         qty = stock;
       }
 
-      const values = calculateItemValues(item.product, qty);
+      let values = calculateItemValues(item.product, qty);
+      if (item.quotationId && item.unitPrice) {
+        const qPrice = Number(item.unitPrice);
+        const regPrice = Number(item.product.price) || qPrice;
+        values = {
+          unitPrice: qPrice,
+          itemTotal: qty * qPrice,
+          savings: Math.max(0, (regPrice - qPrice) * qty),
+          activeTier: values.activeTier,
+        };
+      }
       const next = [...prevItems];
       next[index] = {
         ...item,
@@ -335,7 +376,17 @@ export function CartProvider({ children }) {
         nextQty = stock;
       }
 
-      const values = calculateItemValues(item.product, nextQty);
+      let values = calculateItemValues(item.product, nextQty);
+      if (item.quotationId && item.unitPrice) {
+        const qPrice = Number(item.unitPrice);
+        const regPrice = Number(item.product.price) || qPrice;
+        values = {
+          unitPrice: qPrice,
+          itemTotal: nextQty * qPrice,
+          savings: Math.max(0, (regPrice - qPrice) * nextQty),
+          activeTier: values.activeTier,
+        };
+      }
       return prevItems.map((i) =>
         i.id === productId
           ? {
@@ -369,7 +420,17 @@ export function CartProvider({ children }) {
         nextQty = moq;
       }
 
-      const values = calculateItemValues(item.product, nextQty);
+      let values = calculateItemValues(item.product, nextQty);
+      if (item.quotationId && item.unitPrice) {
+        const qPrice = Number(item.unitPrice);
+        const regPrice = Number(item.product.price) || qPrice;
+        values = {
+          unitPrice: qPrice,
+          itemTotal: nextQty * qPrice,
+          savings: Math.max(0, (regPrice - qPrice) * nextQty),
+          activeTier: values.activeTier,
+        };
+      }
       return prevItems.map((i) =>
         i.id === productId
           ? {

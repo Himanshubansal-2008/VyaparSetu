@@ -52,6 +52,8 @@ export default function HomeScreen({
   onNavigateToOrderHistory,
   onNavigateToEditProduct,
   onNavigateToSellerOrders,
+  onNavigateToBuyerQuotations,
+  onNavigateToSellerQuotations,
 }) {
   const [productList, setProductList] = useState(defaultProducts);
 
@@ -225,6 +227,28 @@ export default function HomeScreen({
     }
   };
 
+  const handleBuyerQuotationsPress = () => {
+    if (onNavigateToBuyerQuotations) {
+      onNavigateToBuyerQuotations();
+    } else if (navigation?.navigate) {
+      navigation.navigate('BuyerQuotations');
+    }
+  };
+
+  const handleSellerQuotationsPress = () => {
+    const profile = getSessionBusinessProfile() || savedProfile;
+    const params = {
+      business: profile,
+      businessId: profile?.id,
+      sellerId: profile?.sellerId || profile?.id,
+    };
+    if (onNavigateToSellerQuotations) {
+      onNavigateToSellerQuotations(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('SellerQuotations', params);
+    }
+  };
+
   const trimmedQuery = searchQuery.trim();
   const searchTokens = useMemo(() => {
     return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
@@ -382,7 +406,7 @@ export default function HomeScreen({
 
           {/* 4. Seller Orders Card */}
           <TouchableOpacity
-            style={[styles.actionCard, styles.actionCardLast]}
+            style={styles.actionCard}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel="Seller Orders"
@@ -397,6 +421,46 @@ export default function HomeScreen({
             </View>
             <Text style={styles.actionCardHeading} numberOfLines={1}>
               Seller Orders
+            </Text>
+          </TouchableOpacity>
+
+          {/* 5. My Quotations Card */}
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="My Quotations"
+            onPress={handleBuyerQuotationsPress}
+          >
+            <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
+              <Ionicons
+                name="document-text-outline"
+                size={16}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.actionCardHeading} numberOfLines={1}>
+              My Quotations
+            </Text>
+          </TouchableOpacity>
+
+          {/* 6. Seller RFQs Card */}
+          <TouchableOpacity
+            style={[styles.actionCard, styles.actionCardLast]}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Seller RFQs"
+            onPress={handleSellerQuotationsPress}
+          >
+            <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={16}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.actionCardHeading} numberOfLines={1}>
+              Seller RFQs
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -936,6 +1000,9 @@ const styles = StyleSheet.create({
   },
   sellerOrdersIconBox: {
     backgroundColor: colors.primaryLight + '20',
+  },
+  quotationsIconBox: {
+    backgroundColor: '#EFF6FF',
   },
   actionCardHeading: {
     fontSize: 13,

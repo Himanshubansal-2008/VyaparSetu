@@ -69,6 +69,8 @@ export default function ProductDetailsScreen({
   products: propProducts,
   onNavigateToBusinessProfile,
   onNavigateToEditProduct,
+  onNavigateToRequestQuotation,
+  onNavigateToBuyerQuotations,
   onCartPress,
 }) {
   const { addToCart, isInCart, cartItemCount } = useCart();
@@ -751,6 +753,21 @@ export default function ProductDetailsScreen({
       );
     } else if (result?.message) {
       Alert.alert('Unable to Add to Cart', result.message);
+    }
+  };
+
+  const handleRequestQuotation = () => {
+    if (!product) return;
+    const initialQty = isValidQuantity ? quantity : (product.moq || 1);
+    const params = {
+      product,
+      productId: product.id,
+      initialQuantity: initialQty,
+    };
+    if (onNavigateToRequestQuotation) {
+      onNavigateToRequestQuotation(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('RequestQuotation', params);
     }
   };
 
@@ -1513,6 +1530,39 @@ export default function ProductDetailsScreen({
             )}
           </View>
 
+          {/* Request Quotation / RFQ Callout Card */}
+          <View style={styles.rfqCard}>
+            <View style={styles.rfqHeaderRow}>
+              <View style={styles.rfqIconBox}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={styles.rfqHeaderTextWrapper}>
+                <Text style={styles.rfqTitle}>Need Custom Bulk Terms?</Text>
+                <Text style={styles.rfqSubtext}>
+                  Request a direct wholesale quotation for custom quantities, target pricing, delivery schedules, and specialized payment terms.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.rfqButton}
+              onPress={handleRequestQuotation}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Request Custom Quotation"
+            >
+              <Ionicons
+                name="paper-plane-outline"
+                size={16}
+                color={colors.primary}
+              />
+              <Text style={styles.rfqButtonText}>Request Custom Quote</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Product Overview / Key Information Card */}
           {keyDetails.length > 0 && (
             <View style={styles.overviewCard}>
@@ -1619,28 +1669,45 @@ export default function ProductDetailsScreen({
           )}
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.addToCartButton,
-            (isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
-              styles.addToCartButtonDisabled,
-          ]}
-          onPress={handleAddToCart}
-          disabled={isOutOfStock || isStockBelowMoq || !isValidQuantity}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={itemInCart ? 'Update Wholesale Cart' : 'Add to Wholesale Cart'}
-        >
-          <Ionicons
-            name={itemInCart ? 'checkmark-circle-outline' : 'cart-outline'}
-            size={20}
-            color={colors.textInverse}
-            style={styles.addToCartIcon}
-          />
-          <Text style={styles.addToCartButtonText}>
-            {itemInCart ? 'Update Cart' : 'Add to Cart'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.bottomBarActions}>
+          <TouchableOpacity
+            style={styles.bottomBarQuoteBtn}
+            onPress={handleRequestQuotation}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Request Quotation"
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={18}
+              color={colors.primary}
+            />
+            <Text style={styles.bottomBarQuoteBtnText}>Quote</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.addToCartButton,
+              (isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
+                styles.addToCartButtonDisabled,
+            ]}
+            onPress={handleAddToCart}
+            disabled={isOutOfStock || isStockBelowMoq || !isValidQuantity}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={itemInCart ? 'Update Wholesale Cart' : 'Add to Wholesale Cart'}
+          >
+            <Ionicons
+              name={itemInCart ? 'checkmark-circle-outline' : 'cart-outline'}
+              size={18}
+              color={colors.textInverse}
+              style={styles.addToCartIcon}
+            />
+            <Text style={styles.addToCartButtonText}>
+              {itemInCart ? 'Update Cart' : 'Add to Cart'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -1803,6 +1870,91 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: colors.surplus,
+  },
+  bottomBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  bottomBarQuoteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: 4,
+  },
+  bottomBarQuoteBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  rfqCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  rfqHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  rfqIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rfqHeaderTextWrapper: {
+    flex: 1,
+  },
+  rfqTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  rfqSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  rfqButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  rfqButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
   addToCartButton: {
     flexDirection: 'row',

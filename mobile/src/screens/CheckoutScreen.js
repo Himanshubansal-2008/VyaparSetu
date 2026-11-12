@@ -24,6 +24,7 @@ import {
   saveDeliveryAddress,
   getSavedAddress,
 } from '../data/orders';
+import { markQuotationAsOrdered } from '../data/quotations';
 import EmptyState from '../components/EmptyState';
 
 const PAYMENT_METHODS = [
@@ -209,6 +210,9 @@ export default function CheckoutScreen({
           itemTotal: item.itemTotal,
           activeTier: item.activeTier || null,
           savings: item.savings || 0,
+          quotationId: item.quotationId || null,
+          quotationNumber: item.quotationNumber || item.quotationId || null,
+          quotationDetails: item.quotationDetails || null,
         })),
         totalItems: cartItemCount,
         totalUnits: totalUnits,
@@ -228,6 +232,17 @@ export default function CheckoutScreen({
 
       // 1. Save placed order locally
       const saved = await saveOrder(orderPayload);
+
+      // 1.1 Transition any originated quotations to ordered status
+      for (const item of cartItems) {
+        if (item.quotationId) {
+          try {
+            await markQuotationAsOrdered(item.quotationId, orderPayload.id);
+          } catch (quotationErr) {
+            console.warn('[Checkout] Failed marking quotation as ordered:', quotationErr);
+          }
+        }
+      }
 
       // 2. Save delivery address for future orders
       await saveDeliveryAddress(addressForm);
@@ -548,11 +563,17 @@ export default function CheckoutScreen({
                           <Text style={styles.itemQtyPrice}>
                             {item.quantity} {unitSingular}s × ₹{item.unitPrice}
                           </Text>
-                          {item.activeTier && (
+                          {item.quotationId ? (
+                            <View style={[styles.tierPill, { backgroundColor: '#EFF6FF' }]}>
+                              <Text style={[styles.tierPillText, { color: colors.primary }]}>
+                                Agreed Quote
+                              </Text>
+                            </View>
+                          ) : item.activeTier ? (
                             <View style={styles.tierPill}>
                               <Text style={styles.tierPillText}>Bulk Tier</Text>
                             </View>
-                          )}
+                          ) : null}
                         </View>
                       </View>
 

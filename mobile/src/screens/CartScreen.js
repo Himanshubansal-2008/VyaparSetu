@@ -28,6 +28,8 @@ export default function CartScreen({
   onNavigateToProductDetails,
   onNavigateToHome,
   onNavigateToCheckout,
+  onNavigateToRequestQuotation,
+  onNavigateToBuyerQuotations,
 }) {
   const {
     cartItems,
@@ -213,6 +215,29 @@ export default function CartScreen({
             style={styles.emptyStateCard}
           />
 
+          <TouchableOpacity
+            style={styles.quotationsLinkButton}
+            onPress={() => {
+              if (onNavigateToBuyerQuotations) {
+                onNavigateToBuyerQuotations();
+              } else if (navigation?.navigate) {
+                navigation.navigate('BuyerQuotations');
+              }
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="View submitted quotations and RFQs"
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={18}
+              color={colors.primary}
+            />
+            <Text style={styles.quotationsLinkButtonText}>
+              View Submitted Quotations & RFQs
+            </Text>
+          </TouchableOpacity>
+
           {/* Wholesale B2B Assurance Banner */}
           <View style={styles.assuranceCard}>
             <View style={styles.assuranceTitleRow}>
@@ -379,7 +404,18 @@ export default function CartScreen({
                       </View>
                     </View>
 
-                    {item.activeTier ? (
+                    {item.quotationId ? (
+                      <View style={styles.quoteAgreedBadge}>
+                        <Ionicons
+                          name="document-text"
+                          size={12}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.quoteAgreedBadgeText}>
+                          Quote #{String(item.quotationId).slice(-6)} · Agreed Price
+                        </Text>
+                      </View>
+                    ) : item.activeTier ? (
                       <View style={styles.tierAppliedBadge}>
                         <Ionicons
                           name="sparkles"
@@ -399,8 +435,22 @@ export default function CartScreen({
                     )}
                   </View>
 
+                  {/* Agreed Quotation Highlight */}
+                  {item.quotationId && (
+                    <View style={styles.quoteBanner}>
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.quoteBannerText}>
+                        Locked negotiated price ({item.quantity} {unitPlural} at ₹{item.unitPrice.toLocaleString('en-IN')}/{unitSingular})
+                      </Text>
+                    </View>
+                  )}
+
                   {/* Bulk Savings Highlight */}
-                  {item.savings > 0 && (
+                  {!item.quotationId && item.savings > 0 && (
                     <View style={styles.savingsBanner}>
                       <Ionicons
                         name="trending-down-outline"
@@ -571,6 +621,37 @@ export default function CartScreen({
               </Text>
             </View>
           </View>
+
+          {/* Quotations Quick Link */}
+          <TouchableOpacity
+            style={styles.cartQuotationsRow}
+            onPress={() => {
+              if (onNavigateToBuyerQuotations) {
+                onNavigateToBuyerQuotations();
+              } else if (navigation?.navigate) {
+                navigation.navigate('BuyerQuotations');
+              }
+            }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="View submitted quotations"
+          >
+            <View style={styles.cartQuotationsLeft}>
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={styles.cartQuotationsText}>
+                View all your active RFQs & Quotations
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
         </ScrollView>
       )}
 
@@ -902,6 +983,80 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  quoteAgreedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  quoteAgreedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  quoteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  quoteBannerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  quotationsLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    marginHorizontal: spacing.lg,
+    gap: spacing.xs + 2,
+  },
+  quotationsLinkButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  cartQuotationsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  cartQuotationsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  cartQuotationsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+    flex: 1,
   },
   savingsBanner: {
     flexDirection: 'row',

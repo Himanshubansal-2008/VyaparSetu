@@ -26,6 +26,7 @@ import { products as defaultProducts, subscribeProducts } from '../data/products
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
 import { getOrdersForSeller, subscribeOrders } from '../data/orders';
+import { getQuotationsForSeller, subscribeQuotations } from '../data/quotations';
 
 export default function BusinessProfileScreen({
   navigation,
@@ -37,6 +38,7 @@ export default function BusinessProfileScreen({
   onNavigateToAddProduct,
   onNavigateToEditProduct,
   onNavigateToSellerOrders,
+  onNavigateToSellerQuotations,
 }) {
   const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
   const [productList, setProductList] = useState(defaultProducts);
@@ -59,6 +61,14 @@ export default function BusinessProfileScreen({
   useEffect(() => {
     return subscribeOrders((updated) => {
       setOrdersList([...updated]);
+    });
+  }, []);
+
+  const [quotationsList, setQuotationsList] = useState([]);
+
+  useEffect(() => {
+    return subscribeQuotations((updated) => {
+      setQuotationsList([...updated]);
     });
   }, []);
 
@@ -320,6 +330,32 @@ export default function BusinessProfileScreen({
     }
   };
 
+  const currentSellerQuotations = useMemo(() => {
+    const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
+    return getQuotationsForSeller(sId, productList);
+  }, [resolvedBusiness, productList, quotationsList]);
+
+  const pendingQuotationsCount = useMemo(() => {
+    return currentSellerQuotations.filter((q) => {
+      const st = String(q.status || '').toLowerCase();
+      return st === 'submitted' || st === 'pending' || st === 'counter-offer made';
+    }).length;
+  }, [currentSellerQuotations]);
+
+  const handleNavigateToSellerQuotations = () => {
+    const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
+    const params = {
+      business: resolvedBusiness,
+      businessId: sId,
+      sellerId: sId,
+    };
+    if (onNavigateToSellerQuotations) {
+      onNavigateToSellerQuotations(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('SellerQuotations', params);
+    }
+  };
+
   // If business was not found or invalid businessId was provided, render error state
   if (!resolvedBusiness) {
     return (
@@ -570,6 +606,36 @@ export default function BusinessProfileScreen({
             <Text style={styles.sellerOrdersSubtitle}>
               {currentSellerOrders.length}{' '}
               {currentSellerOrders.length === 1 ? 'order' : 'orders'} received • Manage wholesale fulfillments
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </TouchableOpacity>
+
+        {/* 3.2 Seller Quotations Management Card */}
+        <TouchableOpacity
+          style={styles.sellerOrdersCard}
+          onPress={handleNavigateToSellerQuotations}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Manage Received RFQs & Quotations"
+        >
+          <View style={[styles.sellerOrdersIconBox, { backgroundColor: '#EFF6FF' }]}>
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.sellerOrdersContent}>
+            <View style={styles.sellerOrdersTitleRow}>
+              <Text style={styles.sellerOrdersTitle}>Received Quotations</Text>
+              {pendingQuotationsCount > 0 && (
+                <View style={[styles.sellerOrdersBadge, { backgroundColor: colors.warning }]}>
+                  <Text style={styles.sellerOrdersBadgeText}>
+                    {pendingQuotationsCount} PENDING
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.sellerOrdersSubtitle}>
+              {currentSellerQuotations.length}{' '}
+              {currentSellerQuotations.length === 1 ? 'quotation' : 'quotations'} received • Respond to buyer RFQs & quotes
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />

@@ -13,6 +13,11 @@ import OrderHistoryScreen from '../screens/OrderHistoryScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import SellerOrdersScreen from '../screens/SellerOrdersScreen';
 import SellerOrderDetailsScreen from '../screens/SellerOrderDetailsScreen';
+import RequestQuotationScreen from '../screens/RequestQuotationScreen';
+import BuyerQuotationsScreen from '../screens/BuyerQuotationsScreen';
+import BuyerQuotationDetailsScreen from '../screens/BuyerQuotationDetailsScreen';
+import SellerQuotationsScreen from '../screens/SellerQuotationsScreen';
+import SellerQuotationDetailsScreen from '../screens/SellerQuotationDetailsScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -22,6 +27,7 @@ import {
   loadPersistedOrders,
   loadPersistedAddress,
 } from '../data/orders';
+import { loadPersistedQuotations } from '../data/quotations';
 
 const VALID_ROUTES = [
   'Home',
@@ -40,6 +46,11 @@ const VALID_ROUTES = [
   'OrderDetails',
   'SellerOrders',
   'SellerOrderDetails',
+  'RequestQuotation',
+  'BuyerQuotations',
+  'BuyerQuotationDetails',
+  'SellerQuotations',
+  'SellerQuotationDetails',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -142,6 +153,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
       loadPersistedProducts(),
       loadPersistedOrders(),
       loadPersistedAddress(),
+      loadPersistedQuotations(),
     ]).finally(() => {
       setIsLoaded(true);
     });
@@ -354,6 +366,91 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToRequestQuotation = useCallback(
+    (productOrParams) => {
+      if (productOrParams && typeof productOrParams === 'object') {
+        const prod = productOrParams.product || productOrParams;
+        navigate('RequestQuotation', {
+          ...productOrParams,
+          product: prod,
+          productId: prod?.id,
+        });
+      } else if (typeof productOrParams === 'string') {
+        navigate('RequestQuotation', { productId: productOrParams });
+      } else {
+        navigate('RequestQuotation', {});
+      }
+    },
+    [navigate]
+  );
+
+  const handleNavigateToBuyerQuotations = useCallback(() => {
+    navigate('BuyerQuotations');
+  }, [navigate]);
+
+  const handleNavigateToBuyerQuotationDetails = useCallback(
+    (quoteOrParams) => {
+      if (quoteOrParams && typeof quoteOrParams === 'object') {
+        const quoteObj = quoteOrParams.quotation || quoteOrParams;
+        const qId = quoteOrParams.quotationId || quoteOrParams.id || quoteObj?.id;
+        navigate('BuyerQuotationDetails', {
+          ...quoteOrParams,
+          quotation: quoteObj,
+          quotationId: qId,
+        });
+      } else if (typeof quoteOrParams === 'string') {
+        navigate('BuyerQuotationDetails', { quotationId: quoteOrParams });
+      } else {
+        navigate('BuyerQuotationDetails', {});
+      }
+    },
+    [navigate]
+  );
+
+  const handleNavigateToSellerQuotations = useCallback(
+    (paramsOrBusinessId) => {
+      if (typeof paramsOrBusinessId === 'string') {
+        navigate('SellerQuotations', {
+          businessId: paramsOrBusinessId,
+          sellerId: paramsOrBusinessId,
+        });
+      } else if (paramsOrBusinessId && typeof paramsOrBusinessId === 'object') {
+        const bId =
+          paramsOrBusinessId.businessId ||
+          paramsOrBusinessId.sellerId ||
+          paramsOrBusinessId.business?.id ||
+          paramsOrBusinessId.business?.sellerId;
+        navigate('SellerQuotations', {
+          ...paramsOrBusinessId,
+          businessId: bId,
+          sellerId: bId,
+        });
+      } else {
+        navigate('SellerQuotations', {});
+      }
+    },
+    [navigate]
+  );
+
+  const handleNavigateToSellerQuotationDetails = useCallback(
+    (quoteOrParams) => {
+      if (quoteOrParams && typeof quoteOrParams === 'object') {
+        const quoteObj = quoteOrParams.quotation || quoteOrParams;
+        const qId = quoteOrParams.quotationId || quoteOrParams.id || quoteObj?.id;
+        navigate('SellerQuotationDetails', {
+          ...quoteOrParams,
+          quotation: quoteObj,
+          quotationId: qId,
+        });
+      } else if (typeof quoteOrParams === 'string') {
+        navigate('SellerQuotationDetails', { quotationId: quoteOrParams });
+      } else {
+        navigate('SellerQuotationDetails', {});
+      }
+    },
+    [navigate]
+  );
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -380,6 +477,9 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           onNavigateToOrderHistory={handleNavigateToOrderHistory}
           onOrdersPress={handleNavigateToOrderHistory}
           onNavigateToSellerOrders={handleNavigateToSellerOrders}
+          onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
+          onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
+          onNavigateToRequestQuotation={handleNavigateToRequestQuotation}
         />
       </View>
 
@@ -420,6 +520,8 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onBackPress={goBack}
             onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
             onNavigateToEditProduct={handleNavigateToEditProduct}
+            onNavigateToRequestQuotation={handleNavigateToRequestQuotation}
+            onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
             onCartPress={handleNavigateToCart}
           />
         </View>
@@ -448,6 +550,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onNavigateToAddProduct={handleNavigateToAddProduct}
             onNavigateToEditProduct={handleNavigateToEditProduct}
             onNavigateToSellerOrders={handleNavigateToSellerOrders}
+            onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
           />
         </View>
       )}
@@ -496,6 +599,8 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onNavigateToProductDetails={handleNavigateToProductDetails}
             onNavigateToHome={() => navigate('Home')}
             onNavigateToCheckout={handleNavigateToCheckout}
+            onNavigateToRequestQuotation={handleNavigateToRequestQuotation}
+            onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
           />
         </View>
       )}
@@ -540,6 +645,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onNavigateToCatalog={() => navigate('ProductListing')}
             onNavigateToHome={() => navigate('Home')}
             onCartPress={handleNavigateToCart}
+            onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
           />
         </View>
       )}
@@ -578,6 +684,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onBackPress={goBack}
             onNavigateToSellerOrderDetails={handleNavigateToSellerOrderDetails}
             onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+            onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
           />
         </View>
       )}
@@ -597,6 +704,94 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onNavigateToSellerOrders={handleNavigateToSellerOrders}
             onNavigateToProductDetails={handleNavigateToProductDetails}
             onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+          />
+        </View>
+      )}
+
+      {/* Request Quotation Screen */}
+      {currentRoute.name === 'RequestQuotation' && (
+        <View style={styles.screen}>
+          <RequestQuotationScreen
+            key={
+              currentRoute.params?.product?.id ||
+              currentRoute.params?.productId ||
+              'request_quote'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
+          />
+        </View>
+      )}
+
+      {/* Buyer Quotations Listing Screen */}
+      {currentRoute.name === 'BuyerQuotations' && (
+        <View style={styles.screen}>
+          <BuyerQuotationsScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToBuyerQuotationDetails={handleNavigateToBuyerQuotationDetails}
+            onNavigateToCatalog={() => navigate('ProductListing')}
+            onNavigateToCart={handleNavigateToCart}
+            onNavigateToOrders={handleNavigateToOrderHistory}
+          />
+        </View>
+      )}
+
+      {/* Buyer Quotation Details Screen */}
+      {currentRoute.name === 'BuyerQuotationDetails' && (
+        <View style={styles.screen}>
+          <BuyerQuotationDetailsScreen
+            key={
+              currentRoute.params?.quotationId ||
+              currentRoute.params?.quotation?.id ||
+              'buyer_quote_details'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToCart={handleNavigateToCart}
+            onNavigateToCheckout={handleNavigateToCheckout}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToOrderDetails={handleNavigateToOrderDetails}
+          />
+        </View>
+      )}
+
+      {/* Seller Quotations Listing Screen */}
+      {currentRoute.name === 'SellerQuotations' && (
+        <View style={styles.screen}>
+          <SellerQuotationsScreen
+            key={
+              currentRoute.params?.businessId ||
+              currentRoute.params?.sellerId ||
+              'seller_quotes'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToSellerQuotationDetails={handleNavigateToSellerQuotationDetails}
+            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+          />
+        </View>
+      )}
+
+      {/* Seller Quotation Details Screen */}
+      {currentRoute.name === 'SellerQuotationDetails' && (
+        <View style={styles.screen}>
+          <SellerQuotationDetailsScreen
+            key={
+              currentRoute.params?.quotationId ||
+              currentRoute.params?.quotation?.id ||
+              'seller_quote_details'
+            }
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
           />
         </View>
       )}

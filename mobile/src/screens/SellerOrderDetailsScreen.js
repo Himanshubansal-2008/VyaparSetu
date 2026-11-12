@@ -636,6 +636,20 @@ export default function SellerOrderDetailsScreen({
                         </Text>
                       </View>
 
+                      {item.quotationId && (
+                        <View style={[styles.bulkTierTag, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                          <Ionicons
+                            name="document-text-outline"
+                            size={10}
+                            color={colors.primary}
+                            style={{ marginRight: 3 }}
+                          />
+                          <Text style={[styles.bulkTierTagText, { color: colors.primary }]}>
+                            Agreed Quote #{String(item.quotationId).slice(-6)}
+                          </Text>
+                        </View>
+                      )}
+
                       {item.activeTier && (
                         <View style={styles.bulkTierTag}>
                           <Ionicons

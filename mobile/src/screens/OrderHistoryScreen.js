@@ -39,6 +39,7 @@ export default function OrderHistoryScreen({
   onNavigateToCatalog,
   onNavigateToHome,
   onCartPress,
+  onNavigateToBuyerQuotations,
 }) {
   const [orders, setOrders] = useState(getOrders());
   const [activeFilter, setActiveFilter] = useState('All');
@@ -405,22 +406,41 @@ export default function OrderHistoryScreen({
           </Text>
         </View>
 
-        {onCartPress ? (
-          <TouchableOpacity
-            style={styles.cartButton}
-            onPress={onCartPress}
-            activeOpacity={0.7}
-            accessibilityLabel="Shopping Cart"
-          >
-            <Ionicons
-              name="cart-outline"
-              size={22}
-              color={colors.textPrimary}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        <View style={styles.headerRightActions}>
+          {onNavigateToBuyerQuotations && (
+            <TouchableOpacity
+              style={styles.quotationsHeaderButton}
+              onPress={onNavigateToBuyerQuotations}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View Quotations"
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={16}
+                color={colors.primary}
+              />
+              <Text style={styles.quotationsHeaderButtonText}>Quotes</Text>
+            </TouchableOpacity>
+          )}
+
+          {onCartPress ? (
+            <TouchableOpacity
+              style={styles.cartButton}
+              onPress={onCartPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Shopping Cart"
+            >
+              <Ionicons
+                name="cart-outline"
+                size={22}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
+        </View>
       </View>
 
       {/* 2. Top Summary KPI Row */}
@@ -570,6 +590,24 @@ export default function OrderHistoryScreen({
                 Browse Wholesale Catalog
               </Text>
             </TouchableOpacity>
+
+            {onNavigateToBuyerQuotations && (
+              <TouchableOpacity
+                style={styles.quotationsEmptyButton}
+                onPress={onNavigateToBuyerQuotations}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={17}
+                  color={colors.primary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.quotationsEmptyButtonText}>
+                  View My Quotations & RFQs
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
       />
@@ -607,6 +645,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 1,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  quotationsHeaderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    gap: 4,
+  },
+  quotationsHeaderButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
   },
   cartButton: {
     padding: spacing.xs + 2,
@@ -993,6 +1052,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.textInverse,
+  },
+  quotationsEmptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm + 4,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+  },
+  quotationsEmptyButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });
 
