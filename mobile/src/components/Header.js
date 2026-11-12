@@ -20,6 +20,7 @@ export default function Header({
   onNotificationPress,
   onCartPress,
   onSettingsPress,
+  onOrdersPress,
   unreadNotifications = 2,
   cartItemCount: propCartItemCount,
   showBack = false,
@@ -71,6 +72,21 @@ export default function Header({
         </View>
 
         <View style={styles.actionsContainer}>
+          {onOrdersPress && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={onOrdersPress}
+              activeOpacity={0.7}
+              accessibilityLabel="My Orders"
+            >
+              <Ionicons
+                name="receipt-outline"
+                size={21}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onNotificationPress}

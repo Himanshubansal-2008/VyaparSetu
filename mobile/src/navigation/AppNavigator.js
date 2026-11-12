@@ -9,6 +9,7 @@ import AddProductScreen from '../screens/AddProductScreen';
 import CartScreen from '../screens/CartScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
 import OrderConfirmationScreen from '../screens/OrderConfirmationScreen';
+import OrderHistoryScreen from '../screens/OrderHistoryScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -31,6 +32,8 @@ const VALID_ROUTES = [
   'Cart',
   'Checkout',
   'OrderConfirmation',
+  'OrderHistory',
+  'Orders',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -271,6 +274,10 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToOrderHistory = useCallback(() => {
+    navigate('OrderHistory');
+  }, [navigate]);
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -294,6 +301,8 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           onNavigateToAddProduct={handleNavigateToAddProduct}
           onNavigateToEditProduct={handleNavigateToEditProduct}
           onCartPress={handleNavigateToCart}
+          onNavigateToOrderHistory={handleNavigateToOrderHistory}
+          onOrdersPress={handleNavigateToOrderHistory}
         />
       </View>
 
@@ -434,6 +443,22 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={currentRoute}
             onNavigateToHome={() => navigate('Home')}
             onNavigateToCatalog={() => navigate('ProductListing')}
+          />
+        </View>
+      )}
+
+      {/* Order History Screen */}
+      {(currentRoute.name === 'OrderHistory' ||
+        currentRoute.name === 'Orders') && (
+        <View style={styles.screen}>
+          <OrderHistoryScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToOrderDetails={() => {}}
+            onNavigateToCatalog={() => navigate('ProductListing')}
+            onNavigateToHome={() => navigate('Home')}
+            onCartPress={handleNavigateToCart}
           />
         </View>
       )}

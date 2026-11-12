@@ -47,6 +47,8 @@ export default function HomeScreen({
   onSelectCategory: propOnSelectCategory,
   onNotificationPress,
   onCartPress,
+  onOrdersPress,
+  onNavigateToOrderHistory,
   onNavigateToEditProduct,
 }) {
   const [productList, setProductList] = useState(defaultProducts);
@@ -197,6 +199,16 @@ export default function HomeScreen({
     }
   };
 
+  const handleOrdersPress = () => {
+    if (onNavigateToOrderHistory) {
+      onNavigateToOrderHistory();
+    } else if (onOrdersPress) {
+      onOrdersPress();
+    } else if (navigation?.navigate) {
+      navigation.navigate('OrderHistory');
+    }
+  };
+
   const trimmedQuery = searchQuery.trim();
   const searchTokens = useMemo(() => {
     return trimmedQuery.toLowerCase().split(/\s+/).filter(Boolean);
@@ -278,6 +290,7 @@ export default function HomeScreen({
         }}
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
+        onOrdersPress={handleOrdersPress}
       >
         {/* Create Business Profile Card: positioned directly below header top row and above search bar */}
         <TouchableOpacity
@@ -339,6 +352,36 @@ export default function HomeScreen({
             </Text>
           </View>
           <View style={styles.addProductArrowBox}>
+            <Ionicons
+              name="arrow-forward"
+              size={16}
+              color={colors.primary}
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* My Orders Card: positioned directly below Add Product card and above search bar */}
+        <TouchableOpacity
+          style={styles.myOrdersCard}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="My Orders - View order history and tracking"
+          onPress={handleOrdersPress}
+        >
+          <View style={styles.myOrdersIconBox}>
+            <Ionicons
+              name="receipt-outline"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <View style={styles.createBusinessTextCol}>
+            <Text style={styles.createBusinessHeading}>My Orders</Text>
+            <Text style={styles.createBusinessSubtitle} numberOfLines={1}>
+              Track wholesale orders & view history
+            </Text>
+          </View>
+          <View style={styles.createBusinessArrowBox}>
             <Ionicons
               name="arrow-forward"
               size={16}
@@ -935,6 +978,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: colors.textSecondary,
+  },
+  myOrdersCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  myOrdersIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight + '20',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
   addProductArrowBox: {
     width: 28,
