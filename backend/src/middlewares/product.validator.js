@@ -5,6 +5,10 @@
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Permitted update fields whitelist for inventory product updates.
+ * Prevents unauthorized mutation of system-managed fields.
+ */
 const PERMITTED_UPDATE_FIELDS = new Set([
   "name",
   "description",
