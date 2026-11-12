@@ -208,7 +208,60 @@ export default function SellerOrderDetailsScreen({
     );
   }, [order, businessId]);
 
+  // Handler: Advance / Update Status through valid stages
+  const handleUpdateStatus = useCallback(
+    (targetStatus, promptTitle, promptMessage) => {
+      if (!order) return;
+      if (!canTransitionStatus(order.status, targetStatus)) {
+        Alert.alert(
+          'Invalid Status Update',
+          `Cannot transition order from "${order.status}" to "${targetStatus}".`
+        );
+        return;
+      }
 
+      Alert.alert(
+        promptTitle,
+        promptMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm Update',
+            style: 'default',
+            onPress: async () => {
+              setActionLoading(true);
+              try {
+                const res = await updateSellerOrderStatus(
+                  order.id,
+                  targetStatus,
+                  {
+                    carrierName: 'Delhivery B2B Freight',
+                    trackingNumber: `DELHIVERY-B2B-${Math.floor(
+                      100000 + Math.random() * 900000
+                    )}`,
+                  }
+                );
+                if (res.success) {
+                  setOrder(res.order);
+                  Alert.alert(
+                    'Status Updated',
+                    `Order status updated to "${targetStatus}".`
+                  );
+                } else {
+                  Alert.alert('Error', res.message || 'Failed to update status.');
+                }
+              } catch (err) {
+                console.warn('Update status error:', err);
+              } finally {
+                setActionLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [order]
+  );
 
   // If order is invalid or not found
   if (!order) {
@@ -388,7 +441,65 @@ export default function SellerOrderDetailsScreen({
             </View>
           )}
 
+          {isProcessing && (
+            <TouchableOpacity
+              style={styles.advanceStatusBtn}
+              onPress={() =>
+                handleUpdateStatus(
+                  'Dispatched',
+                  'Dispatch Consignment',
+                  'Confirm that the consignment has been handed over to the freight logistics carrier?'
+                )
+              }
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="airplane-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
+              <Text style={styles.advanceStatusBtnText}>
+                {actionLoading ? 'Updating...' : 'Dispatch Consignment'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
+          {isDispatched && (
+            <TouchableOpacity
+              style={styles.advanceStatusBtn}
+              onPress={() =>
+                handleUpdateStatus(
+                  'Out for Delivery',
+                  'Mark Out for Delivery',
+                  'Confirm vehicle is out for destination warehouse dock delivery?'
+                )
+              }
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="car-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
+              <Text style={styles.advanceStatusBtnText}>
+                {actionLoading ? 'Updating...' : 'Mark Out for Delivery'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {isOutForDelivery && (
+            <TouchableOpacity
+              style={[styles.advanceStatusBtn, { backgroundColor: colors.success }]}
+              onPress={() =>
+                handleUpdateStatus(
+                  'Delivered',
+                  'Confirm Final Delivery',
+                  'Confirm the buyer has received and signed off on the consignment?'
+                )
+              }
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-done-circle-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
+              <Text style={styles.advanceStatusBtnText}>
+                {actionLoading ? 'Updating...' : 'Mark as Delivered'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 2. Buyer Information Card */}

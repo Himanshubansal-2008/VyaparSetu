@@ -42,6 +42,36 @@ export const ORDER_STAGES = [
 ];
 
 /**
+ * Permitted status transitions for wholesale order workflow.
+ * Strictly prevents illegal status jumps.
+ */
+export const VALID_STATUS_TRANSITIONS = {
+  Confirmed: ['Processing', 'Rejected', 'Cancelled'],
+  'Pending Acceptance': ['Processing', 'Confirmed', 'Rejected', 'Cancelled'],
+  Processing: ['Dispatched', 'Cancelled'],
+  Dispatched: ['Out for Delivery'],
+  'Out for Delivery': ['Delivered'],
+  Delivered: [],
+  Rejected: [],
+  Cancelled: [],
+};
+
+/**
+ * Validates whether transitioning from currentStatus to targetStatus is allowed.
+ */
+export const canTransitionStatus = (currentStatus, targetStatus) => {
+  if (!targetStatus) return false;
+  const currentKey = Object.keys(VALID_STATUS_TRANSITIONS).find(
+    (k) => k.toLowerCase() === String(currentStatus || 'Confirmed').trim().toLowerCase()
+  );
+  if (!currentKey) return false;
+  const allowed = VALID_STATUS_TRANSITIONS[currentKey] || [];
+  return allowed.some(
+    (s) => s.toLowerCase() === String(targetStatus).trim().toLowerCase()
+  );
+};
+
+/**
  * Default seed orders providing immediate buyer and seller history on initial launch.
  */
 export const DEFAULT_SEED_ORDERS = [
@@ -679,6 +709,41 @@ export const rejectOrder = async (orderId, sellerId, reason = '') => {
 };
 
 /**
+ * Allows a seller to advance/update order status through valid stages.
+ */
+export const updateSellerOrderStatus = async (
+  orderId,
+  newStatus,
+  extraData = {}
+) => {
+  const order = getOrderById(orderId);
+  if (!order) return { success: false, reason: 'order_not_found' };
+
+  const currentStatus = order.status || 'Confirmed';
+  if (!canTransitionStatus(currentStatus, newStatus)) {
+    return {
+      success: false,
+      reason: 'invalid_status_transition',
+      message: `Transition from "${currentStatus}" to "${newStatus}" is not allowed.`,
+    };
+  }
+
+  const payload = { ...extraData };
+  if (newStatus === 'Dispatched' && !order.carrierName) {
+    payload.carrierName = extraData.carrierName || 'Delhivery B2B Freight';
+    payload.trackingNumber =
+      extraData.trackingNumber ||
+      `DELHIVERY-B2B-${Math.floor(100000 + Math.random() * 900000)}`;
+    payload.dispatchedAt = new Date().toISOString();
+  } else if (newStatus === 'Delivered') {
+    payload.deliveredAt = new Date().toLocaleDateString('en-IN');
+  }
+
+  const updated = await updateOrderStatus(orderId, newStatus, payload);
+  return { success: true, order: updated };
+};
+
+/**
  * Resets orders back to seed orders (useful for demo/testing).
  */
 export const resetOrders = async () => {
@@ -745,6 +810,7 @@ export default {
   STORAGE_KEY_ORDERS,
   STORAGE_KEY_ADDRESS,
   ORDER_STAGES,
+  VALID_STATUS_TRANSITIONS,
   DEFAULT_SEED_ORDERS,
   generateOrderId,
   loadPersistedOrders,
@@ -755,12 +821,14 @@ export default {
   resetOrders,
   getStatusProgress,
   getStatusColor,
+  canTransitionStatus,
   isOrderForSeller,
   getSellerOrderItems,
   getOrdersForSeller,
   getSellerOrderDetails,
   acceptOrder,
   rejectOrder,
+  updateSellerOrderStatus,
   loadPersistedAddress,
   getSavedAddress,
   saveDeliveryAddress,
