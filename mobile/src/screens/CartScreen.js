@@ -22,7 +22,11 @@ export default function CartScreen({
   onNavigateToProductDetails,
   onNavigateToHome,
 }) {
-  const { cartItems, cartItemCount } = useCart();
+  const { cartItems, cartItemCount, increaseQuantity } = useCart();
+
+  const handleIncrement = (item) => {
+    increaseQuantity(item.id);
+  };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -166,11 +170,39 @@ export default function CartScreen({
                     </View>
                   </View>
 
+                  {/* Item Total */}
                   <View style={styles.itemTotalContainer}>
                     <Text style={styles.itemTotalLabel}>Item Total</Text>
                     <Text style={styles.itemTotalAmount}>
                       ₹{item.itemTotal.toLocaleString('en-IN')}
                     </Text>
+                  </View>
+                </View>
+
+                {/* Controls Row: Stepper */}
+                <View style={styles.controlsRow}>
+                  <View style={styles.stepperWrapper}>
+                    <View style={styles.quantityDisplay}>
+                      <Text style={styles.quantityNumber}>
+                        {item.quantity}
+                      </Text>
+                      <Text style={styles.quantityUnitLabel}>
+                        {unitSingular}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.stepperBtn}
+                      onPress={() => handleIncrement(item)}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Increase quantity"
+                    >
+                      <Ionicons
+                        name="add"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -383,5 +415,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: colors.primary,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepperWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 2,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quantityDisplay: {
+    minWidth: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+  },
+  quantityNumber: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  quantityUnitLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    textTransform: 'lowercase',
   },
 });

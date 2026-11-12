@@ -104,6 +104,29 @@ export function CartProvider({ children }) {
     [cartItems]
   );
 
+  const increaseQuantity = useCallback((productId, step = 1) => {
+    if (!productId) return;
+    setCartItems((prevItems) => {
+      const item = prevItems.find((i) => i.id === productId);
+      if (!item) return prevItems;
+
+      const increment = Math.max(1, Math.round(Number(step) || 1));
+      const nextQty = item.quantity + increment;
+      const unitPrice = item.unitPrice || Number(item.product?.price) || 0;
+
+      return prevItems.map((i) =>
+        i.id === productId
+          ? {
+              ...i,
+              quantity: nextQty,
+              itemTotal: nextQty * unitPrice,
+              updatedAt: new Date().toISOString(),
+            }
+          : i
+      );
+    });
+  }, []);
+
   const isInCart = useCallback(
     (productId) => {
       if (!productId) return false;
@@ -122,6 +145,7 @@ export function CartProvider({ children }) {
       cartItemCount,
       isLoaded,
       addToCart,
+      increaseQuantity,
       isInCart,
     }),
     [cartItems, cartItemCount, isLoaded, addToCart, isInCart]
@@ -138,6 +162,7 @@ export function useCart() {
       cartItemCount: 0,
       isLoaded: true,
       addToCart: () => ({ success: false, reason: 'no_provider' }),
+      increaseQuantity: () => {},
       isInCart: () => false,
     };
   }
