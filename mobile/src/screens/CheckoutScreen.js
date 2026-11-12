@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  Image,
   Platform,
   StatusBar,
 } from 'react-native';
@@ -21,7 +22,7 @@ export default function CheckoutScreen({
   onBackPress,
   onNavigateToHome,
 }) {
-  const { cartItems } = useCart();
+  const { cartItems, cartItemCount, totalUnits } = useCart();
 
   const handleBack = () => {
     if (onBackPress) {
@@ -93,7 +94,89 @@ export default function CheckoutScreen({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Checkout Content Container */}
+          {/* Order Summary (Items List) */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionTitleLeft}>
+                <Ionicons
+                  name="cube-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text style={styles.sectionTitle}>
+                  Order Items ({cartItemCount})
+                </Text>
+              </View>
+              <Text style={styles.totalUnitsHeader}>
+                {totalUnits} Total Units
+              </Text>
+            </View>
+
+            <View style={styles.itemsList}>
+              {cartItems.map((item, index) => {
+                const product = item.product || {};
+                const unitSingular = product.unit || 'unit';
+                const imageUri =
+                  product.image ||
+                  (Array.isArray(product.images) && product.images[0]) ||
+                  null;
+
+                return (
+                  <View
+                    key={`checkout-item-${item.id || index}`}
+                    style={[
+                      styles.itemRow,
+                      index > 0 && styles.itemRowBorder,
+                    ]}
+                  >
+                    <View style={styles.itemImageContainer}>
+                      {imageUri ? (
+                        <Image
+                          source={{ uri: imageUri }}
+                          style={styles.itemImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.itemImageFallback}>
+                          <Ionicons
+                            name="cube-outline"
+                            size={22}
+                            color={colors.textMuted}
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.itemDetails}>
+                      <Text style={styles.itemTitle} numberOfLines={2}>
+                        {product.name || 'Wholesale Product'}
+                      </Text>
+                      <Text style={styles.itemSeller} numberOfLines={1}>
+                        By {product.sellerName || 'Verified Seller'}
+                      </Text>
+
+                      <View style={styles.itemPricingRow}>
+                        <Text style={styles.itemQtyPrice}>
+                          {item.quantity} {unitSingular}s × ₹{item.unitPrice}
+                        </Text>
+                        {item.activeTier && (
+                          <View style={styles.tierPill}>
+                            <Text style={styles.tierPillText}>Bulk Tier</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    <View style={styles.itemTotalRight}>
+                      <Text style={styles.itemTotal}>
+                        ₹{item.itemTotal.toLocaleString('en-IN')}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -172,6 +255,121 @@ const styles = StyleSheet.create({
   emptyContainer: {
     padding: spacing.lg,
     paddingTop: spacing.xxl,
+  },
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm + 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  totalUnitsHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  itemsList: {
+    gap: spacing.sm,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    gap: spacing.md,
+  },
+  itemRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  itemImageContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSubtle,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemImage: {
+    width: '100%',
+    height: '100%',
+  },
+  itemImageFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemDetails: {
+    flex: 1,
+    gap: 2,
+  },
+  itemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    lineHeight: 18,
+  },
+  itemSeller: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  itemPricingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    marginTop: 2,
+  },
+  itemQtyPrice: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  tierPill: {
+    backgroundColor: colors.surplusLight,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+  },
+  tierPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.surplus,
+  },
+  itemTotalRight: {
+    alignItems: 'flex-end',
+  },
+  itemTotal: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary,
   },
   emptyCard: {
     backgroundColor: colors.surface,
