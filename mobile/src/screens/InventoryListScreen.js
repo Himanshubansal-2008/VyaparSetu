@@ -295,6 +295,14 @@ const filteredProducts = useMemo(() => {
             <Text style={styles.surplusText}>♻ Surplus Product</Text>
           </View>
         )}
+        <View style={styles.actionRow}>
+            <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigation.navigate('EditProduct', { product })}
+            >
+                <Text style={styles.editButtonText}>✏ Edit Product</Text>
+            </TouchableOpacity>
+        </View>
       </View>
     );
   })
@@ -529,5 +537,23 @@ addProductButtonText: {
   color: colors.textInverse,
   fontSize: 15,
   fontWeight: '700',
+},
+actionRow: {
+  flexDirection: 'row',
+  marginTop: spacing.md,
+},
+
+editButton: {
+  flex: 1,
+  backgroundColor: colors.primary,
+  paddingVertical: spacing.sm,
+  borderRadius: borderRadius.md,
+  alignItems: 'center',
+},
+
+editButtonText: {
+  color: colors.textInverse,
+  fontWeight: '700',
+  fontSize: 13,
 },
 });
