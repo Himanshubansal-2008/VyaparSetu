@@ -10,6 +10,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import SearchBar from './SearchBar';
+import { useCart } from '../context/CartContext';
 
 export default function Header({
   searchQuery = '',
@@ -20,11 +21,16 @@ export default function Header({
   onCartPress,
   onSettingsPress,
   unreadNotifications = 2,
-  cartItemCount = 0,
+  cartItemCount: propCartItemCount,
   showBack = false,
   onBackPress,
   children,
 }) {
+  const cart = useCart();
+  const cartItemCount =
+    propCartItemCount !== undefined
+      ? propCartItemCount
+      : (cart?.cartItemCount ?? 0);
   return (
     <View style={styles.container}>
       {/* Top Branding & Action Bar */}

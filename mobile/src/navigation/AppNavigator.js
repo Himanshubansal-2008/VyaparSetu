@@ -21,6 +21,7 @@ const VALID_ROUTES = [
   'EditBusinessProfile',
   'AddProduct',
   'EditProduct',
+  'Cart',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -241,6 +242,10 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToCart = useCallback(() => {
+    navigate('Cart');
+  }, [navigate]);
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -263,6 +268,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           onNavigateToProductDetails={handleNavigateToProductDetails}
           onNavigateToAddProduct={handleNavigateToAddProduct}
           onNavigateToEditProduct={handleNavigateToEditProduct}
+          onCartPress={handleNavigateToCart}
         />
       </View>
 
@@ -279,6 +285,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={listingRoute}
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+            onCartPress={handleNavigateToCart}
           />
         </View>
       )}
@@ -302,6 +309,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onBackPress={goBack}
             onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
             onNavigateToEditProduct={handleNavigateToEditProduct}
+            onCartPress={handleNavigateToCart}
           />
         </View>
       )}
@@ -365,6 +373,8 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           />
         </View>
       )}
+
+
     </View>
   );
 }
