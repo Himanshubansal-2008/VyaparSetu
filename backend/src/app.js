@@ -3,6 +3,7 @@ const categoryRoutes = require("./routes/category.routes");
 const productRoutes = require("./routes/product.routes");
 const userRoutes = require("./routes/user.routes");
 const businessRoutes = require("./routes/business.routes");
+const sellerRoutes = require("./routes/seller.routes");
 const { extractClientIdentity } = require("./middlewares/clientIdentity");
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/businesses", businessRoutes);
+app.use("/api/seller", sellerRoutes);
 
 app.get('/', (req, res) => {
   res.json({

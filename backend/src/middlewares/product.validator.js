@@ -591,6 +591,30 @@ const validateProductQuery = (req, res, next) => {
     req.query.categoryId = rawCategoryId.trim();
   }
 
+  // 2b. Business ID Validation
+  const { businessId } = req.query;
+  if (businessId !== undefined) {
+    if (Array.isArray(businessId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Multiple business IDs are not allowed",
+      });
+    }
+
+    if (
+      typeof businessId !== "string" ||
+      !businessId.trim() ||
+      !UUID_REGEX.test(businessId.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid business ID format",
+      });
+    }
+
+    req.query.businessId = businessId.trim();
+  }
+
   // 3. Sorting Validation
   const { sortBy, sortOrder } = req.query;
 

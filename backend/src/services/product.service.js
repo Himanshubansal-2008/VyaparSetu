@@ -37,6 +37,8 @@ const PRODUCT_DETAIL_SELECT = {
   surplusDeadline: true,
   createdAt: true,
   updatedAt: true,
+  categoryId: true,
+  businessId: true,
   category: {
     select: {
       id: true,
@@ -184,6 +186,9 @@ const getAllProducts = async (filters = {}) => {
     }),
     ...(categoryId && {
       categoryId,
+    }),
+    ...(filters.businessId && {
+      businessId: filters.businessId,
     }),
   };
 
@@ -531,7 +536,7 @@ const createProduct = async (productData = {}) => {
  * @param {Object} updateData - Validated product update payload
  * @returns {Promise<Object>} Updated product with full relations
  */
-const updateProduct = async (id, updateData = {}) => {
+const updateProduct = async (id, updateData = {}, requesterBusinessId = null) => {
   if (!id || typeof id !== "string" || !id.trim()) {
     throw new AppError("Product ID is required", 400);
   }
@@ -549,6 +554,11 @@ const updateProduct = async (id, updateData = {}) => {
 
   if (!existingProduct) {
     throw new AppError("Product not found", 404);
+  }
+
+  // Enforce ownership if requester business is identified
+  if (requesterBusinessId && existingProduct.businessId !== requesterBusinessId) {
+    throw new AppError("You do not have permission to modify this product", 403);
   }
 
   const updateFields = {};
@@ -784,7 +794,7 @@ const updateProduct = async (id, updateData = {}) => {
  * @param {string} id - Product UUID
  * @returns {Promise<Object>} Deactivated product with Category, Business, and BulkPricing
  */
-const deactivateProduct = async (id) => {
+const deactivateProduct = async (id, requesterBusinessId = null) => {
   // 1. Validate Product ID
   if (!id || typeof id !== "string" || !UUID_REGEX.test(id.trim())) {
     throw new AppError("Invalid product ID format", 400);
@@ -799,6 +809,11 @@ const deactivateProduct = async (id) => {
 
   if (!existingProduct) {
     throw new AppError("Product not found", 404);
+  }
+
+  // Enforce ownership if requester business is identified
+  if (requesterBusinessId && existingProduct.business.id !== requesterBusinessId) {
+    throw new AppError("You do not have permission to deactivate this product", 403);
   }
 
   // 3. Handle already inactive products (avoid unnecessary DB updates)
@@ -829,6 +844,124 @@ const deactivateProduct = async (id) => {
     }
     throw new AppError("Failed to deactivate product in database", 500);
   }
+};
+
+/**
+ * Delete or soft-deactivate a product.
+ * If historical foreign keys exist, soft-deactivates to preserve references.
+ * @param {string} id - Product UUID
+ * @param {string} [requesterBusinessId] - Owning business UUID to verify permission
+ */
+const deleteProduct = async (id, requesterBusinessId = null) => {
+  if (!id || typeof id !== "string" || !UUID_REGEX.test(id.trim())) {
+    throw new AppError("Invalid product ID format", 400);
+  }
+  const productId = id.trim();
+
+  const existingProduct = await prisma.product.findUnique({
+    where: { id: productId },
+    select: PRODUCT_DETAIL_SELECT,
+  });
+
+  if (!existingProduct) {
+    throw new AppError("Product not found", 404);
+  }
+
+  if (requesterBusinessId && existingProduct.business.id !== requesterBusinessId) {
+    throw new AppError("You do not have permission to delete this product", 403);
+  }
+
+  try {
+    await prisma.product.delete({
+      where: { id: productId },
+    });
+    return { success: true, message: "Product deleted successfully", id: productId };
+  } catch (dbError) {
+    if (dbError.code === "P2003") {
+      // Foreign key constraint (historical orders/quotations): soft-deactivate instead
+      const deactivated = await prisma.product.update({
+        where: { id: productId },
+        data: { isActive: false },
+        select: PRODUCT_DETAIL_SELECT,
+      });
+      return {
+        success: true,
+        message: "Product deactivated to preserve historical records",
+        id: productId,
+        data: deactivated,
+      };
+    }
+    throw new AppError("Failed to delete product from database", 500);
+  }
+};
+
+/**
+ * Fetch products belonging to a specific seller's business
+ * @param {string} businessId - Business UUID
+ * @param {Object} [filters] - Optional search, category, sort, and pagination filters
+ */
+const getSellerProducts = async (businessId, filters = {}) => {
+  if (!businessId || typeof businessId !== "string" || !UUID_REGEX.test(businessId.trim())) {
+    throw new AppError("Valid business ID format is required", 400);
+  }
+  const cleanBizId = businessId.trim();
+
+  const search = typeof filters.search === "string" ? filters.search.trim() : "";
+  const rawCategoryId = filters.categoryId || filters.category;
+  const categoryId = typeof rawCategoryId === "string" && rawCategoryId.trim() ? rawCategoryId.trim() : null;
+
+  const where = {
+    businessId: cleanBizId,
+    ...(search && {
+      name: {
+        contains: search,
+        mode: "insensitive",
+      },
+    }),
+    ...(categoryId && {
+      categoryId,
+    }),
+  };
+
+  if (filters.isActive !== undefined) {
+    where.isActive = filters.isActive === true || filters.isActive === "true";
+  } else if (!filters.includeInactive) {
+    where.isActive = true;
+  }
+
+  let orderBy = { createdAt: "desc" };
+  if (filters.sortBy === "price") {
+    orderBy = { price: filters.sortOrder === "desc" ? "desc" : "asc" };
+  }
+
+  const page = parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+  const limit =
+    parseInt(filters.limit, 10) > 0 && parseInt(filters.limit, 10) <= 100
+      ? parseInt(filters.limit, 10)
+      : 50;
+  const skip = (page - 1) * limit;
+
+  const [totalProducts, products] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      select: PRODUCT_DETAIL_SELECT,
+      orderBy,
+      skip,
+      take: limit,
+    }),
+  ]);
+
+  return {
+    products,
+    pagination: {
+      total: totalProducts,
+      totalProducts,
+      page,
+      limit,
+      totalPages: Math.ceil(totalProducts / limit) || 1,
+    },
+  };
 };
 
 /**
@@ -885,6 +1018,8 @@ module.exports = {
   createProduct,
   updateProduct,
   deactivateProduct,
+  deleteProduct,
+  getSellerProducts,
   updateProductFeaturedStatus,
   AppError,
   PRODUCT_DETAIL_SELECT,
