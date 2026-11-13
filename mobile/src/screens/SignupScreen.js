@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -23,6 +24,7 @@ import {
   validateSignupForm,
   prepareSignupPayload,
 } from '../utils/validation.utils';
+import { signupUser } from '../services/authService';
 
 export default function SignupScreen({
   navigation,
@@ -41,6 +43,11 @@ export default function SignupScreen({
   // Error State for field-specific validation messages
   const [errors, setErrors] = useState({});
 
+  // Loading and API Status State
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+
   // Password Visibility State
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -51,6 +58,8 @@ export default function SignupScreen({
   // Handlers that update form values and clear/update field errors on correction
   const handleNameChange = (val) => {
     setName(val);
+    if (apiError) setApiError(null);
+    if (successMessage) setSuccessMessage(null);
     if (errors.name) {
       const err = validateFullName(val);
       setErrors((prev) => ({ ...prev, name: err }));
@@ -59,6 +68,8 @@ export default function SignupScreen({
 
   const handleEmailChange = (val) => {
     setEmail(val);
+    if (apiError) setApiError(null);
+    if (successMessage) setSuccessMessage(null);
     if (errors.email) {
       const err = validateEmail(val);
       setErrors((prev) => ({ ...prev, email: err }));
@@ -67,6 +78,8 @@ export default function SignupScreen({
 
   const handlePhoneChange = (val) => {
     setPhone(val);
+    if (apiError) setApiError(null);
+    if (successMessage) setSuccessMessage(null);
     if (errors.phone) {
       const err = validatePhone(val);
       setErrors((prev) => ({ ...prev, phone: err }));
@@ -75,6 +88,8 @@ export default function SignupScreen({
 
   const handlePasswordChange = (val) => {
     setPassword(val);
+    if (apiError) setApiError(null);
+    if (successMessage) setSuccessMessage(null);
     if (errors.password) {
       const err = validatePassword(val);
       setErrors((prev) => ({ ...prev, password: err }));
@@ -87,6 +102,8 @@ export default function SignupScreen({
 
   const handleConfirmPasswordChange = (val) => {
     setConfirmPassword(val);
+    if (apiError) setApiError(null);
+    if (successMessage) setSuccessMessage(null);
     if (errors.confirmPassword) {
       const err = validateConfirmPassword(val, password);
       setErrors((prev) => ({ ...prev, confirmPassword: err }));
@@ -111,7 +128,12 @@ export default function SignupScreen({
     }
   };
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
+    if (isLoading) return;
+
+    setApiError(null);
+    setSuccessMessage(null);
+
     const formData = {
       name,
       email,
@@ -127,13 +149,46 @@ export default function SignupScreen({
       return;
     }
 
-    // Validation succeeded: clear all errors and prepare sanitized payload
     setErrors({});
     const payload = prepareSignupPayload(formData);
 
-    // Call onSubmit callback if provided by parent/testing without making API requests
     if (onSubmit) {
       onSubmit(payload);
+    }
+
+    setIsLoading(true);
+
+    try {
+      const result = await signupUser(payload);
+      setSuccessMessage(result?.message || 'Account created successfully! Redirecting to login...');
+
+      setTimeout(() => {
+        if (onNavigateToLogin) {
+          onNavigateToLogin();
+        } else if (navigation?.navigate) {
+          navigation.navigate('Login');
+        }
+      }, 1000);
+    } catch (err) {
+      let message = err?.message || 'Unable to create account. Please try again.';
+
+      if (err?.statusCode === 409) {
+        message = err?.data?.message || 'An account with this email already exists. Please login instead.';
+      } else if (err?.statusCode === 400 && Array.isArray(err?.data?.errors)) {
+        const backendFieldErrors = {};
+        err.data.errors.forEach((e) => {
+          if (e.field && e.message) {
+            backendFieldErrors[e.field] = e.message;
+          }
+        });
+        if (Object.keys(backendFieldErrors).length > 0) {
+          setErrors((prev) => ({ ...prev, ...backendFieldErrors }));
+        }
+      }
+
+      setApiError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -161,6 +216,7 @@ export default function SignupScreen({
                 activeOpacity={0.7}
                 accessibilityLabel="Go back"
                 accessibilityRole="button"
+                disabled={isLoading}
               >
                 <Ionicons
                   name="arrow-back"
@@ -192,6 +248,31 @@ export default function SignupScreen({
               Join VyaparSetu and start exploring opportunities.
             </Text>
           </View>
+
+          {/* Global API Feedback Banners */}
+          {apiError ? (
+            <View style={styles.apiErrorBanner}>
+              <Ionicons
+                name="alert-circle"
+                size={20}
+                color={colors.error}
+                style={styles.bannerIcon}
+              />
+              <Text style={styles.apiErrorBannerText}>{apiError}</Text>
+            </View>
+          ) : null}
+
+          {successMessage ? (
+            <View style={styles.successBanner}>
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={colors.success}
+                style={styles.bannerIcon}
+              />
+              <Text style={styles.successBannerText}>{successMessage}</Text>
+            </View>
+          ) : null}
 
           {/* Signup Form */}
           <View style={styles.formContainer}>
@@ -226,6 +307,7 @@ export default function SignupScreen({
                   keyboardType="default"
                   autoCapitalize="words"
                   autoCorrect={false}
+                  editable={!isLoading}
                   onFocus={() => setFocusedField('name')}
                   onBlur={() => setFocusedField(null)}
                   accessibilityLabel="Full Name input"
@@ -274,6 +356,7 @@ export default function SignupScreen({
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!isLoading}
                   textContentType="emailAddress"
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(null)}
@@ -323,6 +406,7 @@ export default function SignupScreen({
                   keyboardType="phone-pad"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!isLoading}
                   onFocus={() => setFocusedField('phone')}
                   onBlur={() => setFocusedField(null)}
                   accessibilityLabel="Phone Number input"
@@ -371,6 +455,7 @@ export default function SignupScreen({
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!isLoading}
                   textContentType="newPassword"
                   onFocus={() => setFocusedField('password')}
                   onBlur={() => setFocusedField(null)}
@@ -383,6 +468,7 @@ export default function SignupScreen({
                   accessibilityRole="button"
                   accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  disabled={isLoading}
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -435,6 +521,7 @@ export default function SignupScreen({
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!isLoading}
                   textContentType="newPassword"
                   onFocus={() => setFocusedField('confirmPassword')}
                   onBlur={() => setFocusedField(null)}
@@ -451,6 +538,7 @@ export default function SignupScreen({
                       : 'Show confirm password'
                   }
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  disabled={isLoading}
                 >
                   <Ionicons
                     name={
@@ -475,13 +563,24 @@ export default function SignupScreen({
 
             {/* Primary Action Button */}
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[
+                styles.primaryButton,
+                isLoading && styles.primaryButtonDisabled,
+              ]}
               onPress={handleCreateAccount}
               activeOpacity={0.85}
+              disabled={isLoading}
               accessibilityRole="button"
               accessibilityLabel="Create Account button"
             >
-              <Text style={styles.primaryButtonText}>Create Account</Text>
+              {isLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={colors.textInverse} />
+                  <Text style={styles.primaryButtonText}>Creating Account...</Text>
+                </View>
+              ) : (
+                <Text style={styles.primaryButtonText}>Create Account</Text>
+              )}
             </TouchableOpacity>
 
             {/* Footer with Login Link */}
@@ -493,6 +592,7 @@ export default function SignupScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Navigate to Login"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                disabled={isLoading}
               >
                 <Text style={styles.loginLink}>Login</Text>
               </TouchableOpacity>
@@ -546,7 +646,7 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     marginTop: spacing.sm,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   brandingRow: {
     flexDirection: 'row',
@@ -600,6 +700,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  apiErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.errorLight,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  apiErrorBannerText: {
+    fontSize: 13,
+    color: colors.error,
+    fontWeight: '600',
+    flex: 1,
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.successLight,
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  successBannerText: {
+    fontSize: 13,
+    color: colors.success,
+    fontWeight: '600',
+    flex: 1,
+  },
+  bannerIcon: {
+    marginRight: spacing.sm,
   },
   formContainer: {
     gap: spacing.lg,
@@ -708,6 +845,14 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
+  },
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   primaryButtonText: {
     color: colors.textInverse,

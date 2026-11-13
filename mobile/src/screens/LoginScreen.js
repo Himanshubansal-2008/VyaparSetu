@@ -10,27 +10,52 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import { loginUser } from '../services/authService';
 
 export default function LoginScreen({
   navigation,
   route,
   onBackPress,
   onNavigateToSignup,
+  onNavigateToHome,
+  onLoginSuccess,
   onSubmit,
 }) {
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Loading and Error States
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+
   // Password Visibility State
   const [showPassword, setShowPassword] = useState(false);
 
   // Focus tracking for interactive field borders & icons
   const [focusedField, setFocusedField] = useState(null);
+
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    if (apiError) setApiError(null);
+    if (fieldErrors.email) {
+      setFieldErrors((prev) => ({ ...prev, email: null }));
+    }
+  };
+
+  const handlePasswordChange = (val) => {
+    setPassword(val);
+    if (apiError) setApiError(null);
+    if (fieldErrors.password) {
+      setFieldErrors((prev) => ({ ...prev, password: null }));
+    }
+  };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -50,15 +75,62 @@ export default function LoginScreen({
     }
   };
 
-  const handleLogin = () => {
-    // UI only - API integration will be handled in a separate task.
-    const payload = {
-      email: email ? String(email).trim().toLowerCase() : '',
-      password: password || '',
+  const handleLogin = async () => {
+    if (isLoading) return;
+
+    setApiError(null);
+    const errors = {};
+
+    const trimmedEmail = email ? String(email).trim() : '';
+    if (!trimmedEmail) {
+      errors.email = 'Email address is required.';
+    }
+    if (!password) {
+      errors.password = 'Password is required.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
+
+    const credentials = {
+      email: trimmedEmail.toLowerCase(),
+      password,
     };
 
-    if (onSubmit) {
-      onSubmit(payload);
+    setIsLoading(true);
+
+    try {
+      const result = await loginUser(credentials);
+
+      if (onLoginSuccess) {
+        onLoginSuccess({
+          token: result?.token,
+          user: result?.user,
+        });
+      }
+
+      if (onSubmit) {
+        onSubmit(credentials, result);
+      }
+
+      // Navigate to marketplace / Home
+      if (onNavigateToHome) {
+        onNavigateToHome();
+      } else if (navigation?.navigate) {
+        navigation.navigate('Home');
+      }
+    } catch (err) {
+      let message = err?.message || 'Login failed. Please check your credentials.';
+      if (err?.statusCode === 401) {
+        message = 'Invalid email or password.';
+      }
+      setApiError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -86,6 +158,7 @@ export default function LoginScreen({
                 activeOpacity={0.7}
                 accessibilityLabel="Go back"
                 accessibilityRole="button"
+                disabled={isLoading}
               >
                 <Ionicons
                   name="arrow-back"
@@ -118,6 +191,19 @@ export default function LoginScreen({
             </Text>
           </View>
 
+          {/* Global API Feedback Banner */}
+          {apiError ? (
+            <View style={styles.apiErrorBanner}>
+              <Ionicons
+                name="alert-circle"
+                size={20}
+                color={colors.error}
+                style={styles.bannerIcon}
+              />
+              <Text style={styles.apiErrorBannerText}>{apiError}</Text>
+            </View>
+          ) : null}
+
           {/* Login Form */}
           <View style={styles.formContainer}>
             {/* 1. Email Address */}
@@ -127,13 +213,16 @@ export default function LoginScreen({
                 style={[
                   styles.inputWrapper,
                   focusedField === 'email' && styles.inputWrapperFocused,
+                  Boolean(fieldErrors.email) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="mail-outline"
                   size={20}
                   color={
-                    focusedField === 'email'
+                    fieldErrors.email
+                      ? colors.error
+                      : focusedField === 'email'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -144,16 +233,27 @@ export default function LoginScreen({
                   placeholder="Enter your email address"
                   placeholderTextColor={colors.textMuted}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={handleEmailChange}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!isLoading}
                   textContentType="emailAddress"
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(null)}
                   accessibilityLabel="Email Address input"
                 />
               </View>
+              {fieldErrors.email ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{fieldErrors.email}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* 2. Password */}
@@ -163,13 +263,16 @@ export default function LoginScreen({
                 style={[
                   styles.inputWrapper,
                   focusedField === 'password' && styles.inputWrapperFocused,
+                  Boolean(fieldErrors.password) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="lock-closed-outline"
                   size={20}
                   color={
-                    focusedField === 'password'
+                    fieldErrors.password
+                      ? colors.error
+                      : focusedField === 'password'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -180,10 +283,11 @@ export default function LoginScreen({
                   placeholder="Enter your password"
                   placeholderTextColor={colors.textMuted}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={handlePasswordChange}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!isLoading}
                   textContentType="password"
                   onFocus={() => setFocusedField('password')}
                   onBlur={() => setFocusedField(null)}
@@ -196,6 +300,7 @@ export default function LoginScreen({
                   accessibilityRole="button"
                   accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  disabled={isLoading}
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -204,17 +309,38 @@ export default function LoginScreen({
                   />
                 </TouchableOpacity>
               </View>
+              {fieldErrors.password ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{fieldErrors.password}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Primary Action Button */}
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[
+                styles.primaryButton,
+                isLoading && styles.primaryButtonDisabled,
+              ]}
               onPress={handleLogin}
               activeOpacity={0.85}
+              disabled={isLoading}
               accessibilityRole="button"
               accessibilityLabel="Login button"
             >
-              <Text style={styles.primaryButtonText}>Login</Text>
+              {isLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={colors.textInverse} />
+                  <Text style={styles.primaryButtonText}>Logging in...</Text>
+                </View>
+              ) : (
+                <Text style={styles.primaryButtonText}>Login</Text>
+              )}
             </TouchableOpacity>
 
             {/* Footer with Signup Link */}
@@ -226,6 +352,7 @@ export default function LoginScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Navigate to Create Account"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                disabled={isLoading}
               >
                 <Text style={styles.signupLink}>Create Account</Text>
               </TouchableOpacity>
@@ -279,7 +406,7 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     marginTop: spacing.sm,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   brandingRow: {
     flexDirection: 'row',
@@ -334,6 +461,26 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  apiErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.errorLight,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  apiErrorBannerText: {
+    fontSize: 13,
+    color: colors.error,
+    fontWeight: '600',
+    flex: 1,
+  },
+  bannerIcon: {
+    marginRight: spacing.sm,
+  },
   formContainer: {
     gap: spacing.lg,
   },
@@ -381,6 +528,34 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  inputWrapperError: {
+    borderColor: colors.error,
+    backgroundColor: colors.surface,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.error,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    paddingHorizontal: 2,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.error,
+    marginLeft: 4,
+    fontWeight: '500',
+    flex: 1,
+  },
   inputIcon: {
     marginRight: spacing.sm + 2,
   },
@@ -414,6 +589,14 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   primaryButtonText: {
     color: colors.textInverse,
     fontSize: 16,
@@ -437,4 +620,3 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 });
-
