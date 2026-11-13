@@ -1,6 +1,7 @@
 const express = require('express');
 const categoryRoutes = require("./routes/category.routes");
 const productRoutes = require("./routes/product.routes");
+const authRoutes = require("./routes/auth.routes");
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get('/', (req, res) => {
   res.json({
@@ -66,6 +68,7 @@ app.get('/', (req, res) => {
       categories: '/api/categories',
       products: '/api/products',
       featuredProducts: '/api/products/featured',
+      auth: '/api/auth',
     },
   });
 });
