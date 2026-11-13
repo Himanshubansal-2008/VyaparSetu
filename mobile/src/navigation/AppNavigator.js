@@ -19,6 +19,7 @@ import BuyerQuotationDetailsScreen from '../screens/BuyerQuotationDetailsScreen'
 import SellerQuotationsScreen from '../screens/SellerQuotationsScreen';
 import SellerQuotationDetailsScreen from '../screens/SellerQuotationDetailsScreen';
 import SignupScreen from '../screens/SignupScreen';
+import LoginScreen from '../screens/LoginScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -455,8 +456,13 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
   );
 
   const handleNavigateToSignup = useCallback(() => {
-    navigate('Signup');
-  }, [navigate]);
+    const isSignupInHistory = history.some((r) => r.name === 'Signup');
+    if (isSignupInHistory) {
+      goBack();
+    } else {
+      navigate('Signup');
+    }
+  }, [history, goBack, navigate]);
 
   const handleNavigateToLogin = useCallback(() => {
     const isLoginInHistory = history.some((r) => r.name === 'Login');
@@ -824,6 +830,18 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             route={currentRoute}
             onBackPress={goBack}
             onNavigateToLogin={handleNavigateToLogin}
+          />
+        </View>
+      )}
+
+      {/* Login Screen */}
+      {currentRoute.name === 'Login' && (
+        <View style={styles.screen}>
+          <LoginScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToSignup={handleNavigateToSignup}
           />
         </View>
       )}
