@@ -90,6 +90,72 @@ const findUserById = async (id) => {
   });
 };
 
+/**
+ * Registers a new user with hashed password and BUYER role.
+ *
+ * @param {Object} userData
+ * @param {string} userData.name
+ * @param {string} userData.email
+ * @param {string} [userData.phone]
+ * @param {string} userData.password
+ * @returns {Promise<Object>} The created user (excluding passwordHash)
+ */
+const registerUser = async ({ name, email, phone, password }) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedName = name.trim();
+  const normalizedPhone =
+    phone !== undefined && phone !== null && String(phone).trim() !== ""
+      ? String(phone).trim()
+      : null;
+
+  // 1. Check if an account already exists with this email
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true },
+  });
+
+  if (existingUser) {
+    const error = new Error("An account with this email already exists.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  // 2. Hash password with bcryptjs (12 salt rounds)
+  const hashedPassword = await hashPassword(password);
+
+  // 3. Create user in database with default BUYER role
+  try {
+    const user = await prisma.user.create({
+      data: {
+        name: normalizedName,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        passwordHash: hashedPassword,
+        role: "BUYER",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return user;
+  } catch (error) {
+    // Handle race conditions on unique email constraint
+    if (error.code === "P2002") {
+      const conflictError = new Error("An account with this email already exists.");
+      conflictError.statusCode = 409;
+      throw conflictError;
+    }
+    throw error;
+  }
+};
+
 module.exports = {
   hashPassword,
   comparePassword,
@@ -99,5 +165,5 @@ module.exports = {
   isValidEmail,
   findUserByEmail,
   findUserById,
+  registerUser,
 };
-

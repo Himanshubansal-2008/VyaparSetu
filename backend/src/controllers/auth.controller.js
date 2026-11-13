@@ -1,6 +1,50 @@
 const authService = require("../services/auth.service");
 
 /**
+ * POST /api/auth/signup
+ * Registers a new user account with hashed password and BUYER role.
+ */
+const signup = async (req, res) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    const user = await authService.registerUser({
+      name,
+      email,
+      phone,
+      password,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+        },
+      },
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    console.error("[Auth Controller] Unexpected signup error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An unexpected error occurred while creating your account.",
+    });
+  }
+};
+
+/**
  * GET /api/auth/profile
  * Returns the currently authenticated user's profile.
  * Protected by authenticate middleware.
@@ -45,7 +89,7 @@ const getAuthStatus = async (req, res) => {
 };
 
 module.exports = {
+  signup,
   getProfile,
   getAuthStatus,
 };
-
