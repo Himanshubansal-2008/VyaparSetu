@@ -82,6 +82,9 @@ export const API_CONFIG = {
     BUSINESSES: '/businesses',
     SELLER_PRODUCTS: '/seller/products',
     ORDERS: '/orders',
+    CART: '/cart',
+    CART_ITEMS: '/cart/items',
+    CART_MIGRATE: '/cart/migrate',
     CART_VALIDATE: '/cart/validate',
   },
 };
