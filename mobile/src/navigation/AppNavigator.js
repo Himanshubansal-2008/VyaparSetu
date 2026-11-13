@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { StyleSheet, View, BackHandler, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, BackHandler, Platform, Alert, ActivityIndicator } from 'react-native';
+import { useMode } from '../context/ModeContext';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
 import HomeScreen from '../screens/HomeScreen';
@@ -24,6 +25,7 @@ import SignupScreen from '../screens/SignupScreen';
 import LoginScreen from '../screens/LoginScreen';
 import {
   loadPersistedBusinessProfile,
+  loadPersistedMode,
   getSessionBusinessProfile,
 } from '../data/businessProfileData';
 import { loadPersistedProducts } from '../data/products';
@@ -32,6 +34,10 @@ import {
   loadPersistedAddress,
 } from '../data/orders';
 import { loadPersistedQuotations } from '../data/quotations';
+import { initUserSession } from '../services/userService';
+import { migrateLegacyBusinessProfileIfNeeded } from '../services/businessMigrationService';
+import { migrateLocalProductsToBackendIfNeeded } from '../services/productMigrationService';
+import { migrateLocalCartToBackendIfNeeded } from '../services/cartMigrationService';
 
 const VALID_ROUTES = [
   'Home',
@@ -74,6 +80,7 @@ export default function AppNavigator({ initialRouteName = null }) {
   const logout = authContext?.logout;
 
   const [isLoaded, setIsLoaded] = useState(false);
+  const { isSellerMode } = useMode();
 
   // Compute resolved initial route:
   // - If explicit initialRouteName is provided (e.g. testing), respect it.
@@ -84,7 +91,6 @@ export default function AppNavigator({ initialRouteName = null }) {
     }
     return isAuthenticated ? 'Home' : 'Login';
   }, [initialRouteName, isAuthenticated]);
-
   const [navState, setNavState] = useState({
     currentRoute: {
       name: resolvedInitialRoute,
@@ -94,6 +100,18 @@ export default function AppNavigator({ initialRouteName = null }) {
   });
 
   const { currentRoute, history } = navState;
+
+  // If user switches to Seller Mode while on buyer purchasing screens, redirect safely to Home
+  useEffect(() => {
+    if (isSellerMode && ['Cart', 'Checkout', 'OrderConfirmation'].includes(currentRoute.name)) {
+      setNavState((prevState) => ({
+        currentRoute: { name: 'Home', params: {} },
+        history: prevState.history.filter(
+          (r) => !['Cart', 'Checkout', 'OrderConfirmation'].includes(r.name)
+        ),
+      }));
+    }
+  }, [isSellerMode, currentRoute.name]);
 
   // Protected navigation sync: automatically redirect when authentication state changes
   useEffect(() => {
@@ -142,6 +160,15 @@ export default function AppNavigator({ initialRouteName = null }) {
       return;
     }
 
+    // Guard: Prevent purchasing and cart access in Seller Mode
+    if (isSellerMode && (name === 'Cart' || name === 'Checkout' || name === 'OrderConfirmation')) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Purchasing and cart access are disabled in Seller Mode. Switch to Buyer Mode to make purchases.'
+      );
+      return;
+    }
+
     setNavState((prevState) => {
       const { currentRoute: prevRoute, history: prevHistory } = prevState;
 
@@ -167,7 +194,7 @@ export default function AppNavigator({ initialRouteName = null }) {
         history: [...prevHistory, prevRoute],
       };
     });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isSellerMode]);
 
   const goBack = useCallback(() => {
     setNavState((prevState) => {
@@ -214,17 +241,49 @@ export default function AppNavigator({ initialRouteName = null }) {
     return () => backHandler.remove();
   }, [history.length, goBack]);
 
-  // Load persisted business profile, products, orders, and address on app launch
+  // Load user session, persisted business profile, mode, products, orders, and address on app launch
   useEffect(() => {
-    Promise.all([
-      loadPersistedBusinessProfile(),
-      loadPersistedProducts(),
-      loadPersistedOrders(),
-      loadPersistedAddress(),
-      loadPersistedQuotations(),
-    ]).finally(() => {
-      setIsLoaded(true);
-    });
+    const initApp = async () => {
+      try {
+        // 1. Initialize user session first
+        await initUserSession().catch((e) =>
+          console.warn('[AppNavigator] User session init error:', e)
+        );
+
+        // 2. Load persisted local data
+        await Promise.all([
+          loadPersistedBusinessProfile(),
+          loadPersistedProducts(),
+          loadPersistedOrders(),
+          loadPersistedAddress(),
+          loadPersistedQuotations(),
+        ]);
+
+        // 3. Perform seamless one-time migration for legacy business profile if present
+        await migrateLegacyBusinessProfileIfNeeded().catch((e) =>
+          console.warn('[AppNavigator] Business migration skipped/deferred:', e)
+        );
+
+        // 4. Load persisted mode after migration so seller mode checks the migrated UUID
+        await loadPersistedMode();
+
+        // 5. Migrate eligible local custom products to PostgreSQL
+        await migrateLocalProductsToBackendIfNeeded().catch((e) =>
+          console.warn('[AppNavigator] Product migration skipped/deferred:', e)
+        );
+
+        // 6. Migrate eligible local cart items to PostgreSQL
+        await migrateLocalCartToBackendIfNeeded().catch((e) =>
+          console.warn('[AppNavigator] Cart migration skipped/deferred:', e)
+        );
+      } catch (err) {
+        console.warn('[AppNavigator] App initialization error:', err);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    initApp();
   }, []);
 
   const homeRoute = useMemo(
@@ -343,12 +402,26 @@ export default function AppNavigator({ initialRouteName = null }) {
   );
 
   const handleNavigateToCart = useCallback(() => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Cart is not accessible while in Seller Mode. Switch to Buyer Mode to access your cart.'
+      );
+      return;
+    }
     navigate('Cart');
-  }, [navigate]);
+  }, [navigate, isSellerMode]);
 
   const handleNavigateToCheckout = useCallback(() => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Checkout is not accessible while in Seller Mode. Switch to Buyer Mode to checkout.'
+      );
+      return;
+    }
     navigate('Checkout');
-  }, [navigate]);
+  }, [navigate, isSellerMode]);
 
   const handleNavigateToConfirmation = useCallback(
     (order) => {
@@ -559,6 +632,7 @@ export default function AppNavigator({ initialRouteName = null }) {
         ]}
       >
         <HomeScreen
+          isActive={currentRoute.name === 'Home'}
           navigation={navigation}
           route={homeRoute}
           onNavigateToProductListing={(params) =>
@@ -933,6 +1007,7 @@ const styles = StyleSheet.create({
   },
   screenHidden: {
     display: 'none',
+    pointerEvents: 'none',
   },
   loadingContainer: {
     flex: 1,

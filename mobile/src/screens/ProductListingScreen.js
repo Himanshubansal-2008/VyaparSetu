@@ -22,7 +22,9 @@ import {
   isProductActive,
   filterActiveProducts,
 } from '../data/products';
-import { getProducts } from '../services/productService';
+import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
+import { useMode } from '../context/ModeContext';
+import { getProducts, getSellerProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -39,6 +41,9 @@ export default function ProductListingScreen({
   onNotificationPress,
   onCartPress,
 }) {
+  const { isSellerMode, activeBusinessProfile } = useMode();
+  const isSellerView = isSellerMode || Boolean(route?.params?.isSellerOnly);
+
   // Navigation / Route Parameters
   const initialCategory =
     route?.params?.selectedCategory ||
@@ -229,7 +234,17 @@ export default function ProductListingScreen({
         params.sortOrder = 'desc';
       }
 
-      const response = await getProducts(params);
+      const targetBusinessId =
+        route?.params?.businessId ||
+        route?.params?.sellerId ||
+        (isSellerView ? activeBusinessProfile?.id : undefined);
+      if (targetBusinessId) {
+        params.businessId = targetBusinessId;
+      }
+
+      const response = isSellerView
+        ? await getSellerProducts(params)
+        : await getProducts(params);
 
       // Only apply state if this request is still the active one
       if (requestId === activeRequestIdRef.current) {
@@ -240,32 +255,102 @@ export default function ProductListingScreen({
           : Array.isArray(response)
           ? response
           : [];
-        setProducts(filterActiveProducts(items));
 
-        // Normalize pagination data from backend response
-        const rawPagination = response?.pagination || response?.data?.pagination || null;
-        if (rawPagination) {
-          const total = Number(rawPagination.total ?? rawPagination.totalProducts ?? 0);
-          const limit = Number(rawPagination.limit) || PAGE_LIMIT;
-          const totalPages = Number(rawPagination.totalPages) || (total === 0 ? 0 : Math.ceil(total / limit));
-          const page = Number(rawPagination.page) || currentPage;
+        if (isSellerView) {
+          // In Seller Mode, show only the seller's own products
+          const sellerItems = filterActiveProducts(items).filter((p) =>
+            isProductOwnedByCurrentSeller(p, activeBusinessProfile)
+          );
+          setProducts(sellerItems);
 
+          const rawPagination = response?.pagination || response?.data?.pagination || null;
+          if (rawPagination) {
+            const total = Number(rawPagination.total ?? rawPagination.totalProducts ?? sellerItems.length);
+            const limit = Number(rawPagination.limit) || PAGE_LIMIT;
+            const totalPages = Number(rawPagination.totalPages) || (total === 0 ? 0 : Math.ceil(total / limit));
+            const page = Number(rawPagination.page) || currentPage;
+
+            setPagination({
+              total,
+              limit,
+              page,
+              totalPages,
+              hasNextPage: page < totalPages,
+              hasPrevPage: page > 1,
+            });
+          } else {
+            setPagination(null);
+          }
+        } else {
+          // In Buyer Mode: must display products from other businesses
+          // Merge API items with default marketplace products from other businesses
+          const prodMap = new Map();
+          filterActiveProducts(defaultProducts).forEach((dp) => {
+            prodMap.set(String(dp.id).trim().toLowerCase(), dp);
+          });
+          filterActiveProducts(items).forEach((ap) => {
+            if (ap.legacyId) {
+              prodMap.delete(String(ap.legacyId).trim().toLowerCase());
+            }
+            prodMap.set(String(ap.id).trim().toLowerCase(), ap);
+          });
+
+          let buyerList = Array.from(prodMap.values());
+          // In Buyer Mode, exclude products owned by current seller unless searching
+          if (!debouncedSearch) {
+            buyerList = buyerList.filter(
+              (p) => !isProductOwnedByCurrentSeller(p, activeBusinessProfile)
+            );
+          }
+
+          // Apply category filter if active
+          if (selectedCategory && selectedCategory !== 'all') {
+            buyerList = buyerList.filter(
+              (p) =>
+                p.categoryId === selectedCategory ||
+                p.category === selectedCategory ||
+                (typeof p.category === 'object' && p.category?.id === selectedCategory)
+            );
+          }
+
+          // Apply search filter if active
+          if (debouncedSearch) {
+            const lower = debouncedSearch.toLowerCase();
+            buyerList = buyerList.filter((p) => {
+              const nameMatch = p.name && p.name.toLowerCase().includes(lower);
+              const brandMatch = p.brand && p.brand.toLowerCase().includes(lower);
+              const catMatch =
+                (typeof p.category === 'string' && p.category.toLowerCase().includes(lower)) ||
+                (typeof p.category === 'object' && p.category?.name?.toLowerCase().includes(lower)) ||
+                (p.categoryName && p.categoryName.toLowerCase().includes(lower));
+              return Boolean(nameMatch || brandMatch || catMatch);
+            });
+          }
+
+          // Apply sort option if active
+          if (sortOption === 'price_asc') {
+            buyerList.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+          } else if (sortOption === 'price_desc') {
+            buyerList.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+          }
+
+          // Paginate
+          const total = buyerList.length;
+          const limit = PAGE_LIMIT;
+          const totalPages = Math.ceil(total / limit) || 1;
+          const page = Math.min(currentPage, totalPages);
+          const startIndex = (page - 1) * limit;
+          const paginated = buyerList.slice(startIndex, startIndex + limit);
+
+          setProducts(paginated);
           setPagination({
             total,
             limit,
             page,
             totalPages,
-            hasNextPage:
-              rawPagination.hasNextPage !== undefined
-                ? Boolean(rawPagination.hasNextPage)
-                : page < totalPages,
-            hasPrevPage:
-              rawPagination.hasPrevPage !== undefined
-                ? Boolean(rawPagination.hasPrevPage)
-                : page > 1,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
           });
-        } else {
-          setPagination(null);
         }
       }
     } catch (err) {
@@ -274,6 +359,20 @@ export default function ProductListingScreen({
         try {
           const localActive = filterActiveProducts(defaultProducts);
           let filtered = localActive;
+
+          // In Seller Mode fallback, only show own products; in Buyer Mode fallback, only show other sellers' products
+          if (isSellerView) {
+            filtered = filtered.filter((p) =>
+              isProductOwnedByCurrentSeller(p, activeBusinessProfile)
+            );
+          } else {
+            if (!debouncedSearch) {
+              filtered = filtered.filter(
+                (p) => !isProductOwnedByCurrentSeller(p, activeBusinessProfile)
+              );
+            }
+          }
+
           if (selectedCategory && selectedCategory !== 'all') {
             filtered = filtered.filter(
               (p) => p.categoryId === selectedCategory || p.category === selectedCategory
@@ -383,19 +482,27 @@ export default function ProductListingScreen({
         data={products}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            onPress={handleProductPress}
-          />
-        )}
+        renderItem={({ item }) => {
+          const isOwn = isProductOwnedByCurrentSeller(item, activeBusinessProfile);
+          return (
+            <ProductCard
+              product={item}
+              isOwnProduct={isOwn}
+              onPress={handleProductPress}
+            />
+          );
+        }}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.headerSection}>
-            <Text style={styles.pageTitle}>Explore Products</Text>
+            <Text style={styles.pageTitle}>
+              {isSellerView ? 'My Products' : 'Explore Products'}
+            </Text>
             <Text style={styles.pageSubtitle}>
-              Discover wholesale products from verified businesses across India.
+              {isSellerView
+                ? 'Manage and review your active wholesale product listings.'
+                : 'Discover wholesale products from verified businesses across India.'}
             </Text>
 
             {/* Category Filter Chips */}
@@ -661,7 +768,9 @@ export default function ProductListingScreen({
             <EmptyState
               icon={hasSearch ? 'search-outline' : hasCategory ? 'file-tray-outline' : 'cube-outline'}
               title={
-                hasSearch && hasCategory
+                isSellerView && !hasSearch && !hasCategory
+                  ? 'No products listed'
+                  : hasSearch && hasCategory
                   ? 'No products found'
                   : hasSearch
                   ? 'No products found matching your search'
@@ -672,7 +781,9 @@ export default function ProductListingScreen({
                   : 'No products available right now.'
               }
               description={
-                hasSearch && hasCategory
+                isSellerView && !hasSearch && !hasCategory
+                  ? "You haven't listed any wholesale products yet."
+                  : hasSearch && hasCategory
                   ? `No products in ${categoryName} match "${debouncedSearch}". Try clearing your search or category filter.`
                   : hasSearch
                   ? `No products match "${debouncedSearch}". Try searching with another term or clear your search.`

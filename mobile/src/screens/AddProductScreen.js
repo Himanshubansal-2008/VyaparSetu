@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -31,6 +31,8 @@ import {
   subscribeBusinessProfile,
   isProductOwnedByCurrentSeller,
 } from '../data/businessProfileData';
+import productService, { isUUID } from '../services/productService';
+import { resolveCategoryUUID } from '../services/categoryService';
 
 // Extract product categories (excluding filter-only 'all')
 const PRODUCT_CATEGORIES = categories
@@ -49,6 +51,20 @@ const COMMON_UNITS = [
   'dozen',
 ];
 
+const resolveCategoryName = (p) => {
+  if (!p) return '';
+  if (typeof p.category === 'object' && p.category?.name) {
+    return p.category.name;
+  }
+  if (typeof p.categoryName === 'string' && p.categoryName.trim()) {
+    return p.categoryName;
+  }
+  if (typeof p.category === 'string' && p.category.trim()) {
+    return p.category;
+  }
+  return '';
+};
+
 export default function AddProductScreen({ navigation, route, onBackPress }) {
   const routeParams = route?.params || {};
 
@@ -63,15 +79,32 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     return null;
   }, [routeParams.product, routeParams.productId]);
 
+  const [asyncProduct, setAsyncProduct] = useState(null);
+
+  useEffect(() => {
+    if (!initialProduct && routeParams.productId && isUUID(routeParams.productId)) {
+      productService
+        .getProductById(routeParams.productId)
+        .then((p) => {
+          if (p) setAsyncProduct(p);
+        })
+        .catch((e) => {
+          console.warn('[AddProductScreen] Failed to fetch product by id:', e);
+        });
+    }
+  }, [initialProduct, routeParams.productId]);
+
+  const effectiveProduct = initialProduct || asyncProduct;
+
   const isEditMode = Boolean(
     routeParams.isEdit ||
     route?.name === 'EditProduct' ||
-    Boolean(initialProduct)
+    Boolean(effectiveProduct)
   );
 
   // Initialize form state
   const [formData, setFormData] = useState(() => {
-    const p = initialProduct;
+    const p = effectiveProduct;
 
     // Existing images
     let initialImages = [];
@@ -79,6 +112,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
       initialImages = [...p.images];
     } else if (p?.image) {
       initialImages = [p.image];
+    } else if (p?.imageUrl) {
+      initialImages = [p.imageUrl];
     }
 
     // Existing bulk pricing tiers
@@ -105,7 +140,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
       brand: p?.brand || '',
       manufacturer: p?.manufacturer || '',
       description: p?.description || '',
-      category: p?.categoryName || p?.category || '',
+      category: resolveCategoryName(p),
       productImages: initialImages,
       price:
         p?.price !== undefined && p?.price !== null ? String(p.price) : '',
@@ -114,7 +149,12 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           ? String(p.originalPrice)
           : '',
       unit: p?.unit || 'piece',
-      moq: p?.moq !== undefined && p?.moq !== null ? String(p.moq) : '1',
+      moq:
+        p?.moq !== undefined && p?.moq !== null
+          ? String(p.moq)
+          : p?.minOrderQuantity !== undefined && p?.minOrderQuantity !== null
+          ? String(p.minOrderQuantity)
+          : '1',
       stock:
         p?.stock !== undefined && p?.stock !== null
           ? String(p.stock)
@@ -124,6 +164,78 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
       bulkPricing: initialBulkTiers,
     };
   });
+
+  // Re-synchronize form if effectiveProduct loads or changes
+  useEffect(() => {
+    if (effectiveProduct) {
+      const p = effectiveProduct;
+      let initialImages = [];
+      if (Array.isArray(p?.images) && p.images.length > 0) {
+        initialImages = [...p.images];
+      } else if (p?.image) {
+        initialImages = [p.image];
+      } else if (p?.imageUrl) {
+        initialImages = [p.imageUrl];
+      }
+
+      let initialBulkTiers = [];
+      if (Array.isArray(p?.bulkPricing) && p.bulkPricing.length > 0) {
+        initialBulkTiers = p.bulkPricing.map((tier) => ({
+          minQuantity:
+            tier.minQuantity !== undefined && tier.minQuantity !== null
+              ? String(tier.minQuantity)
+              : '',
+          maxQuantity:
+            tier.maxQuantity !== undefined && tier.maxQuantity !== null
+              ? String(tier.maxQuantity)
+              : '',
+          pricePerUnit:
+            tier.pricePerUnit !== undefined && tier.pricePerUnit !== null
+              ? String(tier.pricePerUnit)
+              : '',
+        }));
+      }
+
+      const catName = resolveCategoryName(p);
+      setFormData((prev) => ({
+        ...prev,
+        productName: prev.productName || p.name || '',
+        brand: prev.brand || p.brand || '',
+        manufacturer: prev.manufacturer || p.manufacturer || '',
+        description: prev.description || p.description || '',
+        category: prev.category || catName || '',
+        productImages:
+          Array.isArray(prev.productImages) && prev.productImages.length > 0
+            ? prev.productImages
+            : initialImages,
+        price: prev.price || (p.price !== undefined && p.price !== null ? String(p.price) : ''),
+        originalPrice:
+          prev.originalPrice ||
+          (p.originalPrice !== undefined && p.originalPrice !== null ? String(p.originalPrice) : ''),
+        unit: prev.unit || p.unit || 'piece',
+        moq:
+          prev.moq && prev.moq !== '1'
+            ? prev.moq
+            : p.moq !== undefined && p.moq !== null
+            ? String(p.moq)
+            : p.minOrderQuantity !== undefined && p.minOrderQuantity !== null
+            ? String(p.minOrderQuantity)
+            : '1',
+        stock:
+          prev.stock
+            ? prev.stock
+            : p.stock !== undefined && p.stock !== null
+            ? String(p.stock)
+            : p.availableQuantity !== undefined && p.availableQuantity !== null
+            ? String(p.availableQuantity)
+            : '',
+        bulkPricing:
+          Array.isArray(prev.bulkPricing) && prev.bulkPricing.length > 0
+            ? prev.bulkPricing
+            : initialBulkTiers,
+      }));
+    }
+  }, [effectiveProduct]);
 
   const [errors, setErrors] = useState({});
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
@@ -139,8 +251,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
   }, []);
 
   const isOwner = useMemo(() => {
-    return isProductOwnedByCurrentSeller(initialProduct, sessionProfile);
-  }, [initialProduct, sessionProfile]);
+    return isProductOwnedByCurrentSeller(effectiveProduct || initialProduct, sessionProfile);
+  }, [effectiveProduct, initialProduct, sessionProfile]);
 
   const productImages = Array.isArray(formData.productImages)
     ? formData.productImages
@@ -305,7 +417,12 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
       newErrors.productName = 'Product name is required';
     }
 
-    if (!formData.category) {
+    const categoryStr =
+      typeof formData.category === 'object'
+        ? formData.category?.name || ''
+        : String(formData.category || '').trim();
+
+    if (!categoryStr) {
       newErrors.category = 'Product category is required';
     }
 
@@ -345,7 +462,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
   };
 
   // Form Submission & Persistence
-  const handleSubmitProduct = () => {
+  const handleSubmitProduct = async () => {
     if (!validateForm()) {
       Alert.alert(
         'Required Fields Missing',
@@ -357,6 +474,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     try {
       setIsSubmitting(true);
 
+      const targetProduct = effectiveProduct || initialProduct;
       const sessionProfile = getSessionBusinessProfile();
       const resolvedBusiness =
         routeParams.business ||
@@ -364,14 +482,14 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         null;
 
       const businessId =
-        (isEditMode && initialProduct?.businessId) ||
+        (isEditMode && targetProduct?.businessId) ||
         routeParams.businessId ||
         routeParams.sellerId ||
         resolvedBusiness?.id ||
         'biz-submitted-001';
 
       const sellerId =
-        (isEditMode && initialProduct?.sellerId) ||
+        (isEditMode && targetProduct?.sellerId) ||
         routeParams.sellerId ||
         routeParams.businessId ||
         resolvedBusiness?.sellerId ||
@@ -379,25 +497,35 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         businessId;
 
       const sellerName =
-        (isEditMode && initialProduct?.sellerName) ||
+        (isEditMode && targetProduct?.sellerName) ||
         resolvedBusiness?.businessName ||
         'My Business';
 
       const location =
-        (isEditMode && initialProduct?.location) ||
+        (isEditMode && targetProduct?.location) ||
         resolvedBusiness?.location ||
         [resolvedBusiness?.city, resolvedBusiness?.state]
           .filter(Boolean)
           .join(', ') ||
         'India';
 
-      // Match category
+      // Match category name/slug and resolve PostgreSQL Category UUID
+      const rawCategoryName =
+        typeof formData.category === 'object'
+          ? formData.category?.name || ''
+          : String(formData.category || '').trim();
+
+      const categoryUUID =
+        targetProduct?.categoryId && isUUID(targetProduct.categoryId)
+          ? targetProduct.categoryId
+          : resolveCategoryUUID(rawCategoryName, categories);
+
       const matchedCat = categories.find(
-        (c) => c.name.toLowerCase() === formData.category.toLowerCase()
+        (c) => c && c.name && c.name.toLowerCase() === rawCategoryName.toLowerCase()
       );
       const categoryId = matchedCat
         ? matchedCat.id
-        : formData.category.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        : rawCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
       // Clean and format bulk pricing tiers
       const cleanBulkTiers = formData.bulkPricing
@@ -418,23 +546,92 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         productImages.length > 0
           ? productImages[0]
           : isEditMode
-          ? initialProduct?.image || null
+          ? targetProduct?.image || null
           : null;
 
+      const effectiveBusinessUUID =
+        isUUID(businessId) ? businessId :
+        (isUUID(sellerId) ? sellerId :
+        (isUUID(resolvedBusiness?.id) ? resolvedBusiness.id :
+        (isUUID(sessionProfile?.id) ? sessionProfile.id : null)));
+
+      let backendId = null;
+
+      if (isEditMode) {
+        // Edit Mode: if product has a valid backend UUID, update it in PostgreSQL
+        const targetId = targetProduct?.id || routeParams.productId;
+        if (targetId && isUUID(targetId)) {
+          try {
+            const updatePayload = {
+              name: formData.productName.trim(),
+              description: formData.description.trim() || null,
+              price: priceVal,
+              stock: parseInt(formData.stock, 10),
+              minOrderQuantity: parseInt(formData.moq, 10),
+              unit: formData.unit.trim().toLowerCase(),
+              imageUrl: primaryImage && (primaryImage.startsWith('http://') || primaryImage.startsWith('https://')) ? primaryImage : null,
+              categoryId: categoryUUID,
+              bulkPricing: cleanBulkTiers,
+            };
+            if (effectiveBusinessUUID) {
+              updatePayload.businessId = effectiveBusinessUUID;
+            }
+            await productService.updateProduct(targetId, updatePayload);
+          } catch (apiErr) {
+            if (apiErr?.statusCode === 403) {
+              Alert.alert(
+                'Action Not Allowed',
+                'You can only edit products belonging to your own business.'
+              );
+              return;
+            }
+            console.warn('[AddProductScreen] Backend update failed, updating locally:', apiErr);
+          }
+        }
+      } else {
+        // Create Mode: if business has a valid PostgreSQL UUID, create product on backend
+        if (effectiveBusinessUUID) {
+          try {
+            const createPayload = {
+              name: formData.productName.trim(),
+              description: formData.description.trim() || null,
+              price: priceVal,
+              stock: parseInt(formData.stock, 10),
+              minOrderQuantity: parseInt(formData.moq, 10),
+              unit: formData.unit.trim().toLowerCase(),
+              imageUrl: primaryImage && (primaryImage.startsWith('http://') || primaryImage.startsWith('https://')) ? primaryImage : null,
+              isActive: true,
+              isFeatured: false,
+              isSurplus: false,
+              categoryId: categoryUUID,
+              businessId: effectiveBusinessUUID,
+              bulkPricing: cleanBulkTiers,
+            };
+            const createdRes = await productService.createProduct(createPayload);
+            if (createdRes?.id && isUUID(createdRes.id)) {
+              backendId = createdRes.id;
+            }
+          } catch (apiErr) {
+            console.warn('[AddProductScreen] Backend create failed, creating locally:', apiErr);
+          }
+        }
+      }
+
       const productId = isEditMode
-        ? initialProduct?.id || routeParams.productId || `prod-custom-${Date.now()}`
-        : `prod-custom-${Date.now()}`;
+        ? targetProduct?.id || routeParams.productId || `prod-custom-${Date.now()}`
+        : backendId || `prod-custom-${Date.now()}`;
 
       const savedPayload = {
-        ...(isEditMode && initialProduct ? initialProduct : {}),
+        ...(isEditMode && targetProduct ? targetProduct : {}),
         id: productId,
         name: formData.productName.trim(),
         brand: formData.brand.trim() || undefined,
         manufacturer: formData.manufacturer.trim() || undefined,
         description: formData.description.trim(),
         categoryId,
-        categoryName: formData.category,
-        category: formData.category,
+        categoryUUID,
+        categoryName: rawCategoryName,
+        category: rawCategoryName,
         price: priceVal,
         originalPrice: originalPriceVal,
         unit: formData.unit.trim().toLowerCase(),
@@ -448,17 +645,19 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             : primaryImage
             ? [primaryImage]
             : [],
-        sellerId,
-        businessId,
+        sellerId: effectiveBusinessUUID || sellerId,
+        businessId: effectiveBusinessUUID || businessId,
         sellerName,
         location,
         bulkPricing: cleanBulkTiers,
-        rating: isEditMode ? initialProduct?.rating || 4.8 : 4.8,
-        totalReviews: isEditMode ? initialProduct?.totalReviews || 0 : 0,
-        isFeatured: isEditMode ? Boolean(initialProduct?.isFeatured) : false,
-        isSurplus: isEditMode ? Boolean(initialProduct?.isSurplus) : false,
+        rating: isEditMode ? targetProduct?.rating || 4.8 : 4.8,
+        totalReviews: isEditMode ? targetProduct?.totalReviews || 0 : 0,
+        isFeatured: isEditMode ? Boolean(targetProduct?.isFeatured) : false,
+        isSurplus: isEditMode ? Boolean(targetProduct?.isSurplus) : false,
+        isCustom: !backendId && (!isEditMode || Boolean(targetProduct?.isCustom)),
+        isBackendSynced: Boolean(backendId) || (isEditMode && isUUID(productId)),
         tags: [
-          formData.category.toLowerCase(),
+          rawCategoryName.toLowerCase(),
           ...formData.productName.toLowerCase().split(/\s+/).filter(Boolean),
         ],
       };
@@ -494,7 +693,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
   // Delete Product Handler
   const handleDeleteProduct = () => {
     if (isDeleting || isSubmitting) return;
-    if (!initialProduct || !initialProduct.id) return;
+    const targetProd = effectiveProduct || initialProduct;
+    if (!targetProd || !targetProd.id) return;
 
     if (!isOwner) {
       Alert.alert(
@@ -505,7 +705,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
     }
 
     const productName =
-      formData.productName.trim() || initialProduct.name || 'this product';
+      formData.productName.trim() || targetProd.name || 'this product';
 
     Alert.alert(
       'Delete Product',
@@ -521,7 +721,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           onPress: async () => {
             setIsDeleting(true);
             try {
-              const res = await deleteProduct(initialProduct.id, sessionProfile);
+              const res = await deleteProduct(targetProd.id, sessionProfile);
               if (res?.success) {
                 Alert.alert(
                   'Product Deleted',
@@ -810,7 +1010,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   ]}
                   numberOfLines={1}
                 >
-                  {formData.category || 'Select product category'}
+                  {typeof formData.category === 'object'
+                    ? formData.category?.name || 'Select product category'
+                    : formData.category || 'Select product category'}
                 </Text>
                 <Ionicons
                   name="chevron-down"
@@ -1225,7 +1427,9 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
                   activeOpacity={0.7}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
-                  {formData.category === item ? (
+                  {(formData.category === item ||
+                  (typeof formData.category === 'object' &&
+                    formData.category?.name === item)) ? (
                     <Ionicons
                       name="checkmark-circle"
                       size={20}

@@ -5,146 +5,142 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
+import {
+  isProductOwnedByCurrentSeller,
+  getActiveMode,
+  MODES,
+  getSessionBusinessProfile,
+} from '../data/businessProfileData';
 import {
   isProductActive,
   getProductById,
   subscribeProducts,
 } from '../data/products';
+import { isUUID } from '../services/productService';
+import cartService, {
+  fetchBackendCart,
+  addBackendCartItem,
+  updateBackendCartQuantity,
+  removeBackendCartItem,
+  clearBackendCart,
+  migrateBackendCart,
+  resolveProductId,
+} from '../services/cartService';
+
+const isEligibleForBackend = (id) => {
+  if (!id) return false;
+  const resolved = resolveProductId(id);
+  return isUUID(resolved);
+};
+
+import {
+  getApplicableUnitPrice,
+  getActiveTier,
+  getProductMoq,
+  getProductStock,
+  calculateItemValues,
+  normalizeBackendCartItem,
+} from '../utils/cartPricing';
+
+export {
+  getApplicableUnitPrice,
+  getActiveTier,
+  getProductMoq,
+  getProductStock,
+  calculateItemValues,
+  normalizeBackendCartItem,
+};
 
 export const CART_STORAGE_KEY = '@vyaparsetu_cart';
-
-/**
- * Calculates the applicable per-unit price for a given product and quantity,
- * respecting tiered bulk pricing if configured on the product.
- */
-export function getApplicableUnitPrice(product, quantity) {
-  if (!product) return 0;
-  const qty = Number(quantity) || 0;
-
-  if (Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0 && qty > 0) {
-    const matchingTier = product.bulkPricing.find((tier) => {
-      const min =
-        tier.minQuantity !== null && tier.minQuantity !== undefined
-          ? Number(tier.minQuantity)
-          : 0;
-      const minMatch = qty >= min;
-      const maxMatch =
-        tier.maxQuantity === null || tier.maxQuantity === undefined
-          ? true
-          : qty <= Number(tier.maxQuantity);
-      return minMatch && maxMatch;
-    });
-
-    if (
-      matchingTier &&
-      matchingTier.pricePerUnit !== undefined &&
-      matchingTier.pricePerUnit !== null
-    ) {
-      return Number(matchingTier.pricePerUnit);
-    }
-  }
-
-  return product.price !== undefined && product.price !== null
-    ? Number(product.price)
-    : 0;
-}
-
-/**
- * Finds the active bulk pricing tier for a product at a given quantity.
- */
-export function getActiveTier(product, quantity) {
-  if (!product || !Array.isArray(product.bulkPricing) || product.bulkPricing.length === 0) {
-    return null;
-  }
-  const qty = Number(quantity) || 0;
-  if (qty <= 0) return null;
-
-  const found = product.bulkPricing.find((tier) => {
-    const min =
-      tier.minQuantity !== null && tier.minQuantity !== undefined
-        ? Number(tier.minQuantity)
-        : 0;
-    const minMatch = qty >= min;
-    const maxMatch =
-      tier.maxQuantity === null || tier.maxQuantity === undefined
-        ? true
-        : qty <= Number(tier.maxQuantity);
-    return minMatch && maxMatch;
-  });
-
-  return found || null;
-}
-
-/**
- * Returns minimum order quantity (MOQ) for a product (defaults to 1).
- */
-export function getProductMoq(product) {
-  if (!product) return 1;
-  const parsed = Number(product.moq);
-  return !isNaN(parsed) && parsed > 0 ? parsed : 1;
-}
-
-/**
- * Returns maximum available stock for a product, or Infinity if not specified.
- */
-export function getProductStock(product) {
-  if (!product) return Infinity;
-  const rawStock =
-    product.stock !== undefined
-      ? product.stock
-      : product.availableQuantity !== undefined
-      ? product.availableQuantity
-      : null;
-
-  if (rawStock === null || rawStock === undefined) return Infinity;
-  const parsed = Number(rawStock);
-  return !isNaN(parsed) && parsed >= 0 ? parsed : Infinity;
-}
-
-/**
- * Re-computes unit price, item total, and savings for a product at a quantity.
- */
-export function calculateItemValues(product, quantity) {
-  const qty = Math.max(1, Number(quantity) || 1);
-  const unitPrice = getApplicableUnitPrice(product, qty);
-  const itemTotal = qty * unitPrice;
-  const regularPrice =
-    product && product.price !== undefined && product.price !== null
-      ? Number(product.price)
-      : unitPrice;
-  const savings = Math.max(0, (regularPrice - unitPrice) * qty);
-  const activeTier = getActiveTier(product, qty);
-
-  return {
-    unitPrice,
-    itemTotal,
-    savings,
-    activeTier,
-  };
-}
 
 export const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const isSyncingRef = useRef(false);
 
-  // 1. Load persisted cart data on initial mount
+  // Synchronizes local cart items with the backend cart
+  const syncWithBackend = useCallback(async (currentLocalItems = null) => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+
+    try {
+      const itemsToConsider = currentLocalItems || cartItems;
+      const backendCart = await fetchBackendCart().catch(() => null);
+
+      if (backendCart && Array.isArray(backendCart.items)) {
+        if (backendCart.items.length === 0 && itemsToConsider.length > 0) {
+          // If backend cart is empty but we have local items, migrate them
+          const eligibleToMigrate = itemsToConsider.filter(
+            (item) => item && (isUUID(item.productId || item.product?.id || item.id) || isEligibleForBackend(item.productId || item.product?.id || item.id))
+          );
+
+          if (eligibleToMigrate.length > 0) {
+            const migrationRes = await migrateBackendCart(eligibleToMigrate).catch(() => null);
+            if (migrationRes && Array.isArray(migrationRes.items)) {
+              const mapped = migrationRes.items.map((bItem) => {
+                const bProdId = bItem.productId || bItem.product?.id;
+                const existing = itemsToConsider.find((l) => {
+                  const lProdId = l.productId || l.id || l.product?.id;
+                  return lProdId === bProdId || resolveProductId(lProdId) === bProdId;
+                });
+                return normalizeBackendCartItem(bItem, existing);
+              }).filter(Boolean);
+
+              // Keep items that are neither UUID nor eligible for backend
+              const nonUuidItems = itemsToConsider.filter(
+                (item) => item && !isUUID(item.productId || item.product?.id || item.id) && !isEligibleForBackend(item.productId || item.product?.id || item.id)
+              );
+
+              setCartItems([...mapped, ...nonUuidItems]);
+              return;
+            }
+          }
+        }
+
+        // Reconcile backend cart items
+        const mappedBackend = backendCart.items.map((bItem) => {
+          const bProdId = bItem.productId || bItem.product?.id;
+          const existing = itemsToConsider.find((l) => {
+            const lProdId = l.productId || l.id || l.product?.id;
+            return lProdId === bProdId || resolveProductId(lProdId) === bProdId;
+          });
+          return normalizeBackendCartItem(bItem, existing);
+        }).filter(Boolean);
+
+        // Preserve items that are neither UUID nor eligible for backend
+        const nonUuidItems = itemsToConsider.filter(
+          (item) => item && !isUUID(item.productId || item.product?.id || item.id) && !isEligibleForBackend(item.productId || item.product?.id || item.id)
+        );
+
+        setCartItems([...mappedBackend, ...nonUuidItems]);
+      }
+    } catch (err) {
+      console.warn('[CartContext] Backend sync deferred:', err.message || err);
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [cartItems]);
+
+  // 1. Load persisted cart data on initial mount and then sync with backend
   useEffect(() => {
     let isMounted = true;
     async function loadCart() {
+      let initialItems = [];
       try {
         const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
         if (stored && isMounted) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) {
             // Re-validate and re-calculate pricing based on current product definitions
-            const sanitized = parsed.map((item) => {
+            initialItems = parsed.map((item) => {
               const product = item.product || {};
-              const pId = item.id || product.id;
+              const pId = item.id || product.id || item.productId;
               const liveProduct = getProductById(pId);
               const isUnavailable = !liveProduct || !isProductActive(liveProduct);
               const resolvedProduct = liveProduct || product;
@@ -163,7 +159,8 @@ export function CartProvider({ children }) {
               }
               return {
                 ...item,
-                id: item.id || resolvedProduct.id,
+                id: pId,
+                productId: pId,
                 product: resolvedProduct,
                 quantity: qty,
                 isUnavailable: isUnavailable || Boolean(item.isUnavailable),
@@ -173,7 +170,9 @@ export function CartProvider({ children }) {
                 ...values,
               };
             });
-            setCartItems(sanitized);
+            if (isMounted) {
+              setCartItems(initialItems);
+            }
           }
         }
       } catch (err) {
@@ -181,6 +180,8 @@ export function CartProvider({ children }) {
       } finally {
         if (isMounted) {
           setIsLoaded(true);
+          // Sync with backend in background without blocking initial render
+          syncWithBackend(initialItems);
         }
       }
     }
@@ -211,7 +212,7 @@ export function CartProvider({ children }) {
       setCartItems((prevItems) => {
         let changed = false;
         const updated = prevItems.map((item) => {
-          const pId = item.id || item.product?.id;
+          const pId = item.id || item.product?.id || item.productId;
           const liveProduct = updatedProducts.find(
             (p) =>
               String(p?.id || '').trim().toLowerCase() ===
@@ -239,7 +240,7 @@ export function CartProvider({ children }) {
   /**
    * Adds a product to the cart with the given quantity.
    * If the item already exists in the cart, increases or replaces its quantity.
-   * Enforces MOQ and available stock constraints.
+   * Enforces MOQ, stock constraints, Buyer Mode, and own-product purchase prevention.
    */
   const addToCart = useCallback(
     (product, requestedQuantity = null, options = {}) => {
@@ -256,6 +257,14 @@ export function CartProvider({ children }) {
           success: false,
           reason: 'product_unavailable',
           message: 'This product has been deleted or is no longer available for purchase.',
+        };
+      }
+
+      if (getActiveMode() === MODES.SELLER) {
+        return {
+          success: false,
+          reason: 'seller_mode',
+          message: 'Adding products to cart is disabled in Seller Mode.',
         };
       }
 
@@ -278,9 +287,12 @@ export function CartProvider({ children }) {
         };
       }
 
-      const existingItem = cartItems.find((item) => item.id === product.id);
-      let targetQuantity;
+      const productId = product.id;
+      const existingItem = cartItems.find(
+        (item) => item.id === productId || item.product?.id === productId
+      );
 
+      let targetQuantity;
       if (options.replace) {
         targetQuantity =
           requestedQuantity !== null && requestedQuantity !== undefined
@@ -343,7 +355,8 @@ export function CartProvider({ children }) {
       }
 
       const newItem = {
-        id: product.id,
+        id: productId,
+        productId,
         product: { ...product },
         quantity: targetQuantity,
         ...values,
@@ -354,8 +367,11 @@ export function CartProvider({ children }) {
         updatedAt: new Date().toISOString(),
       };
 
+      // 1. Optimistic local update
       setCartItems((prevItems) => {
-        const index = prevItems.findIndex((item) => item.id === product.id);
+        const index = prevItems.findIndex(
+          (item) => item.id === productId || item.product?.id === productId
+        );
         if (index >= 0) {
           const next = [...prevItems];
           next[index] = newItem;
@@ -363,6 +379,51 @@ export function CartProvider({ children }) {
         }
         return [...prevItems, newItem];
       });
+
+      // 2. Asynchronous backend synchronization if UUID or eligible
+      if (isUUID(productId) || isEligibleForBackend(productId)) {
+        addBackendCartItem(productId, targetQuantity, { replace: true })
+          .then((backendCart) => {
+            if (backendCart && Array.isArray(backendCart.items)) {
+              setCartItems((prevItems) => {
+                const mappedBackend = backendCart.items.map((bItem) => {
+                  const bProdId = bItem.productId || bItem.product?.id;
+                  const existing = prevItems.find((l) => {
+                    const lProdId = l.productId || l.id || l.product?.id;
+                    return lProdId === bProdId || resolveProductId(lProdId) === bProdId;
+                  });
+                  return normalizeBackendCartItem(bItem, existing);
+                }).filter(Boolean);
+
+                const nonUuidItems = prevItems.filter(
+                  (item) => item && !isUUID(item.productId || item.product?.id || item.id) && !isEligibleForBackend(item.productId || item.product?.id || item.id)
+                );
+                return [...mappedBackend, ...nonUuidItems];
+              });
+            }
+          })
+          .catch((err) => {
+            if (err?.statusCode === 403) {
+              // Ownership rejection from backend
+              Alert.alert(
+                'Action Not Allowed',
+                err.data?.message || 'You cannot add your own product to your wholesale cart.'
+              );
+              // Roll back local addition
+              setCartItems((prev) =>
+                prev.filter((i) => i.id !== productId && i.product?.id !== productId)
+              );
+            } else if (err?.statusCode === 400) {
+              Alert.alert('Unable to Add to Cart', err.data?.message || err.message);
+              // Roll back local addition on validation rejection
+              setCartItems((prev) =>
+                prev.filter((i) => i.id !== productId && i.product?.id !== productId)
+              );
+            } else {
+              console.warn('[CartContext] addBackendCartItem failed (offline):', err.message || err);
+            }
+          });
+      }
 
       return {
         success: true,
@@ -380,8 +441,12 @@ export function CartProvider({ children }) {
    */
   const updateQuantity = useCallback((productId, newQuantity) => {
     if (!productId) return;
+
+    let finalQty = 1;
     setCartItems((prevItems) => {
-      const index = prevItems.findIndex((item) => item.id === productId);
+      const index = prevItems.findIndex(
+        (item) => item.id === productId || item.product?.id === productId
+      );
       if (index === -1) return prevItems;
 
       const item = prevItems[index];
@@ -395,6 +460,7 @@ export function CartProvider({ children }) {
       if (stock !== Infinity && qty > stock) {
         qty = stock;
       }
+      finalQty = qty;
 
       let values = calculateItemValues(item.product, qty);
       if (item.quotationId && item.unitPrice) {
@@ -416,6 +482,33 @@ export function CartProvider({ children }) {
       };
       return next;
     });
+
+    // Backend sync if UUID or eligible
+    if (isUUID(productId) || isEligibleForBackend(productId)) {
+      updateBackendCartQuantity(productId, finalQty)
+        .then((backendCart) => {
+          if (backendCart && Array.isArray(backendCart.items)) {
+            setCartItems((prevItems) => {
+              const mappedBackend = backendCart.items.map((bItem) => {
+                const bProdId = bItem.productId || bItem.product?.id;
+                const existing = prevItems.find((l) => {
+                  const lProdId = l.productId || l.id || l.product?.id;
+                  return lProdId === bProdId || resolveProductId(lProdId) === bProdId;
+                });
+                return normalizeBackendCartItem(bItem, existing);
+              }).filter(Boolean);
+
+              const nonUuidItems = prevItems.filter(
+                (item) => item && !isUUID(item.productId || item.product?.id || item.id) && !isEligibleForBackend(item.productId || item.product?.id || item.id)
+              );
+              return [...mappedBackend, ...nonUuidItems];
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('[CartContext] updateBackendCartQuantity deferred:', err.message || err);
+        });
+    }
   }, []);
 
   /**
@@ -423,8 +516,12 @@ export function CartProvider({ children }) {
    */
   const increaseQuantity = useCallback((productId, step = 1) => {
     if (!productId) return;
+
+    let targetQty = null;
     setCartItems((prevItems) => {
-      const item = prevItems.find((i) => i.id === productId);
+      const item = prevItems.find(
+        (i) => i.id === productId || i.product?.id === productId
+      );
       if (!item) return prevItems;
 
       const stock = getProductStock(item.product);
@@ -437,6 +534,7 @@ export function CartProvider({ children }) {
       if (stock !== Infinity && nextQty > stock) {
         nextQty = stock;
       }
+      targetQty = nextQty;
 
       let values = calculateItemValues(item.product, nextQty);
       if (item.quotationId && item.unitPrice) {
@@ -450,7 +548,7 @@ export function CartProvider({ children }) {
         };
       }
       return prevItems.map((i) =>
-        i.id === productId
+        i.id === productId || i.product?.id === productId
           ? {
               ...i,
               quantity: nextQty,
@@ -460,6 +558,12 @@ export function CartProvider({ children }) {
           : i
       );
     });
+
+    if (targetQty !== null && (isUUID(productId) || isEligibleForBackend(productId))) {
+      updateBackendCartQuantity(productId, targetQty).catch((err) =>
+        console.warn('[CartContext] increaseQuantity sync deferred:', err.message || err)
+      );
+    }
   }, []);
 
   /**
@@ -467,8 +571,12 @@ export function CartProvider({ children }) {
    */
   const decreaseQuantity = useCallback((productId, step = 1) => {
     if (!productId) return;
+
+    let targetQty = null;
     setCartItems((prevItems) => {
-      const item = prevItems.find((i) => i.id === productId);
+      const item = prevItems.find(
+        (i) => i.id === productId || i.product?.id === productId
+      );
       if (!item) return prevItems;
 
       const moq = getProductMoq(item.product);
@@ -481,6 +589,7 @@ export function CartProvider({ children }) {
       if (nextQty < moq) {
         nextQty = moq;
       }
+      targetQty = nextQty;
 
       let values = calculateItemValues(item.product, nextQty);
       if (item.quotationId && item.unitPrice) {
@@ -494,7 +603,7 @@ export function CartProvider({ children }) {
         };
       }
       return prevItems.map((i) =>
-        i.id === productId
+        i.id === productId || i.product?.id === productId
           ? {
               ...i,
               quantity: nextQty,
@@ -504,6 +613,12 @@ export function CartProvider({ children }) {
           : i
       );
     });
+
+    if (targetQty !== null && (isUUID(productId) || isEligibleForBackend(productId))) {
+      updateBackendCartQuantity(productId, targetQty).catch((err) =>
+        console.warn('[CartContext] decreaseQuantity sync deferred:', err.message || err)
+      );
+    }
   }, []);
 
   /**
@@ -511,42 +626,81 @@ export function CartProvider({ children }) {
    */
   const removeFromCart = useCallback((productId) => {
     if (!productId) return;
+
+    // Optimistic local update
     setCartItems((prevItems) =>
       prevItems.filter((item) => item.id !== productId && item.product?.id !== productId)
     );
+
+    // Backend sync if UUID or eligible
+    if (isUUID(productId) || isEligibleForBackend(productId)) {
+      removeBackendCartItem(productId).catch((err) =>
+        console.warn('[CartContext] removeBackendCartItem deferred:', err.message || err)
+      );
+    }
   }, []);
 
   /**
    * Clears all items from the cart.
    */
   const clearCart = useCallback(() => {
+    // Optimistic local update
     setCartItems([]);
+
+    // Backend sync
+    clearBackendCart().catch((err) =>
+      console.warn('[CartContext] clearBackendCart deferred:', err.message || err)
+    );
   }, []);
 
   /**
    * Removes any products that belong to the current seller from the cart.
    */
   const removeOwnProducts = useCallback(() => {
-    setCartItems((prevItems) =>
-      prevItems.filter(
-        (item) => !isProductOwnedByCurrentSeller(item.product || item)
-      )
-    );
+    const sessionProfile = getSessionBusinessProfile();
+    setCartItems((prevItems) => {
+      const ownItems = prevItems.filter((item) =>
+        isProductOwnedByCurrentSeller(item.product || item, sessionProfile)
+      );
+
+      // Async remove each on backend if UUID or eligible
+      ownItems.forEach((item) => {
+        const pId = item.productId || item.product?.id || item.id;
+        if (isUUID(pId) || isEligibleForBackend(pId)) {
+          removeBackendCartItem(pId).catch(() => {});
+        }
+      });
+
+      return prevItems.filter(
+        (item) => !isProductOwnedByCurrentSeller(item.product || item, sessionProfile)
+      );
+    });
   }, []);
 
   /**
    * Removes any products that are deleted, archived, or marked unavailable from the cart.
    */
   const removeUnavailableProducts = useCallback(() => {
-    setCartItems((prevItems) =>
-      prevItems.filter((item) => {
+    setCartItems((prevItems) => {
+      const unavail = prevItems.filter((item) => {
         const pId = item.id || item.product?.id;
         const liveProd = getProductById(pId);
-        const isUnavail =
-          item.isUnavailable || !liveProd || !isProductActive(liveProd);
-        return !isUnavail;
-      })
-    );
+        return item.isUnavailable || !liveProd || !isProductActive(liveProd);
+      });
+
+      unavail.forEach((item) => {
+        const pId = item.productId || item.product?.id || item.id;
+        if (isUUID(pId) || isEligibleForBackend(pId)) {
+          removeBackendCartItem(pId).catch(() => {});
+        }
+      });
+
+      return prevItems.filter((item) => {
+        const pId = item.id || item.product?.id;
+        const liveProd = getProductById(pId);
+        return !item.isUnavailable && liveProd && isProductActive(liveProd);
+      });
+    });
   }, []);
 
   /**
@@ -626,6 +780,7 @@ export function CartProvider({ children }) {
       removeUnavailableProducts,
       isInCart,
       getCartItem,
+      syncWithBackend,
     }),
     [
       cartItems,
@@ -647,6 +802,7 @@ export function CartProvider({ children }) {
       removeUnavailableProducts,
       isInCart,
       getCartItem,
+      syncWithBackend,
     ]
   );
 
@@ -679,10 +835,10 @@ export function useCart() {
       removeUnavailableProducts: () => {},
       isInCart: () => false,
       getCartItem: () => null,
+      syncWithBackend: () => Promise.resolve(),
     };
   }
   return context;
 }
 
 export default CartContext;
-

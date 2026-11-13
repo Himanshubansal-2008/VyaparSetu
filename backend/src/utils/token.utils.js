@@ -14,9 +14,7 @@ const getJwtSecret = () => {
         "[Security] JWT_SECRET environment variable is strictly required in production."
       );
     }
-    throw new Error(
-      "[Config] JWT_SECRET environment variable is missing. Please define JWT_SECRET in your .env file."
-    );
+    return "vyaparsetu_dev_jwt_secret_key_change_in_production";
   }
   return secret.trim();
 };

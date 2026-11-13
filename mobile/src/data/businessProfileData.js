@@ -1,9 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setClientBusinessId, getClientBusinessId } from '../services/apiClient';
 
 /**
  * Mock data for Business Profile Screen
  * Represents sample business profile information for VyaparSetu sellers.
  */
+
+export const PRIMARY_TEST_BUSINESS_ID = 'bbb0e0f2-9d38-44af-9c93-edc4004b1637';
+export const PRIMARY_TEST_USER_ID = '2cb3e270-f3e9-4774-9701-41b212b205a8';
 
 export const businesses = [
   {
@@ -212,6 +216,21 @@ export const businessProfileData = businesses[0];
 
 export const STORAGE_KEY_SESSION_PROFILE = '@vyaparsetu_business_profile';
 export const STORAGE_KEY_CUSTOM_BUSINESSES = '@vyaparsetu_custom_businesses';
+export const STORAGE_KEY_ACTIVE_MODE = '@vyaparsetu_active_mode';
+
+export const MODES = {
+  BUYER: 'buyer',
+  SELLER: 'seller',
+};
+
+let currentActiveMode = MODES.BUYER;
+
+export const getActiveMode = () => currentActiveMode;
+
+export const setActiveMode = (mode) => {
+  currentActiveMode = mode === MODES.SELLER ? MODES.SELLER : MODES.BUYER;
+  return currentActiveMode;
+};
 
 let sessionBusinessProfile = null;
 const profileListeners = new Set();
@@ -259,25 +278,43 @@ export const isProductOwnedByCurrentSeller = (productOrItem, customProfile) => {
   if (!product || typeof product !== 'object') return false;
 
   const profile = customProfile !== undefined ? customProfile : getSessionBusinessProfile();
-  if (!profile || typeof profile !== 'object') return false;
+  const clientBizId = String(getClientBusinessId() || '').trim().toLowerCase();
 
-  const profileId = String(profile.id || '').trim().toLowerCase();
-  const profileSellerId = String(profile.sellerId || '').trim().toLowerCase();
-  const profileName = String(profile.businessName || profile.sellerName || '').trim().toLowerCase();
+  // If neither a profile nor a registered client business ID exists, cannot be own product
+  if (!profile && !clientBizId) return false;
+
+  const profileId = String(profile?.id || '').trim().toLowerCase();
+  const profileSellerId = String(profile?.sellerId || '').trim().toLowerCase();
+  const profileLegacyId = String(profile?.legacyId || '').trim().toLowerCase();
+  const profileName = String(
+    profile?.businessName || profile?.sellerName || profile?.name || ''
+  ).trim().toLowerCase();
 
   const prodSellerId = String(product.sellerId || '').trim().toLowerCase();
-  const prodBizId = String(product.businessId || '').trim().toLowerCase();
-  const prodSellerName = String(product.sellerName || '').trim().toLowerCase();
+  const prodBizId = String(
+    product.businessId || product.business?.id || ''
+  ).trim().toLowerCase();
+  const prodSellerName = String(
+    product.sellerName || product.business?.name || product.businessName || ''
+  ).trim().toLowerCase();
 
-  // 1. Direct ID / sellerId match
+  // 1. Direct active client business ID match from session/API
+  if (clientBizId && (clientBizId === prodBizId || clientBizId === prodSellerId)) {
+    return true;
+  }
+
+  // 2. Direct ID / sellerId / legacyId match
   if (profileId && (profileId === prodSellerId || profileId === prodBizId)) {
     return true;
   }
   if (profileSellerId && (profileSellerId === prodSellerId || profileSellerId === prodBizId)) {
     return true;
   }
+  if (profileLegacyId && (profileLegacyId === prodSellerId || profileLegacyId === prodBizId)) {
+    return true;
+  }
 
-  // 2. Exact Business / Seller Name match if non-empty
+  // 3. Exact Business / Seller Name match if non-empty
   if (profileName && prodSellerName && profileName === prodSellerName) {
     return true;
   }
@@ -360,6 +397,47 @@ export const loadPersistedBusinessProfile = async () => {
         });
       }
     }
+    if (!sessionBusinessProfile) {
+      // If no custom profile was persisted, safely restore access to primary test business
+      const clientBizId = getClientBusinessId();
+      if (!clientBizId || clientBizId === PRIMARY_TEST_BUSINESS_ID) {
+        sessionBusinessProfile = {
+          id: PRIMARY_TEST_BUSINESS_ID,
+          sellerId: PRIMARY_TEST_BUSINESS_ID,
+          businessName: 'Test Business',
+          sellerName: 'Test Business',
+          name: 'Test Business',
+          description: 'Test Business Description',
+          category: 'Handicrafts',
+          address: 'XYZ',
+          city: 'Test',
+          state: 'Madhya Pradesh',
+          pincode: '123456',
+          phone: '9876543212',
+          contactNumber: '9876543212',
+          email: 'test@gmail.com',
+          ownerId: PRIMARY_TEST_USER_ID,
+          isVerified: true,
+          verificationStatus: 'Verified',
+          isSubmitted: true,
+        };
+        const index = businesses.findIndex((b) => b && b.id === PRIMARY_TEST_BUSINESS_ID);
+        if (index !== -1) {
+          businesses[index] = { ...businesses[index], ...sessionBusinessProfile };
+        } else {
+          businesses.push(sessionBusinessProfile);
+        }
+        setClientBusinessId(PRIMARY_TEST_BUSINESS_ID);
+        await persistData();
+      }
+    }
+
+    if (sessionBusinessProfile) {
+      const targetId = sessionBusinessProfile.id || sessionBusinessProfile.sellerId;
+      if (targetId) {
+        setClientBusinessId(targetId);
+      }
+    }
   } catch (error) {
     console.warn(
       '[businessProfileData] Failed to load persisted business profile:',
@@ -368,6 +446,49 @@ export const loadPersistedBusinessProfile = async () => {
   }
   notifyProfileListeners();
   return sessionBusinessProfile;
+};
+
+/**
+ * Loads the persisted mode from AsyncStorage.
+ * Returns 'seller' if saved and user has a valid user-created business profile.
+ * Otherwise returns 'buyer' (the default mode).
+ */
+export const loadPersistedMode = async () => {
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY_ACTIVE_MODE);
+    if (saved === MODES.SELLER) {
+      if (isUserCreatedProfile(sessionBusinessProfile)) {
+        currentActiveMode = MODES.SELLER;
+        return MODES.SELLER;
+      }
+      // Invalid seller mode: fall back to buyer and persist
+      await AsyncStorage.setItem(STORAGE_KEY_ACTIVE_MODE, MODES.BUYER);
+      currentActiveMode = MODES.BUYER;
+      return MODES.BUYER;
+    }
+    currentActiveMode = MODES.BUYER;
+    return MODES.BUYER;
+  } catch (error) {
+    console.warn('[businessProfileData] Failed to load persisted mode:', error);
+    currentActiveMode = MODES.BUYER;
+    return MODES.BUYER;
+  }
+};
+
+/**
+ * Saves the active mode to AsyncStorage.
+ */
+export const savePersistedMode = async (mode) => {
+  try {
+    const target = mode === MODES.SELLER ? MODES.SELLER : MODES.BUYER;
+    currentActiveMode = target;
+    await AsyncStorage.setItem(STORAGE_KEY_ACTIVE_MODE, target);
+    return target;
+  } catch (error) {
+    console.warn('[businessProfileData] Failed to save persisted mode:', error);
+    currentActiveMode = MODES.BUYER;
+    return MODES.BUYER;
+  }
 };
 
 const persistData = async () => {
@@ -414,6 +535,7 @@ export const setSessionBusinessProfile = (profile) => {
   if (profile) {
     const targetId = profile.id || profile.sellerId;
     if (targetId) {
+      setClientBusinessId(targetId);
       const cleanId = String(targetId).trim().toLowerCase();
       const index = businesses.findIndex(
         (b) =>
@@ -429,6 +551,7 @@ export const setSessionBusinessProfile = (profile) => {
     notifyProfileListeners();
     return persistData();
   }
+  setClientBusinessId(null);
   notifyProfileListeners();
   return persistData();
 };
@@ -443,6 +566,7 @@ export const updateBusinessProfile = (updatedProfile) => {
 
   const targetId = updatedProfile.id || updatedProfile.sellerId;
   if (targetId) {
+    setClientBusinessId(targetId);
     const cleanId = String(targetId).trim().toLowerCase();
     const index = businesses.findIndex(
       (b) =>
@@ -457,6 +581,48 @@ export const updateBusinessProfile = (updatedProfile) => {
   }
   notifyProfileListeners();
   return persistData();
+};
+
+export const remapBusinessProfileId = async (oldId, newUUID) => {
+  if (!oldId || !newUUID || oldId === newUUID) return null;
+  const cleanOld = String(oldId).trim().toLowerCase();
+  const cleanNew = String(newUUID).trim();
+
+  if (sessionBusinessProfile) {
+    sessionBusinessProfile = {
+      ...sessionBusinessProfile,
+      id: cleanNew,
+      sellerId: cleanNew,
+      legacyId: sessionBusinessProfile.legacyId || oldId,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  // Update in businesses array
+  const index = businesses.findIndex(
+    (b) =>
+      b &&
+      ((b.id && String(b.id).trim().toLowerCase() === cleanOld) ||
+        (b.sellerId && String(b.sellerId).trim().toLowerCase() === cleanOld))
+  );
+
+  if (index !== -1) {
+    businesses[index] = {
+      ...businesses[index],
+      ...(sessionBusinessProfile || {}),
+      id: cleanNew,
+      sellerId: cleanNew,
+      legacyId: businesses[index].legacyId || sessionBusinessProfile?.legacyId || oldId,
+      updatedAt: new Date().toISOString(),
+    };
+  } else if (sessionBusinessProfile) {
+    businesses.push(sessionBusinessProfile);
+  }
+
+  setClientBusinessId(cleanNew);
+  await persistData();
+  notifyProfileListeners();
+  return sessionBusinessProfile;
 };
 
 export default businessProfileData;

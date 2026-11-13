@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isProductOwnedByCurrentSeller } from './businessProfileData.js';
+import quotationService from '../services/quotationService.js';
 
 const storage = AsyncStorage.default || AsyncStorage;
 
@@ -363,21 +364,53 @@ export const loadPersistedQuotations = async () => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         inMemoryQuotations = parsed;
-        notifyQuotationListeners();
-        return inMemoryQuotations;
       }
+    } else {
+      inMemoryQuotations = [...DEFAULT_SEED_QUOTATIONS];
+      await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
     }
-    // If not in storage yet, seed initial mock quotations and persist
-    inMemoryQuotations = [...DEFAULT_SEED_QUOTATIONS];
-    await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
-    notifyQuotationListeners();
-    return inMemoryQuotations;
   } catch (error) {
-    console.warn('[quotations] Failed to load persisted quotations:', error);
+    console.warn('[quotations] Failed to load persisted quotations from storage:', error);
   }
-  if (!inMemoryQuotations.length) {
-    inMemoryQuotations = [...DEFAULT_SEED_QUOTATIONS];
+
+  // Attempt backend synchronization for buyer & seller quotations
+  try {
+    const [buyerQuotes, sellerQuotes] = await Promise.allSettled([
+      quotationService.fetchBuyerQuotations(),
+      quotationService.fetchSellerQuotations(),
+    ]);
+
+    const fetchedList = [];
+    if (buyerQuotes.status === 'fulfilled' && Array.isArray(buyerQuotes.value)) {
+      fetchedList.push(...buyerQuotes.value);
+    }
+    if (sellerQuotes.status === 'fulfilled' && Array.isArray(sellerQuotes.value)) {
+      fetchedList.push(...sellerQuotes.value);
+    }
+
+    if (fetchedList.length > 0) {
+      const quoteMap = new Map();
+      fetchedList.forEach((q) => {
+        const key = q.id || q.quotationNumber;
+        quoteMap.set(key, q);
+      });
+
+      const merged = [...quoteMap.values()];
+      inMemoryQuotations.forEach((localQ) => {
+        const key = localQ.id || localQ.quotationNumber;
+        if (!quoteMap.has(key)) {
+          merged.push(localQ);
+        }
+      });
+
+      inMemoryQuotations = merged;
+      await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
+    }
+  } catch (syncErr) {
+    // Backend offline / sync deferred
   }
+
+  notifyQuotationListeners();
   return inMemoryQuotations;
 };
 
@@ -424,21 +457,31 @@ export const getQuotationsForSeller = (sellerId, allProducts = []) => {
   const cleanSellerId = String(sellerId).trim().toLowerCase();
 
   return inMemoryQuotations.filter((q) => {
-    // 1. Direct match on quote sellerId
-    if (q.sellerId && String(q.sellerId).trim().toLowerCase() === cleanSellerId) {
+    const qSellerId = String(q.sellerId || '').trim().toLowerCase();
+    const qBizId = String(q.businessId || '').trim().toLowerCase();
+    const isLegacyMatch =
+      cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637' &&
+      (qSellerId === 'biz-sharma-handicrafts' || qBizId === 'biz-sharma-handicrafts');
+
+    // 1. Direct match on quote sellerId / businessId
+    if (qSellerId && (qSellerId === cleanSellerId || isLegacyMatch)) {
+      return true;
+    }
+    if (qBizId && (qBizId === cleanSellerId || isLegacyMatch)) {
       return true;
     }
     // 2. Direct match on quote product's sellerId / businessId
+    const prodSellerId = String(q.product?.sellerId || '').trim().toLowerCase();
+    const prodBizId = String(q.product?.businessId || '').trim().toLowerCase();
     if (
-      q.product?.sellerId &&
-      String(q.product.sellerId).trim().toLowerCase() === cleanSellerId
+      prodSellerId &&
+      (prodSellerId === cleanSellerId ||
+        (cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637' &&
+          prodSellerId === 'biz-sharma-handicrafts'))
     ) {
       return true;
     }
-    if (
-      q.product?.businessId &&
-      String(q.product.businessId).trim().toLowerCase() === cleanSellerId
-    ) {
+    if (prodBizId && prodBizId === cleanSellerId) {
       return true;
     }
     // 3. Fallback: match via catalog definition
@@ -525,7 +568,7 @@ export const submitQuotationRequest = async ({
   const requestedQty = Math.max(1, Number(quantity) || Number(product.moq) || 1);
   const quotationId = generateQuotationId();
 
-  const newRequest = {
+  let newRequest = {
     id: quotationId,
     quotationNumber: quotationId,
     createdAt: new Date().toISOString(),
@@ -561,6 +604,26 @@ export const submitQuotationRequest = async ({
     paymentTerms: paymentTerms || '50% Advance + 50% on Delivery',
     buyerNotes: buyerNotes || '',
   };
+
+  try {
+    const serverQuote = await quotationService.createQuotation(newRequest);
+    if (serverQuote && serverQuote.id) {
+      newRequest = {
+        ...newRequest,
+        ...serverQuote,
+        id: serverQuote.id,
+        quotationNumber: serverQuote.quotationNumber || serverQuote.id,
+      };
+    }
+  } catch (backendErr) {
+    console.warn('[quotations] Backend quotation creation deferred to local:', backendErr.message || backendErr);
+    if (backendErr?.status === 403 || backendErr?.status === 400) {
+      return {
+        success: false,
+        message: backendErr?.data?.message || backendErr?.message || 'Failed to submit quotation request.',
+      };
+    }
+  }
 
   const saved = await saveQuotation(newRequest);
   return { success: true, quotation: saved };
@@ -616,7 +679,7 @@ export const respondToQuotation = async (quotationId, responseData) => {
   const validDaysNum = Number(validityDays) || 14;
   const validUntilDate = new Date(Date.now() + validDaysNum * 24 * 60 * 60 * 1000).toISOString();
 
-  const updatedQuote = {
+  let updatedQuote = {
     ...quote,
     status: newStatus,
     respondedAt: new Date().toISOString(),
@@ -631,6 +694,48 @@ export const respondToQuotation = async (quotationId, responseData) => {
     rejectionReason: type === 'reject' ? rejectionReason || 'Supplier unable to meet request terms at this time.' : undefined,
     isCounterOffer: type === 'counter',
   };
+
+  try {
+    const serverQuote = await quotationService.respondToQuotation(quotationId, responseData);
+    if (serverQuote && serverQuote.id) {
+      updatedQuote = { ...updatedQuote, ...serverQuote };
+    }
+  } catch (err) {
+    console.warn('[quotations] Backend quotation response deferred:', err.message || err);
+  }
+
+  const saved = await saveQuotation(updatedQuote);
+  return { success: true, quotation: saved };
+};
+
+/**
+ * Buyer submits counter-offer to seller's quote.
+ */
+export const submitBuyerCounter = async (quotationId, counterData) => {
+  const quote = getQuotationById(quotationId);
+  if (!quote) {
+    return { success: false, message: 'Quotation not found.' };
+  }
+
+  const { counterPrice, counterQuantity, buyerNotes = '' } = counterData;
+  let updatedQuote = {
+    ...quote,
+    status: 'Counter-Offer Made',
+    buyerTargetPrice: Number(counterPrice),
+    requestedQuantity: Number(counterQuantity),
+    buyerNotes: buyerNotes || `Buyer counter-offer: ${counterQuantity} units @ ₹${counterPrice}/unit`,
+    isCounterOffer: true,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    const serverQuote = await quotationService.submitBuyerCounter(quotationId, counterData);
+    if (serverQuote && serverQuote.id) {
+      updatedQuote = { ...updatedQuote, ...serverQuote };
+    }
+  } catch (err) {
+    console.warn('[quotations] Backend buyer counter deferred:', err.message || err);
+  }
 
   const saved = await saveQuotation(updatedQuote);
   return { success: true, quotation: saved };
@@ -652,7 +757,6 @@ export const acceptQuotationByBuyer = async (quotationId) => {
     };
   }
 
-  // Check validity
   if (quote.validUntil && new Date(quote.validUntil) < new Date()) {
     return {
       success: false,
@@ -660,11 +764,20 @@ export const acceptQuotationByBuyer = async (quotationId) => {
     };
   }
 
-  const updatedQuote = {
+  let updatedQuote = {
     ...quote,
     status: 'Accepted',
     acceptedAt: new Date().toISOString(),
   };
+
+  try {
+    const serverQuote = await quotationService.acceptQuotation(quotationId);
+    if (serverQuote && serverQuote.id) {
+      updatedQuote = { ...updatedQuote, ...serverQuote };
+    }
+  } catch (err) {
+    console.warn('[quotations] Backend accept quotation deferred:', err.message || err);
+  }
 
   const saved = await saveQuotation(updatedQuote);
   return { success: true, quotation: saved };
@@ -686,12 +799,21 @@ export const rejectQuotationByBuyer = async (quotationId, reason = '') => {
     };
   }
 
-  const updatedQuote = {
+  let updatedQuote = {
     ...quote,
     status: 'Rejected by Buyer',
     rejectedAt: new Date().toISOString(),
     buyerRejectionReason: reason || 'Buyer chose not to proceed with the quoted terms.',
   };
+
+  try {
+    const serverQuote = await quotationService.rejectQuotation(quotationId, reason);
+    if (serverQuote && serverQuote.id) {
+      updatedQuote = { ...updatedQuote, ...serverQuote };
+    }
+  } catch (err) {
+    console.warn('[quotations] Backend reject quotation deferred:', err.message || err);
+  }
 
   const saved = await saveQuotation(updatedQuote);
   return { success: true, quotation: saved };
@@ -749,4 +871,116 @@ export const convertQuotationToCartItem = (quotation) => {
     },
     addedAt: new Date().toISOString(),
   };
+};
+
+export const remapQuotationSellerId = async (oldSellerId, newSellerId) => {
+  if (!oldSellerId || !newSellerId || oldSellerId === newSellerId) return 0;
+  const cleanOld = String(oldSellerId).trim().toLowerCase();
+  const cleanNew = String(newSellerId).trim();
+
+  let modifiedCount = 0;
+  inMemoryQuotations.forEach((q) => {
+    if (!q) return;
+    let qChanged = false;
+    const qSellerId = q.sellerId ? String(q.sellerId).trim().toLowerCase() : '';
+    const qBizId = q.businessId ? String(q.businessId).trim().toLowerCase() : '';
+    if (qSellerId === cleanOld || qBizId === cleanOld) {
+      q.sellerId = cleanNew;
+      q.businessId = cleanNew;
+      qChanged = true;
+    }
+    if (q.product) {
+      const prodSellerId = q.product.sellerId ? String(q.product.sellerId).trim().toLowerCase() : '';
+      const prodBizId = q.product.businessId ? String(q.product.businessId).trim().toLowerCase() : '';
+      if (prodSellerId === cleanOld || prodBizId === cleanOld) {
+        q.product.sellerId = cleanNew;
+        q.product.businessId = cleanNew;
+        qChanged = true;
+      }
+    }
+    if (qChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
+    }
+  } catch (err) {
+    console.warn('[quotations] Failed to remap quotations in storage:', err);
+  }
+
+  notifyQuotationListeners();
+  return modifiedCount;
+};
+
+export const remapQuotationProductId = async (oldProductId, newProductId) => {
+  if (!oldProductId || !newProductId || oldProductId === newProductId) return 0;
+  const cleanOld = String(oldProductId).trim().toLowerCase();
+  const cleanNew = String(newProductId).trim();
+
+  let modifiedCount = 0;
+  inMemoryQuotations.forEach((q) => {
+    if (!q) return;
+    let qChanged = false;
+    const qPId = q.productId || q.product?.id;
+    if (qPId && String(qPId).trim().toLowerCase() === cleanOld) {
+      q.productId = cleanNew;
+      if (!q.legacyProductId) {
+        q.legacyProductId = oldProductId;
+      }
+      qChanged = true;
+    }
+    if (q.product) {
+      const prodPId = q.product.id || q.product.productId;
+      if (prodPId && String(prodPId).trim().toLowerCase() === cleanOld) {
+        q.product.id = cleanNew;
+        if (!q.product.legacyId) {
+          q.product.legacyId = oldProductId;
+        }
+        qChanged = true;
+      }
+    }
+    if (qChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
+    }
+  } catch (err) {
+    console.warn('[quotations] Failed to remap quotations in storage:', err);
+  }
+
+  notifyQuotationListeners();
+  return modifiedCount;
+};
+
+export default {
+  STORAGE_KEY_QUOTATIONS,
+  QUOTATION_STATUSES,
+  VALID_QUOTATION_TRANSITIONS,
+  DEFAULT_SEED_QUOTATIONS,
+  canTransitionQuotationStatus,
+  getQuotationStatusColor,
+  generateQuotationId,
+  loadPersistedQuotations,
+  getQuotations,
+  getQuotationById,
+  getQuotationsForBuyer,
+  getQuotationsForSeller,
+  saveQuotation,
+  submitQuotationRequest,
+  respondToQuotation,
+  submitBuyerCounter,
+  acceptQuotationByBuyer,
+  rejectQuotationByBuyer,
+  markQuotationAsOrdered,
+  convertQuotationToCartItem,
+  subscribeQuotations,
+  remapQuotationSellerId,
+  remapQuotationProductId,
 };

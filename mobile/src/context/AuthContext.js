@@ -17,6 +17,8 @@ import {
 import {
   setAuthToken,
   setUnauthorizedHandler,
+  setClientUserId,
+  setClientBusinessId,
 } from '../services/apiClient';
 import { fetchUserProfile } from '../services/authService';
 
@@ -48,6 +50,8 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async () => {
     try {
       setAuthToken(null);
+      setClientUserId(null);
+      setClientBusinessId(null);
       await Promise.all([
         deleteStoredAuthToken(),
         deleteStoredUser(),
@@ -69,8 +73,14 @@ export const AuthProvider = ({ children }) => {
       // 1. Store token in SecureStore
       await storeAuthToken(receivedToken);
 
-      // 2. Configure API client in-memory token
+      // 2. Configure API client in-memory token and identities
       setAuthToken(receivedToken);
+      if (receivedUser?.id) {
+        setClientUserId(receivedUser.id);
+      }
+      if (receivedUser?.business?.id) {
+        setClientBusinessId(receivedUser.business.id);
+      }
 
       // 3. Store minimal safe user profile
       if (receivedUser) {
@@ -86,6 +96,8 @@ export const AuthProvider = ({ children }) => {
       await deleteStoredAuthToken().catch(() => {});
       await deleteStoredUser().catch(() => {});
       setAuthToken(null);
+      setClientUserId(null);
+      setClientBusinessId(null);
       setToken(null);
       setUser(null);
       throw err;
@@ -115,6 +127,8 @@ export const AuthProvider = ({ children }) => {
 
         if (fetchedUser) {
           await storeStoredUser(fetchedUser);
+          if (fetchedUser.id) setClientUserId(fetchedUser.id);
+          if (fetchedUser.business?.id) setClientBusinessId(fetchedUser.business.id);
           setToken(storedToken);
           setUser(fetchedUser);
           return;
@@ -138,6 +152,8 @@ export const AuthProvider = ({ children }) => {
         );
         const cachedUser = await getStoredUser();
         if (cachedUser) {
+          if (cachedUser.id) setClientUserId(cachedUser.id);
+          if (cachedUser.business?.id) setClientBusinessId(cachedUser.business.id);
           setToken(storedToken);
           setUser(cachedUser);
           return;

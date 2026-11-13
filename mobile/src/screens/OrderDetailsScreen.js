@@ -24,6 +24,7 @@ import {
   getStatusColor,
 } from '../data/orders';
 import { useCart } from '../context/CartContext';
+import orderService from '../services/orderService';
 import EmptyState from '../components/EmptyState';
 
 export default function OrderDetailsScreen({
@@ -52,9 +53,22 @@ export default function OrderDetailsScreen({
 
   // Keep order synced with global state
   useEffect(() => {
+    let isMounted = true;
     if (initialOrderId) {
       const found = getOrderById(initialOrderId);
-      if (found) setOrder(found);
+      if (found) {
+        setOrder(found);
+      } else {
+        orderService
+          .fetchOrderDetails(initialOrderId)
+          .then((res) => {
+            const remoteOrder = res?.data || res;
+            if (isMounted && remoteOrder && remoteOrder.id) {
+              setOrder(remoteOrder);
+            }
+          })
+          .catch(() => {});
+      }
     }
     return subscribeOrders(() => {
       if (initialOrderId) {

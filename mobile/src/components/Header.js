@@ -11,6 +11,7 @@ import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import SearchBar from './SearchBar';
 import { useCart } from '../context/CartContext';
+import { useMode } from '../context/ModeContext';
 
 export default function Header({
   searchQuery = '',
@@ -29,6 +30,7 @@ export default function Header({
   children,
 }) {
   const cart = useCart();
+  const { isSellerMode, activeBusinessProfile } = useMode();
   const cartItemCount =
     propCartItemCount !== undefined
       ? propCartItemCount
@@ -66,8 +68,17 @@ export default function Header({
               <Text style={styles.titleAccent}>Setu</Text>
             </View>
             <View style={styles.badgeRow}>
-              <View style={styles.statusDot} />
-              <Text style={styles.subtitle}>B2B Wholesale & Trade</Text>
+              <View
+                style={[
+                  styles.statusDot,
+                  isSellerMode && styles.statusDotSeller,
+                ]}
+              />
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {isSellerMode
+                  ? `Seller Mode • ${activeBusinessProfile?.businessName || 'Business'}`
+                  : 'B2B Wholesale & Trade'}
+              </Text>
             </View>
           </View>
         </View>
@@ -137,7 +148,7 @@ export default function Header({
                 color={colors.textPrimary}
               />
             </TouchableOpacity>
-          ) : (
+          ) : !isSellerMode ? (
             <TouchableOpacity
               style={styles.actionButton}
               onPress={onCartPress}
@@ -157,7 +168,7 @@ export default function Header({
                 </View>
               )}
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
       </View>
 
@@ -270,6 +281,9 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.success,
     marginRight: 5,
+  },
+  statusDotSeller: {
+    backgroundColor: colors.primary,
   },
   subtitle: {
     fontSize: 11,

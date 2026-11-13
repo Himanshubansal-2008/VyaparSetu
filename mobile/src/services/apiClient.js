@@ -116,6 +116,20 @@ export const buildUrl = (baseUrl = API_CONFIG.BASE_URL, endpoint = '', params = 
   return url;
 };
 
+let activeUserId = null;
+let activeBusinessId = null;
+
+export const setClientUserId = (userId) => {
+  activeUserId = userId ? String(userId).trim() : null;
+};
+
+export const setClientBusinessId = (businessId) => {
+  activeBusinessId = businessId ? String(businessId).trim() : null;
+};
+
+export const getClientUserId = () => activeUserId;
+export const getClientBusinessId = () => activeBusinessId;
+
 /**
  * Core HTTP request handler using standard fetch.
  *
@@ -149,6 +163,8 @@ export const request = async (endpoint, options = {}) => {
 
   const requestHeaders = {
     ...API_CONFIG.DEFAULT_HEADERS,
+    ...(activeUserId ? { 'x-user-id': activeUserId } : {}),
+    ...(activeBusinessId ? { 'x-business-id': activeBusinessId } : {}),
     ...headers,
   };
 
@@ -294,6 +310,10 @@ const apiClient = {
   getAuthToken,
   setUnauthorizedHandler,
   isPublicEndpoint,
+  setClientUserId,
+  setClientBusinessId,
+  getClientUserId,
+  getClientBusinessId,
   fetchProducts,
   fetchFeaturedProducts,
   fetchProductById,

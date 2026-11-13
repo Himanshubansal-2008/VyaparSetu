@@ -16,10 +16,12 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../components/Header';
+import ModeSwitcher from '../components/ModeSwitcher';
 import CategoryList from '../components/CategoryList';
 import FeaturedProducts from '../components/FeaturedProducts';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
+import { useMode } from '../context/ModeContext';
 import {
   products as defaultProducts,
   categories as defaultCategories,
@@ -43,6 +45,7 @@ import { spacing, borderRadius } from '../theme/spacing';
 export default function HomeScreen({
   navigation,
   route,
+  isActive = true,
   products: propProducts,
   categories: propCategories,
   featuredProducts: propFeaturedProducts,
@@ -115,20 +118,29 @@ export default function HomeScreen({
   const allProducts = useMemo(() => {
     if (propProducts !== undefined) return propProducts;
     if (route?.params?.products !== undefined) return route.params.products;
-    if (apiProducts.length > 0) {
-      // Merge custom locally created products with API products
-      const customLocals = localProducts.filter(
-        (p) => p && isProductActive(p) && (p.isCustom || String(p.id).startsWith('prod-custom-'))
-      );
-      const combined = [...customLocals];
+
+    // Start with all active local products (default marketplace catalog + custom products)
+    const baseMap = new Map();
+    (localProducts || []).forEach((p) => {
+      if (p && isProductActive(p)) {
+        baseMap.set(String(p.id).trim().toLowerCase(), p);
+      }
+    });
+
+    // Merge API products, replacing local counterparts (by id or legacyId) or adding new ones
+    if (Array.isArray(apiProducts) && apiProducts.length > 0) {
       apiProducts.forEach((ap) => {
-        if (!combined.some((c) => String(c.id).trim().toLowerCase() === String(ap.id).trim().toLowerCase())) {
-          combined.push(ap);
+        if (ap && isProductActive(ap)) {
+          const cleanId = String(ap.id).trim().toLowerCase();
+          if (ap.legacyId) {
+            baseMap.delete(String(ap.legacyId).trim().toLowerCase());
+          }
+          baseMap.set(cleanId, ap);
         }
       });
-      return combined;
     }
-    return localProducts;
+
+    return Array.from(baseMap.values());
   }, [propProducts, route?.params?.products, apiProducts, localProducts]);
 
   // --- Categories State & API Integration ---
@@ -218,19 +230,38 @@ export default function HomeScreen({
     fetchFeatured();
   }, [fetchFeatured]);
 
-  const featuredProducts = useMemo(() => {
-    if (propFeaturedProducts !== undefined) return propFeaturedProducts;
-    if (route?.params?.featuredProducts !== undefined) return route.params.featuredProducts;
-    if (apiFeaturedProducts.length > 0) {
-      return filterActiveProducts(apiFeaturedProducts);
-    }
-    return allProducts.filter((product) => isProductActive(product) && product.isFeatured);
-  }, [propFeaturedProducts, route?.params?.featuredProducts, apiFeaturedProducts, allProducts]);
-
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
     propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
   const handleSearchChange = propOnSearchChange || setInternalSearchQuery;
+
+  // Mode State (Buyer Mode vs Seller Mode)
+  const {
+    mode,
+    isSellerMode,
+    isBuyerMode,
+    canSwitchToSeller,
+    switchToBuyer,
+    switchToSeller,
+    activeBusinessProfile,
+  } = useMode();
+
+  const [profileModalMessage, setProfileModalMessage] = useState(
+    'A Business Profile is required to access Seller Mode. Create your business profile to start selling products on VyaparSetu.'
+  );
+
+  const handleRequireBusinessProfile = (reason = 'seller_mode') => {
+    if (reason === 'add_product') {
+      setProfileModalMessage(
+        'You need to create a business profile before adding products. Create your business profile to start listing products on VyaparSetu.'
+      );
+    } else {
+      setProfileModalMessage(
+        'A Business Profile is required to access Seller Mode. Create your business profile to start selling products, receiving customer orders, and managing your catalog on VyaparSetu.'
+      );
+    }
+    setIsProfileRequiredModalVisible(true);
+  };
 
   // Track saved business profile to dynamically update the Business Profile card
   const [savedProfile, setSavedProfile] = useState(getSessionBusinessProfile);
@@ -245,6 +276,57 @@ export default function HomeScreen({
       setSavedProfile(updated);
     });
   }, []);
+
+  const featuredProducts = useMemo(() => {
+    if (isSellerMode) {
+      // In Seller Mode, show only the seller's own featured products
+      return allProducts.filter(
+        (product) =>
+          isProductActive(product) &&
+          product.isFeatured &&
+          isProductOwnedByCurrentSeller(product, savedProfile || activeBusinessProfile)
+      );
+    }
+    const baseList =
+      propFeaturedProducts !== undefined
+        ? propFeaturedProducts
+        : route?.params?.featuredProducts !== undefined
+        ? route.params.featuredProducts
+        : (() => {
+            const featMap = new Map();
+            allProducts
+              .filter((p) => isProductActive(p) && p.isFeatured)
+              .forEach((p) => featMap.set(String(p.id).trim().toLowerCase(), p));
+            if (Array.isArray(apiFeaturedProducts) && apiFeaturedProducts.length > 0) {
+              filterActiveProducts(apiFeaturedProducts).forEach((ap) => {
+                if (ap.legacyId) featMap.delete(String(ap.legacyId).trim().toLowerCase());
+                featMap.set(String(ap.id).trim().toLowerCase(), ap);
+              });
+            }
+            return Array.from(featMap.values());
+          })();
+
+    // In Buyer Mode, users browse other businesses' featured products
+    return baseList.filter(
+      (product) => !isProductOwnedByCurrentSeller(product, savedProfile || activeBusinessProfile)
+    );
+  }, [
+    isSellerMode,
+    savedProfile,
+    activeBusinessProfile,
+    propFeaturedProducts,
+    route?.params?.featuredProducts,
+    apiFeaturedProducts,
+    allProducts,
+  ]);
+
+  // Ensure modals are closed whenever Home Screen is not active (e.g. navigated away)
+  useEffect(() => {
+    if (isActive === false) {
+      setIsAllActionsModalVisible(false);
+      setIsProfileRequiredModalVisible(false);
+    }
+  }, [isActive]);
 
   const hasSavedProfile = isUserCreatedProfile(savedProfile);
 
@@ -282,6 +364,12 @@ export default function HomeScreen({
       categoryId:
         selectedCategory !== 'all' ? selectedCategory : undefined,
       searchQuery: searchQuery || '',
+      ...(isSellerMode
+        ? {
+            isSellerOnly: true,
+            businessId: (savedProfile || activeBusinessProfile)?.id,
+          }
+        : {}),
       ...params,
     };
     if (onNavigateToProductListing) {
@@ -351,7 +439,7 @@ export default function HomeScreen({
         }
       } else {
         // Business profile does not exist: display the requirement message modal
-        setIsProfileRequiredModalVisible(true);
+        handleRequireBusinessProfile('add_product');
       }
     } catch (error) {
       console.warn('[HomeScreen] Failed to verify business profile:', error);
@@ -423,6 +511,23 @@ export default function HomeScreen({
     return allProducts.filter((product) => {
       if (!product || !isProductActive(product)) return false;
 
+      // In Seller Mode, users can see only products belonging to their own business
+      if (isSellerMode) {
+        const isOwn = isProductOwnedByCurrentSeller(
+          product,
+          savedProfile || activeBusinessProfile
+        );
+        if (!isOwn) return false;
+      } else {
+        // In Buyer Mode, users browse products from other businesses
+        // If hasSearch is true, allow finding it so user can test and see the own-product restriction
+        const isOwn = isProductOwnedByCurrentSeller(
+          product,
+          savedProfile || activeBusinessProfile
+        );
+        if (isOwn && !hasSearch) return false;
+      }
+
       const categoryIdVal =
         product.categoryId ||
         (typeof product.category === 'object' ? product.category?.id : product.category);
@@ -461,7 +566,16 @@ export default function HomeScreen({
 
       return true;
     });
-  }, [allProducts, hasCategory, selectedCategory, hasSearch, searchTokens]);
+  }, [
+    allProducts,
+    isSellerMode,
+    savedProfile,
+    activeBusinessProfile,
+    hasCategory,
+    selectedCategory,
+    hasSearch,
+    searchTokens,
+  ]);
 
   const quickSearches = [
     'Cotton Bags',
@@ -495,9 +609,16 @@ export default function HomeScreen({
         onOrdersPress={handleOrdersPress}
         onLogoutPress={onLogoutPress}
       >
-        {/* Quick Actions Header: Title + View All (6) */}
+        {/* Buyer / Seller Mode Switcher */}
+        <ModeSwitcher
+          onRequireBusinessProfile={() => handleRequireBusinessProfile('seller_mode')}
+        />
+
+        {/* Quick Actions Header: Title + View All */}
         <View style={styles.quickActionsBar}>
-          <Text style={styles.quickActionsHeading}>Quick Actions</Text>
+          <Text style={styles.quickActionsHeading}>
+            {isSellerMode ? 'Seller Quick Actions' : 'Quick Actions'}
+          </Text>
           <TouchableOpacity
             style={styles.quickActionsViewAll}
             onPress={() => setIsAllActionsModalVisible(true)}
@@ -511,158 +632,339 @@ export default function HomeScreen({
         </View>
 
         {/* Horizontal Quick Actions: Single scrollable row with compact cards */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          style={styles.actionCardsScrollView}
-          contentContainerStyle={styles.actionCardsScrollContent}
-        >
-          {/* 1. Business Profile Card */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={
-              hasSavedProfile
-                ? 'My Business'
-                : 'Create Business'
-            }
-            onPress={handleBusinessCardPress}
+        {isBuyerMode ? (
+          /* Buyer Mode Quick Actions */
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={styles.actionCardsScrollView}
+            contentContainerStyle={styles.actionCardsScrollContent}
           >
-            <View style={[styles.actionIconBox, styles.businessIconBox]}>
-              <Ionicons
-                name="storefront-outline"
-                size={16}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={styles.actionCardHeading} numberOfLines={1}>
-              {hasSavedProfile ? 'My Business' : 'Create Business'}
-            </Text>
-          </TouchableOpacity>
+            {/* 1. My Orders Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="My Orders"
+              onPress={handleOrdersPress}
+            >
+              <View style={[styles.actionIconBox, styles.myOrdersIconBox]}>
+                <Ionicons
+                  name="receipt-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                My Orders
+              </Text>
+            </TouchableOpacity>
 
-          {/* 2. Add Product Card */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="Add Product"
-            onPress={handleAddProductPress}
-          >
-            <View style={[styles.actionIconBox, styles.addProductIconBox]}>
-              <Ionicons
-                name="add-circle-outline"
-                size={17}
-                color={colors.success}
-              />
-            </View>
-            <Text style={styles.actionCardHeading} numberOfLines={1}>
-              Add Product
-            </Text>
-          </TouchableOpacity>
+            {/* 2. My Price Requests Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="My Price Requests"
+              onPress={handleBuyerQuotationsPress}
+            >
+              <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                My Price Requests
+              </Text>
+            </TouchableOpacity>
 
-          {/* 3. My Orders Card */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="My Orders"
-            onPress={handleOrdersPress}
-          >
-            <View style={[styles.actionIconBox, styles.myOrdersIconBox]}>
-              <Ionicons
-                name="receipt-outline"
-                size={16}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={styles.actionCardHeading} numberOfLines={1}>
-              My Orders
-            </Text>
-          </TouchableOpacity>
+            {/* 3. Wholesale Cart Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Wholesale Cart"
+              onPress={onCartPress}
+            >
+              <View style={[styles.actionIconBox, styles.cartIconBox]}>
+                <Ionicons
+                  name="cart-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Wholesale Cart
+              </Text>
+            </TouchableOpacity>
 
-          {/* 4. Customer Orders Card */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="Customer Orders"
-            onPress={handleSellerOrdersPress}
-          >
-            <View style={[styles.actionIconBox, styles.sellerOrdersIconBox]}>
-              <Ionicons
-                name="cube-outline"
-                size={16}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={styles.actionCardHeading} numberOfLines={1}>
-              Customer Orders
-            </Text>
-          </TouchableOpacity>
+            {/* 4. Explore Catalog Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Explore Catalog"
+              onPress={() => handleNavigateToProductListing()}
+            >
+              <View style={[styles.actionIconBox, styles.catalogIconBox]}>
+                <Ionicons
+                  name="grid-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Explore Catalog
+              </Text>
+            </TouchableOpacity>
 
-          {/* 5. My Price Requests Card */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="My Price Requests"
-            onPress={handleBuyerQuotationsPress}
-          >
-            <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
-              <Ionicons
-                name="document-text-outline"
-                size={16}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={styles.actionCardHeading} numberOfLines={1}>
-              My Price Requests
-            </Text>
-          </TouchableOpacity>
+            {/* 5. Switch to Seller Mode / Become a Seller */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={canSwitchToSeller ? 'Switch to Seller' : 'Become a Seller'}
+              onPress={async () => {
+                if (canSwitchToSeller) {
+                  await switchToSeller();
+                } else {
+                  handleBusinessCardPress();
+                }
+              }}
+            >
+              <View style={[styles.actionIconBox, styles.businessIconBox]}>
+                <Ionicons
+                  name="storefront-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                {canSwitchToSeller ? 'Switch to Seller' : 'Become a Seller'}
+              </Text>
+            </TouchableOpacity>
 
-          {/* 6. Customer Price Requests Card */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="Customer Price Requests"
-            onPress={handleSellerQuotationsPress}
+            {/* 6. More Card */}
+            <TouchableOpacity
+              style={[styles.actionCard, styles.actionCardLast, styles.moreActionCard]}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="View All Quick Actions"
+              onPress={() => setIsAllActionsModalVisible(true)}
+            >
+              <View style={[styles.actionIconBox, styles.moreIconBox]}>
+                <Ionicons
+                  name="grid-outline"
+                  size={15}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={[styles.actionCardHeading, styles.moreCardHeading]} numberOfLines={1}>
+                More
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        ) : (
+          /* Seller Mode Quick Actions */
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={styles.actionCardsScrollView}
+            contentContainerStyle={styles.actionCardsScrollContent}
           >
-            <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={16}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={styles.actionCardHeading} numberOfLines={1}>
-              Customer Price Requests
-            </Text>
-          </TouchableOpacity>
+            {/* 1. Business Profile Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="My Business"
+              onPress={handleBusinessCardPress}
+            >
+              <View style={[styles.actionIconBox, styles.businessIconBox]}>
+                <Ionicons
+                  name="storefront-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                My Business
+              </Text>
+            </TouchableOpacity>
 
-          {/* 7. More (6) Card */}
-          <TouchableOpacity
-            style={[styles.actionCard, styles.actionCardLast, styles.moreActionCard]}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="View All Quick Actions"
-            onPress={() => setIsAllActionsModalVisible(true)}
-          >
-            <View style={[styles.actionIconBox, styles.moreIconBox]}>
-              <Ionicons
-                name="grid-outline"
-                size={15}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={[styles.actionCardHeading, styles.moreCardHeading]} numberOfLines={1}>
-              More (6)
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
+            {/* 2. Add Product Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Add Product"
+              onPress={handleAddProductPress}
+            >
+              <View style={[styles.actionIconBox, styles.addProductIconBox]}>
+                <Ionicons
+                  name="add-circle-outline"
+                  size={17}
+                  color={colors.success}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Add Product
+              </Text>
+            </TouchableOpacity>
+
+            {/* 3. Customer Orders Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Customer Orders"
+              onPress={handleSellerOrdersPress}
+            >
+              <View style={[styles.actionIconBox, styles.sellerOrdersIconBox]}>
+                <Ionicons
+                  name="cube-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Customer Orders
+              </Text>
+            </TouchableOpacity>
+
+            {/* 4. Customer Price Requests Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Customer Price Requests"
+              onPress={handleSellerQuotationsPress}
+            >
+              <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Customer Price Requests
+              </Text>
+            </TouchableOpacity>
+
+            {/* 5. My Orders Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="My Orders"
+              onPress={handleOrdersPress}
+            >
+              <View style={[styles.actionIconBox, styles.myOrdersIconBox]}>
+                <Ionicons
+                  name="receipt-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                My Orders
+              </Text>
+            </TouchableOpacity>
+
+            {/* 6. My Price Requests Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="My Price Requests"
+              onPress={handleBuyerQuotationsPress}
+            >
+              <View style={[styles.actionIconBox, styles.quotationsIconBox]}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                My Price Requests
+              </Text>
+            </TouchableOpacity>
+
+            {/* 7. More (6) Card */}
+            <TouchableOpacity
+              style={[styles.actionCard, styles.actionCardLast, styles.moreActionCard]}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="View All Quick Actions"
+              onPress={() => setIsAllActionsModalVisible(true)}
+            >
+              <View style={[styles.actionIconBox, styles.moreIconBox]}>
+                <Ionicons
+                  name="grid-outline"
+                  size={15}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={[styles.actionCardHeading, styles.moreCardHeading]} numberOfLines={1}>
+                More (6)
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
       </Header>
+
+      {/* Seller Hub Overview Banner (when in Seller Mode) */}
+      {isSellerMode && (
+        <View style={styles.sellerHubBanner} testID="seller-hub-banner">
+          <View style={styles.sellerHubHeader}>
+            <View style={styles.sellerHubIconBox}>
+              <Ionicons name="storefront" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.sellerHubTitleBox}>
+              <View style={styles.sellerHubNameRow}>
+                <Text style={styles.sellerHubBusinessName} numberOfLines={1}>
+                  {savedProfile?.businessName || activeBusinessProfile?.businessName || 'My Business'}
+                </Text>
+                <View style={styles.sellerVerifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+                  <Text style={styles.sellerVerifiedText}>Seller Active</Text>
+                </View>
+              </View>
+              <Text style={styles.sellerHubSubtitle} numberOfLines={1}>
+                Seller Hub • Manage products, customer orders & quotes
+              </Text>
+            </View>
+          </View>
+          <View style={styles.sellerHubActionsRow}>
+            <TouchableOpacity
+              style={styles.sellerHubActionButton}
+              onPress={handleBusinessCardPress}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="View Business Profile"
+            >
+              <Ionicons name="business-outline" size={15} color={colors.primary} />
+              <Text style={styles.sellerHubActionText}>Business Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sellerHubActionButton, styles.sellerHubPrimaryAction]}
+              onPress={handleAddProductPress}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Add New Product"
+            >
+              <Ionicons name="add-circle" size={16} color={colors.textInverse} />
+              <Text style={styles.sellerHubPrimaryActionText}>Add Product</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* 2. Product Categories — horizontal scroll strip */}
       <CategoryList
@@ -675,14 +977,16 @@ export default function HomeScreen({
       />
 
       {/* 3. Featured Products — horizontal carousel */}
-      <FeaturedProducts
-        products={featuredProducts}
-        loading={isLoadingFeatured}
-        error={featuredError}
-        onRetry={fetchFeatured}
-        onProductPress={handleProductPress}
-        onViewAllPress={() => handleNavigateToProductListing()}
-      />
+      {(!isSellerMode || featuredProducts.length > 0) && (
+        <FeaturedProducts
+          products={featuredProducts}
+          loading={isLoadingFeatured}
+          error={featuredError}
+          onRetry={fetchFeatured}
+          onProductPress={handleProductPress}
+          onViewAllPress={() => handleNavigateToProductListing()}
+        />
+      )}
 
       {/* 4. Product Grid — filtered by search query */}
       <FlatList
@@ -761,7 +1065,11 @@ export default function HomeScreen({
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionTitle}>
-                  {hasSearch && hasCategory
+                  {isSellerMode
+                    ? hasSearch
+                      ? 'Your Products Search Results'
+                      : 'Your Products'
+                    : hasSearch && hasCategory
                     ? `${categoryName} Results`
                     : hasSearch
                       ? 'Search Results'
@@ -857,6 +1165,30 @@ export default function HomeScreen({
                 <Text style={styles.stateRetryText}>Retry</Text>
               </TouchableOpacity>
             </View>
+          ) : isSellerMode && !hasSearch && !hasCategory ? (
+            <EmptyState
+              icon="cube-outline"
+              title="You haven't listed any wholesale products yet"
+              description="Start listing your products to reach wholesale buyers across the country."
+              actionText="Add Product"
+              onActionPress={handleAddProductPress}
+            />
+          ) : isSellerMode && hasSearch ? (
+            <EmptyState
+              icon="search-outline"
+              title="No products found in your catalog"
+              description={`No products in your catalog match "${trimmedQuery}".`}
+              actionText="Clear Search"
+              onActionPress={() => handleSearchChange('')}
+            />
+          ) : isSellerMode && hasCategory ? (
+            <EmptyState
+              icon="file-tray-outline"
+              title="No products found in this category"
+              description={`You haven't listed any products under ${categoryName}.`}
+              actionText="View All Products"
+              onActionPress={() => handleSelectCategory('all')}
+            />
           ) : !allProducts || allProducts.length === 0 ? (
             <EmptyState
               icon="cube-outline"
@@ -900,229 +1232,355 @@ export default function HomeScreen({
       />
 
       {/* Business Profile Required Modal */}
-      <Modal
-        visible={isProfileRequiredModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsProfileRequiredModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setIsProfileRequiredModalVisible(false)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityRole="button"
-              accessibilityLabel="Close dialog"
-            >
-              <Ionicons name="close" size={22} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={styles.modalIconBox}>
-              <Ionicons
-                name="storefront-outline"
-                size={32}
-                color={colors.primary}
-              />
-            </View>
-
-            <Text style={styles.modalHeading}>Business Profile Required</Text>
-            <Text style={styles.modalMessage}>
-              You need to create a business profile before adding products. Create
-              your business profile to start listing products on VyaparSetu.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.modalPrimaryButton}
-              onPress={() => {
-                setIsProfileRequiredModalVisible(false);
-                navigation?.navigate('CreateBusinessProfile');
-              }}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Create Business Profile"
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={18}
-                color={colors.textInverse}
-              />
-              <Text style={styles.modalPrimaryButtonText}>
-                Create Business Profile
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={() => setIsProfileRequiredModalVisible(false)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <Text style={styles.modalCancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* All Quick Actions Modal */}
-      <Modal
-        visible={isAllActionsModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsAllActionsModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsAllActionsModalVisible(false)}
+      {isProfileRequiredModalVisible && (
+        <Modal
+          visible={isProfileRequiredModalVisible}
+          transparent
+          animationType="none"
+          onRequestClose={() => setIsProfileRequiredModalVisible(false)}
         >
-          <View
-            style={styles.actionsModalCard}
-            onStartShouldSetResponder={() => true}
-          >
-            <View style={styles.actionsModalHeader}>
-              <View>
-                <Text style={styles.actionsModalTitle}>Quick Actions</Text>
-                <Text style={styles.actionsModalSubtitle}>
-                  All 6 management and trading shortcuts
-                </Text>
-              </View>
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsProfileRequiredModalVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close dialog backdrop"
+            />
+            <View style={styles.modalCard}>
               <TouchableOpacity
-                style={styles.actionsModalCloseBtn}
-                onPress={() => setIsAllActionsModalVisible(false)}
+                style={styles.modalCloseButton}
+                onPress={() => setIsProfileRequiredModalVisible(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="Close Quick Actions modal"
+                accessibilityLabel="Close dialog"
               >
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
-            </View>
 
-            <View style={styles.actionsGrid}>
-              {/* Item 1: My Business */}
+              <View style={styles.modalIconBox}>
+                <Ionicons
+                  name="storefront-outline"
+                  size={32}
+                  color={colors.primary}
+                />
+              </View>
+
+              <Text style={styles.modalHeading}>Business Profile Required</Text>
+              <Text style={styles.modalMessage}>
+                {profileModalMessage}
+              </Text>
+
               <TouchableOpacity
-                style={styles.actionsGridItem}
+                style={styles.modalPrimaryButton}
                 onPress={() => {
-                  setIsAllActionsModalVisible(false);
-                  handleBusinessCardPress();
+                  setIsProfileRequiredModalVisible(false);
+                  navigation?.navigate('CreateBusinessProfile', {
+                    switchToSellerOnCreate: true,
+                  });
                 }}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Create Business Profile"
               >
-                <View style={[styles.actionModalIconBox, styles.businessIconBox]}>
-                  <Ionicons name="storefront-outline" size={22} color={colors.primary} />
-                </View>
-                <Text style={styles.actionsGridTitle} numberOfLines={1}>
-                  {hasSavedProfile ? 'My Business' : 'Create Business'}
-                </Text>
-                <Text style={styles.actionsGridDesc} numberOfLines={2}>
-                  Profile & contact details
+                <Ionicons
+                  name="add-circle-outline"
+                  size={18}
+                  color={colors.textInverse}
+                />
+                <Text style={styles.modalPrimaryButtonText}>
+                  Create Business Profile
                 </Text>
               </TouchableOpacity>
 
-              {/* Item 2: Add Product */}
               <TouchableOpacity
-                style={styles.actionsGridItem}
-                onPress={() => {
-                  setIsAllActionsModalVisible(false);
-                  handleAddProductPress();
-                }}
+                style={styles.modalCancelButton}
+                onPress={() => setIsProfileRequiredModalVisible(false)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
               >
-                <View style={[styles.actionModalIconBox, styles.addProductIconBox]}>
-                  <Ionicons name="add-circle-outline" size={24} color={colors.success} />
-                </View>
-                <Text style={styles.actionsGridTitle} numberOfLines={1}>
-                  Add Product
-                </Text>
-                <Text style={styles.actionsGridDesc} numberOfLines={2}>
-                  List wholesale products
-                </Text>
-              </TouchableOpacity>
-
-              {/* Item 3: My Orders */}
-              <TouchableOpacity
-                style={styles.actionsGridItem}
-                onPress={() => {
-                  setIsAllActionsModalVisible(false);
-                  handleOrdersPress();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionModalIconBox, styles.myOrdersIconBox]}>
-                  <Ionicons name="receipt-outline" size={22} color={colors.primary} />
-                </View>
-                <Text style={styles.actionsGridTitle} numberOfLines={1}>
-                  My Orders
-                </Text>
-                <Text style={styles.actionsGridDesc} numberOfLines={2}>
-                  Track orders you placed
-                </Text>
-              </TouchableOpacity>
-
-              {/* Item 4: Customer Orders */}
-              <TouchableOpacity
-                style={styles.actionsGridItem}
-                onPress={() => {
-                  setIsAllActionsModalVisible(false);
-                  handleSellerOrdersPress();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionModalIconBox, styles.sellerOrdersIconBox]}>
-                  <Ionicons name="cube-outline" size={22} color={colors.primary} />
-                </View>
-                <Text style={styles.actionsGridTitle} numberOfLines={1}>
-                  Customer Orders
-                </Text>
-                <Text style={styles.actionsGridDesc} numberOfLines={2}>
-                  Orders placed by customers
-                </Text>
-              </TouchableOpacity>
-
-              {/* Item 5: My Price Requests */}
-              <TouchableOpacity
-                style={styles.actionsGridItem}
-                onPress={() => {
-                  setIsAllActionsModalVisible(false);
-                  handleBuyerQuotationsPress();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
-                  <Ionicons name="document-text-outline" size={22} color={colors.primary} />
-                </View>
-                <Text style={styles.actionsGridTitle} numberOfLines={1}>
-                  My Price Requests
-                </Text>
-                <Text style={styles.actionsGridDesc} numberOfLines={2}>
-                  Custom price requests sent
-                </Text>
-              </TouchableOpacity>
-
-              {/* Item 6: Customer Price Requests */}
-              <TouchableOpacity
-                style={styles.actionsGridItem}
-                onPress={() => {
-                  setIsAllActionsModalVisible(false);
-                  handleSellerQuotationsPress();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
-                </View>
-                <Text style={styles.actionsGridTitle} numberOfLines={1}>
-                  Customer Price Requests
-                </Text>
-                <Text style={styles.actionsGridDesc} numberOfLines={2}>
-                  Price requests from buyers
-                </Text>
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </TouchableOpacity>
-      </Modal>
+        </Modal>
+      )}
+
+      {/* All Quick Actions Modal */}
+      {isAllActionsModalVisible && (
+        <Modal
+          visible={isAllActionsModalVisible}
+          transparent
+          animationType="none"
+          onRequestClose={() => setIsAllActionsModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsAllActionsModalVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close Quick Actions backdrop"
+            />
+            <View style={styles.actionsModalCard}>
+              <View style={styles.actionsModalHeader}>
+                <View>
+                  <Text style={styles.actionsModalTitle}>
+                    {isSellerMode ? 'Seller Quick Actions' : 'Quick Actions'}
+                  </Text>
+                  <Text style={styles.actionsModalSubtitle}>
+                    {isSellerMode
+                      ? 'All 6 management and trading shortcuts'
+                      : 'Wholesale purchasing and account shortcuts'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.actionsModalCloseBtn}
+                  onPress={() => setIsAllActionsModalVisible(false)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close Quick Actions modal"
+                >
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.actionsGrid}>
+                {isBuyerMode ? (
+                  <>
+                    {/* Buyer Item 1: My Orders */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleOrdersPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.myOrdersIconBox]}>
+                        <Ionicons name="receipt-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        My Orders
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Track orders you placed
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Buyer Item 2: My Price Requests */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleBuyerQuotationsPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
+                        <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        My Price Requests
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Custom price requests sent
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Buyer Item 3: Wholesale Cart */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        if (onCartPress) onCartPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.cartIconBox]}>
+                        <Ionicons name="cart-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Wholesale Cart
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        View items in your cart
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Buyer Item 4: Explore Catalog */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleNavigateToProductListing();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.catalogIconBox]}>
+                        <Ionicons name="grid-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Explore Catalog
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Browse all wholesale products
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Buyer Item 5: Become a Seller / Switch to Seller */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={async () => {
+                        setIsAllActionsModalVisible(false);
+                        if (canSwitchToSeller) {
+                          await switchToSeller();
+                        } else {
+                          handleBusinessCardPress();
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.businessIconBox]}>
+                        <Ionicons name="storefront-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        {canSwitchToSeller ? 'Switch to Seller' : 'Become a Seller'}
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        {canSwitchToSeller ? 'Open seller management' : 'Register your business'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    {/* Seller Item 1: My Business */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleBusinessCardPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.businessIconBox]}>
+                        <Ionicons name="storefront-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        My Business
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Profile & contact details
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Seller Item 2: Add Product */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleAddProductPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.addProductIconBox]}>
+                        <Ionicons name="add-circle-outline" size={24} color={colors.success} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Add Product
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        List wholesale products
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Seller Item 3: Customer Orders */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleSellerOrdersPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.sellerOrdersIconBox]}>
+                        <Ionicons name="cube-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Customer Orders
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Orders placed by customers
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Seller Item 4: Customer Price Requests */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleSellerQuotationsPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Customer Price Requests
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Price requests from buyers
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Seller Item 5: My Orders */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleOrdersPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.myOrdersIconBox]}>
+                        <Ionicons name="receipt-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        My Orders
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Track orders you placed
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Seller Item 6: My Price Requests */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        handleBuyerQuotationsPress();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.quotationsIconBox]}>
+                        <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        My Price Requests
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Custom price requests sent
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -1418,6 +1876,114 @@ const styles = StyleSheet.create({
   },
   quotationsIconBox: {
     backgroundColor: '#EFF6FF',
+  },
+  cartIconBox: {
+    backgroundColor: colors.accentLight || '#FEF3C7',
+  },
+  catalogIconBox: {
+    backgroundColor: colors.infoLight || '#E0F2FE',
+  },
+  sellerHubBanner: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  sellerHubHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  sellerHubIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm + 2,
+  },
+  sellerHubTitleBox: {
+    flex: 1,
+  },
+  sellerHubNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sellerHubBusinessName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
+  sellerVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.successLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    gap: 3,
+  },
+  sellerVerifiedText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  sellerHubSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  sellerHubActionsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sellerHubActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingVertical: spacing.xs + 3,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  },
+  sellerHubActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  sellerHubPrimaryAction: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  sellerHubPrimaryActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textInverse,
   },
   actionCardHeading: {
     fontSize: 13,

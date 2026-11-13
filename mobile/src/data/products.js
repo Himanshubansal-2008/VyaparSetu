@@ -6,6 +6,7 @@ import {
 } from './businessProfileData.js';
 import { getOrders } from './orders.js';
 import { getQuotations } from './quotations.js';
+import productService, { isUUID } from '../services/productService.js';
 
 export const categories = [
   { id: "all", name: "All Products", icon: "grid-outline" },
@@ -18,7 +19,8 @@ export const categories = [
 
 export const products = [
   {
-    id: "prod-001",
+    id: "c1000000-0000-4000-8000-000000000001",
+    legacyId: "prod-001",
     name: "Handwoven Cotton Tote Bag",
     description:
       "Reusable cotton tote bags handcrafted by local artisans. Suitable for retail stores, events, and corporate gifting.",
@@ -32,7 +34,8 @@ export const products = [
     moq: 10,
     availableQuantity: 500,
     stock: 500,
-    sellerId: "biz-001",
+    sellerId: "b1000000-0000-4000-8000-000000000001",
+    legacySellerId: "biz-001",
     sellerName: "Shree Handloom Works",
     location: "Jaipur, Rajasthan",
     image:
@@ -62,7 +65,8 @@ export const products = [
     },
   },
   {
-    id: "prod-002",
+    id: "c1000000-0000-4000-8000-000000000002",
+    legacyId: "prod-002",
     name: "Wireless Bluetooth Earphones",
     description:
       "Compact wireless earphones suitable for electronics retailers and bulk resellers.",
@@ -76,7 +80,8 @@ export const products = [
     moq: 5,
     availableQuantity: 200,
     stock: 200,
-    sellerId: "biz-002",
+    sellerId: "b1000000-0000-4000-8000-000000000002",
+    legacySellerId: "biz-002",
     sellerName: "TechSource Distributors",
     location: "Delhi, India",
     image:
@@ -106,7 +111,8 @@ export const products = [
     },
   },
   {
-    id: "prod-003",
+    id: "c1000000-0000-4000-8000-000000000003",
+    legacyId: "prod-003",
     name: "Handcrafted Blue Pottery Vase",
     description:
       "Decorative pottery made by skilled artisans. Ideal for gift shops, home decor stores, and interior designers.",
@@ -120,7 +126,8 @@ export const products = [
     moq: 5,
     availableQuantity: 120,
     stock: 120,
-    sellerId: "biz-003",
+    sellerId: "b1000000-0000-4000-8000-000000000003",
+    legacySellerId: "biz-003",
     sellerName: "Rang Artisan Collective",
     location: "Jaipur, Rajasthan",
     image:
@@ -149,7 +156,8 @@ export const products = [
     },
   },
   {
-    id: "prod-004",
+    id: "c1000000-0000-4000-8000-000000000004",
+    legacyId: "prod-004",
     name: "Organic Turmeric Powder",
     description:
       "Aromatic turmeric powder packed for grocery retailers and food distributors. Check the seller's packaging and food-safety details before ordering.",
@@ -163,7 +171,8 @@ export const products = [
     moq: 10,
     availableQuantity: 300,
     stock: 300,
-    sellerId: "biz-004",
+    sellerId: "b1000000-0000-4000-8000-000000000004",
+    legacySellerId: "biz-004",
     sellerName: "PureHarvest Foods",
     location: "Sangli, Maharashtra",
     image:
@@ -187,7 +196,8 @@ export const products = [
     },
   },
   {
-    id: "prod-005",
+    id: "c1000000-0000-4000-8000-000000000005",
+    legacyId: "prod-005",
     name: "Decorative Ceramic Planters",
     description:
       "Minimal ceramic planters for nurseries, home decor shops, and lifestyle retailers.",
@@ -199,7 +209,8 @@ export const products = [
     moq: 8,
     availableQuantity: 12,
     stock: 12,
-    sellerId: "biz-005",
+    sellerId: "b1000000-0000-4000-8000-000000000005",
+    legacySellerId: "biz-005",
     sellerName: "EarthNest Ceramics",
     location: "Pune, Maharashtra",
     image:
@@ -224,7 +235,8 @@ export const products = [
     },
   },
   {
-    id: "prod-006",
+    id: "c1000000-0000-4000-8000-000000000006",
+    legacyId: "prod-006",
     name: "Cotton Kurta Fabric",
     description:
       "Soft cotton fabric suitable for boutique owners, garment makers, and textile retailers.",
@@ -236,7 +248,8 @@ export const products = [
     moq: 20,
     availableQuantity: 1000,
     stock: 1000,
-    sellerId: "biz-006",
+    sellerId: "b1000000-0000-4000-8000-000000000006",
+    legacySellerId: "biz-006",
     sellerName: "Maharashtra Textile House",
     location: "Ichalkaranji, Maharashtra",
     image:
@@ -261,7 +274,8 @@ export const products = [
     },
   },
   {
-    id: "prod-007",
+    id: "c1000000-0000-4000-8000-000000000007",
+    legacyId: "prod-007",
     name: "Jute Gift Bags - Clearance",
     description:
       "Surplus jute gift bags offered at a discounted price to clear excess inventory.",
@@ -273,7 +287,8 @@ export const products = [
     moq: 25,
     availableQuantity: 0,
     stock: 0,
-    sellerId: "biz-007",
+    sellerId: "b1000000-0000-4000-8000-000000000007",
+    legacySellerId: "biz-007",
     sellerName: "EcoCraft Industries",
     location: "Nashik, Maharashtra",
     image:
@@ -293,7 +308,8 @@ export const products = [
     },
   },
   {
-    id: "prod-008",
+    id: "c1000000-0000-4000-8000-000000000008",
+    legacyId: "prod-008",
     name: "LED Desk Lamp",
     description:
       "Energy-efficient desk lamp for office supply stores and electronics resellers.",
@@ -305,7 +321,8 @@ export const products = [
     moq: 5,
     availableQuantity: 18,
     stock: 18,
-    sellerId: "biz-002",
+    sellerId: "b1000000-0000-4000-8000-000000000002",
+    legacySellerId: "biz-002",
     sellerName: "TechSource Distributors",
     location: "Delhi, India",
     image:
@@ -330,7 +347,8 @@ export const products = [
     },
   },
   {
-    id: "prod-009",
+    id: "c1000000-0000-4000-8000-000000000009",
+    legacyId: "prod-009",
     name: "Roasted Peanut Snack Packs",
     description:
       "Individually packed roasted peanuts for convenience stores and wholesale distributors.",
@@ -342,7 +360,8 @@ export const products = [
     moq: 50,
     availableQuantity: 2000,
     stock: 2000,
-    sellerId: "biz-004",
+    sellerId: "b1000000-0000-4000-8000-000000000004",
+    legacySellerId: "biz-004",
     sellerName: "PureHarvest Foods",
     location: "Sangli, Maharashtra",
     image:
@@ -367,7 +386,8 @@ export const products = [
     },
   },
   {
-    id: "prod-010",
+    id: "c1000000-0000-4000-8000-000000000010",
+    legacyId: "prod-010",
     name: "Hand-painted Wooden Coasters",
     description:
       "Artisan-made wooden coasters for gift stores, cafes, and home decor retailers.",
@@ -379,7 +399,8 @@ export const products = [
     moq: 10,
     availableQuantity: 300,
     stock: 300,
-    sellerId: "biz-003",
+    sellerId: "b1000000-0000-4000-8000-000000000003",
+    legacySellerId: "biz-003",
     sellerName: "Rang Artisan Collective",
     location: "Jaipur, Rajasthan",
     image:
@@ -834,6 +855,22 @@ export const deleteProduct = async (productId, customProfile) => {
       archivedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    if (isUUID(product.id)) {
+      try {
+        await productService.deactivateProduct(product.id);
+      } catch (err) {
+        if (err?.statusCode === 403) {
+          return {
+            success: false,
+            reason: 'unauthorized',
+            message: 'You can only delete products belonging to your own business.',
+          };
+        }
+        console.warn('[products] Backend deactivate failed (continuing with local state):', err);
+      }
+    }
+
     products[index] = archivedProduct;
 
     cachedArchivedIds.add(String(product.id).trim().toLowerCase());
@@ -850,6 +887,21 @@ export const deleteProduct = async (productId, customProfile) => {
     };
   } else {
     // Hard-delete: permanently remove product from catalog
+    if (isUUID(product.id)) {
+      try {
+        await productService.deleteProduct(product.id);
+      } catch (err) {
+        if (err?.statusCode === 403) {
+          return {
+            success: false,
+            reason: 'unauthorized',
+            message: 'You can only delete products belonging to your own business.',
+          };
+        }
+        console.warn('[products] Backend delete failed (continuing with local state):', err);
+      }
+    }
+
     products.splice(index, 1);
 
     cachedDeletedIds.add(String(product.id).trim().toLowerCase());
@@ -918,6 +970,61 @@ export const loadPersistedProducts = async () => {
           });
         }
       }
+
+      // Ensure primary test business products are present in catalog
+      const testProducts = [
+        {
+          id: '7262160a-84dd-4188-86ac-202fd2265649',
+          name: 'Cups',
+          description: 'Artisanal handcrafted ceramic cups set for wholesale distribution.',
+          price: 80,
+          stock: 50,
+          availableQuantity: 50,
+          minOrderQuantity: 2,
+          moq: 2,
+          unit: 'pack',
+          image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600',
+          isActive: true,
+          isFeatured: false,
+          businessId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerName: 'Test Business',
+          categoryId: '53a2d5f1-baaa-4928-ab5c-75639a452c50',
+          categoryName: 'Handicrafts',
+          isCustom: true,
+        },
+        {
+          id: 'c6a9b634-95a5-4b6d-b3f3-d3b5e2a453ed',
+          name: 'Cups',
+          description: 'Ceramic tea cups set.',
+          price: 80,
+          stock: 50,
+          availableQuantity: 50,
+          minOrderQuantity: 5,
+          moq: 5,
+          unit: 'pack',
+          image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600',
+          isActive: false,
+          isFeatured: false,
+          businessId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerName: 'Test Business',
+          categoryId: '53a2d5f1-baaa-4928-ab5c-75639a452c50',
+          categoryName: 'Handicrafts',
+          isCustom: true,
+        },
+      ];
+
+      testProducts.forEach((tp) => {
+        const cleanId = tp.id.toLowerCase();
+        if (deletedIds.has(cleanId)) return;
+        const idx = products.findIndex((p) => p && String(p.id).trim().toLowerCase() === cleanId);
+        if (idx !== -1) {
+          products[idx] = { ...products[idx], ...tp };
+        } else {
+          products.unshift(tp);
+        }
+      });
 
       // 3. Mark any archived products (for both seed and custom products)
       products.forEach((p, idx) => {
@@ -1000,7 +1107,118 @@ export const getProductById = (id) => {
   const cleanId = String(id).trim().toLowerCase();
   return (
     products.find(
-      (p) => p && String(p.id).trim().toLowerCase() === cleanId
+      (p) =>
+        p &&
+        (String(p.id).trim().toLowerCase() === cleanId ||
+          String(p.legacyId || '').trim().toLowerCase() === cleanId)
     ) || null
   );
 };
+
+export const remapProductSellerId = async (oldSellerId, newSellerId) => {
+  if (!oldSellerId || !newSellerId || oldSellerId === newSellerId) return 0;
+  const cleanOld = String(oldSellerId).trim().toLowerCase();
+  const cleanNew = String(newSellerId).trim();
+
+  let modifiedCount = 0;
+  // 1. Update in-memory products array
+  products.forEach((p) => {
+    if (!p) return;
+    const pSellerId = p.sellerId ? String(p.sellerId).trim().toLowerCase() : '';
+    const pBizId = p.businessId ? String(p.businessId).trim().toLowerCase() : '';
+    if (pSellerId === cleanOld || pBizId === cleanOld) {
+      p.sellerId = cleanNew;
+      p.businessId = cleanNew;
+      if (!p.legacySellerId) {
+        p.legacySellerId = oldSellerId;
+      }
+      p.updatedAt = new Date().toISOString();
+      modifiedCount++;
+    }
+  });
+
+  // 2. Update persisted custom products in AsyncStorage
+  try {
+    if (storage && typeof storage.getItem === 'function') {
+      const raw = await storage.getItem(STORAGE_KEY_CUSTOM_PRODUCTS);
+      if (raw) {
+        const customProducts = JSON.parse(raw);
+        if (Array.isArray(customProducts)) {
+          let customUpdated = false;
+          customProducts.forEach((cp) => {
+            if (!cp) return;
+            const cpSellerId = cp.sellerId ? String(cp.sellerId).trim().toLowerCase() : '';
+            const cpBizId = cp.businessId ? String(cp.businessId).trim().toLowerCase() : '';
+            if (cpSellerId === cleanOld || cpBizId === cleanOld) {
+              cp.sellerId = cleanNew;
+              cp.businessId = cleanNew;
+              if (!cp.legacySellerId) {
+                cp.legacySellerId = oldSellerId;
+              }
+              cp.updatedAt = new Date().toISOString();
+              customUpdated = true;
+            }
+          });
+          if (customUpdated) {
+            await storage.setItem(STORAGE_KEY_CUSTOM_PRODUCTS, JSON.stringify(customProducts));
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[products] Failed to remap custom products in storage:', err);
+  }
+
+  notifyProductListeners();
+  return modifiedCount;
+};
+
+/**
+ * Updates an existing local product that has been migrated to PostgreSQL.
+ * Updates in-memory catalog, custom products storage, and archived/deleted caches.
+ *
+ * @param {string} legacyId - Original local product ID (e.g. "prod-custom-...")
+ * @param {string} newUUID - Generated PostgreSQL product UUID
+ * @returns {Promise<boolean>} True if product was found and updated
+ */
+export const remapMigratedProduct = async (legacyId, newUUID) => {
+  if (!legacyId || !newUUID || legacyId === newUUID) return false;
+  const cleanLegacy = String(legacyId).trim().toLowerCase();
+  const cleanNew = String(newUUID).trim();
+
+  let modified = false;
+
+  // 1. Update in-memory products array
+  const index = products.findIndex(
+    (p) => p && String(p.id).trim().toLowerCase() === cleanLegacy
+  );
+  if (index !== -1) {
+    const existing = products[index];
+    products[index] = {
+      ...existing,
+      id: cleanNew,
+      legacyId: legacyId,
+      isCustom: false,
+      isBackendSynced: true,
+      updatedAt: new Date().toISOString(),
+    };
+    modified = true;
+  }
+
+  // 2. Update archived and deleted ID caches
+  if (cachedArchivedIds.has(cleanLegacy)) {
+    cachedArchivedIds.add(cleanNew.toLowerCase());
+    await persistArchivedProductId(cleanNew);
+  }
+  if (cachedDeletedIds.has(cleanLegacy)) {
+    cachedDeletedIds.add(cleanNew.toLowerCase());
+    await persistDeletedProductId(cleanNew);
+  }
+
+  // 3. Update persisted custom products
+  await persistCustomProducts();
+  notifyProductListeners();
+
+  return modified;
+};
+

@@ -80,6 +80,18 @@ export const API_CONFIG = {
     CATEGORIES: '/categories',
     AUTH_SIGNUP: '/auth/signup',
     AUTH_LOGIN: '/auth/login',
+    USERS: '/users',
+    BUSINESSES: '/businesses',
+    SELLER_PRODUCTS: '/seller/products',
+    SELLER_ORDERS: '/seller/orders',
+    ORDERS: '/orders',
+    QUOTATIONS: '/quotations',
+    BUYER_QUOTATIONS: '/quotations/buyer',
+    SELLER_QUOTATIONS: '/quotations/seller',
+    CART: '/cart',
+    CART_ITEMS: '/cart/items',
+    CART_MIGRATE: '/cart/migrate',
+    CART_VALIDATE: '/cart/validate',
   },
 };
 

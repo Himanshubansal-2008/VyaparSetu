@@ -2,17 +2,20 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
-import { CartProvider } from './src/context/CartContext';
 import { AuthProvider } from './src/context/AuthContext';
+import { ModeProvider } from './src/context/ModeContext';
+import { CartProvider } from './src/context/CartContext';
 
 export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
       <AuthProvider>
-        <CartProvider>
-          <AppNavigator />
-        </CartProvider>
+        <ModeProvider>
+          <CartProvider>
+            <AppNavigator />
+          </CartProvider>
+        </ModeProvider>
       </AuthProvider>
     </View>
   );

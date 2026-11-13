@@ -31,6 +31,8 @@ import {
 } from '../data/businessProfileData';
 import { markQuotationAsOrdered } from '../data/quotations';
 import { getProductById, isProductActive } from '../data/products';
+import { useMode } from '../context/ModeContext';
+import orderService from '../services/orderService';
 import EmptyState from '../components/EmptyState';
 
 const PAYMENT_METHODS = [
@@ -61,6 +63,7 @@ export default function CheckoutScreen({
   onNavigateToConfirmation,
   onNavigateToHome,
 }) {
+  const { isSellerMode } = useMode();
   const {
     cartItems,
     cartItemCount,
@@ -196,6 +199,14 @@ export default function CheckoutScreen({
   };
 
   const handlePlaceOrder = async () => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Placing orders is disabled while in Seller Mode. Switch to Buyer Mode to complete your purchase.'
+      );
+      return;
+    }
+
     if (hasOwnProducts) {
       Alert.alert(
         'Order Blocked',
@@ -248,6 +259,31 @@ export default function CheckoutScreen({
     setIsSubmitting(true);
 
     try {
+      // Validate order items against the backend with server-side ownership enforcement
+      try {
+        await orderService.validateOrder(
+          cartItems.map((item) => ({
+            productId: item.product?.id || item.id,
+            quantity: item.quantity,
+            price: item.unitPrice,
+            quotationId: item.quotationId || null,
+          }))
+        );
+      } catch (validationErr) {
+        const errorMsg =
+          validationErr?.data?.message ||
+          validationErr?.message ||
+          'Failed to validate order items with supplier catalog.';
+
+        Alert.alert(
+          validationErr?.status === 403 ? 'Order Blocked' : 'Order Validation Error',
+          errorMsg,
+          [{ text: 'OK' }]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       const orderId = generateOrderId();
       const orderPayload = {
         id: orderId,
@@ -322,9 +358,13 @@ export default function CheckoutScreen({
       }
     } catch (err) {
       console.warn('[CheckoutScreen] Failed to place order:', err);
+      const msg =
+        err?.data?.message ||
+        err?.message ||
+        'An error occurred while saving your wholesale order. Please try again.';
       Alert.alert(
-        'Order Placement Error',
-        'An error occurred while saving your wholesale order. Please try again.',
+        err?.status === 403 ? 'Order Blocked' : 'Order Placement Error',
+        msg,
         [{ text: 'OK' }]
       );
     } finally {
@@ -390,6 +430,23 @@ export default function CheckoutScreen({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Seller Mode Notice Banner */}
+            {isSellerMode && (
+              <View style={[styles.checkoutBlockedBanner, { borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }]}>
+                <View style={styles.checkoutBlockedHeader}>
+                  <Ionicons name="information-circle" size={22} color={colors.primary} />
+                  <View style={styles.checkoutBlockedTextWrapper}>
+                    <Text style={[styles.checkoutBlockedTitle, { color: colors.primary }]}>
+                      Seller Mode Active
+                    </Text>
+                    <Text style={styles.checkoutBlockedDesc}>
+                      Order checkout is disabled while in Seller Mode. Switch to Buyer Mode to place wholesale orders.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Own Products Blocking Banner */}
             {hasOwnProducts && (
               <View style={styles.checkoutBlockedBanner}>
@@ -824,24 +881,28 @@ export default function CheckoutScreen({
             <TouchableOpacity
               style={[
                 styles.placeOrderButton,
-                (isSubmitting || hasOwnProducts || hasUnavailableProducts) &&
+                (isSubmitting || hasOwnProducts || hasUnavailableProducts || isSellerMode) &&
                   styles.placeOrderButtonDisabled,
               ]}
               onPress={handlePlaceOrder}
-              disabled={isSubmitting || hasOwnProducts || hasUnavailableProducts}
+              disabled={isSubmitting || hasOwnProducts || hasUnavailableProducts || isSellerMode}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={
-                hasOwnProducts
+                isSellerMode
+                  ? 'Disabled in Seller Mode'
+                  : hasOwnProducts
                   ? 'Cannot purchase own products'
                   : hasUnavailableProducts
                   ? 'Remove unavailable products'
-                  : 'Place Wholesale Order'
+                  : 'Place Order'
               }
             >
               <Ionicons
                 name={
-                  hasOwnProducts || hasUnavailableProducts
+                  isSellerMode
+                    ? 'lock-closed-outline'
+                    : hasOwnProducts || hasUnavailableProducts
                     ? 'alert-circle-outline'
                     : 'checkmark-circle-outline'
                 }
@@ -850,7 +911,9 @@ export default function CheckoutScreen({
                 style={styles.placeOrderIcon}
               />
               <Text style={styles.placeOrderText}>
-                {hasOwnProducts
+                {isSellerMode
+                  ? 'Disabled in Seller Mode'
+                  : hasOwnProducts
                   ? 'Cannot Purchase Own Products'
                   : hasUnavailableProducts
                   ? 'Remove Unavailable Products'

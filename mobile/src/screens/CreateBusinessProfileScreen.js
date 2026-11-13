@@ -23,7 +23,14 @@ import {
   getSessionBusinessProfile,
   setSessionBusinessProfile,
   updateBusinessProfile,
+  savePersistedMode,
+  MODES,
 } from '../data/businessProfileData';
+import businessService from '../services/businessService';
+import { isUUID } from '../services/businessMigrationService';
+import { remapProductSellerId } from '../data/products';
+import { remapOrderSellerId } from '../data/orders';
+import { remapQuotationSellerId } from '../data/quotations';
 
 const CATEGORIES = [
   'Handicrafts',
@@ -330,7 +337,7 @@ export default function CreateBusinessProfileScreen({
   };
 
   // Form Submission
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) {
       Alert.alert(
         'Incomplete Information',
@@ -339,17 +346,74 @@ export default function CreateBusinessProfileScreen({
       return;
     }
 
+    const businessPayload = {
+      name: formData.businessName.trim(),
+      description: formData.description.trim(),
+      category: formData.category.trim(),
+      address: formData.address.trim(),
+      city: formData.city.trim(),
+      state: formData.state.trim(),
+      pincode: formData.pincode.trim(),
+      phone: formData.contactNumber.trim(),
+      email: formData.email.trim().toLowerCase(),
+    };
+
+    let backendBiz = null;
+    const editId = initialBusiness?.id || initialBusiness?.sellerId;
+    const isLegacyId = editId && !isUUID(editId);
+
+    if (isEditMode) {
+      if (editId && !isLegacyId) {
+        try {
+          backendBiz = await businessService.updateBusiness(editId, businessPayload);
+        } catch (apiErr) {
+          console.warn('[CreateBusinessProfileScreen] API update error, falling back to local storage:', apiErr?.message);
+        }
+      } else {
+        // Legacy ID edit: check backend first via getMyBusiness, then create or update
+        try {
+          const myBiz = await businessService.getMyBusiness();
+          if (myBiz && myBiz.id) {
+            backendBiz = await businessService.updateBusiness(myBiz.id, businessPayload);
+          } else {
+            backendBiz = await businessService.createBusiness(businessPayload);
+          }
+        } catch (apiErr) {
+          console.warn('[CreateBusinessProfileScreen] API sync error for legacy business:', apiErr?.message);
+        }
+      }
+    } else {
+      try {
+        backendBiz = await businessService.createBusiness(businessPayload);
+      } catch (apiErr) {
+        console.warn('[CreateBusinessProfileScreen] API create error, falling back to local storage:', apiErr?.message);
+      }
+    }
+
+    if (backendBiz?.id && isLegacyId && editId) {
+      try {
+        await remapProductSellerId(editId, backendBiz.id);
+        await remapOrderSellerId(editId, backendBiz.id);
+        await remapQuotationSellerId(editId, backendBiz.id);
+      } catch (remapErr) {
+        console.warn('[CreateBusinessProfileScreen] Error remapping legacy references on edit:', remapErr);
+      }
+    }
+
     const targetId =
-      isEditMode && initialBusiness?.id
+      backendBiz?.id ||
+      (isEditMode && initialBusiness?.id
         ? initialBusiness.id
-        : `biz-submitted-${Date.now()}`;
+        : `biz-submitted-${Date.now()}`);
     const targetSellerId =
-      isEditMode && initialBusiness?.sellerId
+      backendBiz?.id ||
+      (isEditMode && initialBusiness?.sellerId
         ? initialBusiness.sellerId
-        : targetId;
+        : targetId);
 
     const payload = {
       ...(initialBusiness || {}),
+      ...(backendBiz || {}),
       id: targetId,
       sellerId: targetSellerId,
       businessName: formData.businessName.trim(),
@@ -393,9 +457,10 @@ export default function CreateBusinessProfileScreen({
     };
 
     if (isEditMode) {
-      updateBusinessProfile(payload);
+      await updateBusinessProfile(payload);
     } else {
-      setSessionBusinessProfile(payload);
+      await setSessionBusinessProfile(payload);
+      await savePersistedMode(MODES.SELLER);
     }
 
     if (navigation?.navigate) {

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isProductOwnedByCurrentSeller } from './businessProfileData.js';
+import orderService from '../services/orderService.js';
 
 const storage = AsyncStorage.default || AsyncStorage;
 
@@ -420,21 +421,63 @@ export const loadPersistedOrders = async () => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         inMemoryOrders = parsed;
-        notifyOrderListeners();
-        return inMemoryOrders;
       }
+    } else {
+      inMemoryOrders = [...DEFAULT_SEED_ORDERS];
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
     }
-    // If not in storage yet, seed initial mock orders and save
-    inMemoryOrders = [...DEFAULT_SEED_ORDERS];
-    await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
-    notifyOrderListeners();
-    return inMemoryOrders;
   } catch (error) {
-    console.warn('[orders] Failed to load persisted orders:', error);
+    console.warn('[orders] Failed to load persisted orders from storage:', error);
   }
-  if (!inMemoryOrders.length) {
-    inMemoryOrders = [...DEFAULT_SEED_ORDERS];
+
+  // Attempt backend synchronization for buyer and seller orders
+  try {
+    const [buyerOrdersRes, sellerOrdersRes] = await Promise.allSettled([
+      orderService.fetchBuyerOrders(),
+      orderService.fetchSellerOrders(),
+    ]);
+
+    const remoteOrders = [];
+    if (buyerOrdersRes.status === 'fulfilled' && Array.isArray(buyerOrdersRes.value)) {
+      remoteOrders.push(...buyerOrdersRes.value);
+    }
+    if (sellerOrdersRes.status === 'fulfilled' && Array.isArray(sellerOrdersRes.value)) {
+      remoteOrders.push(...sellerOrdersRes.value);
+    }
+
+    if (remoteOrders.length > 0) {
+      const backendMap = new Map();
+      remoteOrders.forEach((bo) => {
+        const key = bo.id || bo.orderNumber;
+        backendMap.set(key, {
+          ...bo,
+          orderDate: bo.createdAt
+            ? new Date(bo.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })
+            : bo.orderDate,
+        });
+      });
+
+      // Merge backend orders with local seed/offline orders
+      const merged = [...backendMap.values()];
+      inMemoryOrders.forEach((localOrder) => {
+        const localKey = localOrder.id || localOrder.orderNumber;
+        if (!backendMap.has(localKey)) {
+          merged.push(localOrder);
+        }
+      });
+
+      inMemoryOrders = merged;
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    }
+  } catch (syncErr) {
+    // Backend offline / sync deferred
   }
+
+  notifyOrderListeners();
   return inMemoryOrders;
 };
 
@@ -461,7 +504,7 @@ export const getOrderById = (orderId) => {
 };
 
 /**
- * Saves a new placed order locally in memory and AsyncStorage.
+ * Saves a new placed order locally in memory, AsyncStorage, and PostgreSQL.
  */
 export const saveOrder = async (orderData) => {
   if (!orderData) return null;
@@ -482,11 +525,10 @@ export const saveOrder = async (orderData) => {
     }
   }
 
-  const orderId = orderData.id || generateOrderId();
-  const newOrder = {
+  let finalOrder = {
     ...orderData,
-    id: orderId,
-    orderNumber: orderId,
+    id: orderData.id || generateOrderId(),
+    orderNumber: orderData.orderNumber || orderData.id || generateOrderId(),
     createdAt: orderData.createdAt || new Date().toISOString(),
     status: orderData.status || 'Confirmed',
     orderDate:
@@ -498,7 +540,36 @@ export const saveOrder = async (orderData) => {
       }),
   };
 
-  inMemoryOrders = [newOrder, ...inMemoryOrders.filter((o) => o.id !== orderId)];
+  // Try creating in backend PostgreSQL
+  try {
+    const serverOrder = await orderService.createOrder({
+      ...orderData,
+      id: finalOrder.id,
+      orderNumber: finalOrder.orderNumber,
+    });
+    if (serverOrder && serverOrder.id) {
+      finalOrder = {
+        ...finalOrder,
+        ...serverOrder,
+        id: serverOrder.id,
+        orderNumber: serverOrder.orderNumber || serverOrder.id,
+        orderDate: serverOrder.createdAt
+          ? new Date(serverOrder.createdAt).toLocaleDateString('en-IN', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
+          : finalOrder.orderDate,
+      };
+    }
+  } catch (backendErr) {
+    console.warn('[orders] Backend order placement deferred to local:', backendErr.message || backendErr);
+    if (backendErr?.status === 403 || backendErr?.status === 400 || backendErr?.status === 409) {
+      throw backendErr;
+    }
+  }
+
+  inMemoryOrders = [finalOrder, ...inMemoryOrders.filter((o) => o.id !== finalOrder.id && o.orderNumber !== finalOrder.orderNumber)];
   notifyOrderListeners();
 
   try {
@@ -510,11 +581,11 @@ export const saveOrder = async (orderData) => {
     console.warn('[orders] Failed to persist orders:', error);
   }
 
-  return newOrder;
+  return finalOrder;
 };
 
 /**
- * Updates an existing order's status and persists to AsyncStorage.
+ * Updates an existing order's status and persists to AsyncStorage and backend.
  */
 export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
   if (!orderId || !newStatus) return null;
@@ -544,6 +615,16 @@ export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
     } catch (error) {
       console.warn('[orders] Failed to persist updated order status:', error);
     }
+
+    // Backend synchronization
+    try {
+      await orderService.updateOrderStatus(orderId, {
+        status: newStatus,
+        ...extraData,
+      });
+    } catch (err) {
+      console.warn('[orders] Failed to sync order status update with backend:', err.message || err);
+    }
   }
 
   return updatedOrder;
@@ -557,31 +638,50 @@ export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
  * Helper to match seller identity between order item and seller business.
  */
 const matchesSeller = (item, sellerId, allProducts = []) => {
-  if (!sellerId) return false;
+  if (!item || !sellerId) return false;
   const cleanSellerId = String(sellerId).trim().toLowerCase();
 
-  // 1. Direct item sellerId match
+  // 1. Direct item sellerId / businessId match
+  const itemSellerId = String(item.sellerId || '').trim().toLowerCase();
+  const itemBizId = String(item.businessId || item.business?.id || '').trim().toLowerCase();
+  const itemLegacyId = String(item.legacySellerId || '').trim().toLowerCase();
+
   if (
-    item.sellerId &&
-    String(item.sellerId).trim().toLowerCase() === cleanSellerId
+    itemSellerId &&
+    (itemSellerId === cleanSellerId ||
+      (itemSellerId === 'biz-sharma-handicrafts' && cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637'))
   ) {
+    return true;
+  }
+  if (itemBizId && itemBizId === cleanSellerId) {
+    return true;
+  }
+  if (itemLegacyId && itemLegacyId === cleanSellerId) {
     return true;
   }
 
   // 2. Lookup by productId in products catalog
-  const prodId = item.productId || item.id;
+  const prodId = item.productId || item.id || item.product?.id;
   if (prodId && Array.isArray(allProducts) && allProducts.length > 0) {
+    const cleanProdId = String(prodId).trim().toLowerCase();
     const prod = allProducts.find(
       (p) =>
-        String(p.id || '').trim().toLowerCase() ===
-        String(prodId).trim().toLowerCase()
+        String(p.id || '').trim().toLowerCase() === cleanProdId ||
+        String(p.legacyId || '').trim().toLowerCase() === cleanProdId
     );
-    if (
-      prod &&
-      prod.sellerId &&
-      String(prod.sellerId).trim().toLowerCase() === cleanSellerId
-    ) {
-      return true;
+    if (prod) {
+      const pSellerId = String(prod.sellerId || '').trim().toLowerCase();
+      const pBizId = String(prod.businessId || prod.business?.id || '').trim().toLowerCase();
+      if (
+        pSellerId &&
+        (pSellerId === cleanSellerId ||
+          (pSellerId === 'biz-sharma-handicrafts' && cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637'))
+      ) {
+        return true;
+      }
+      if (pBizId && pBizId === cleanSellerId) {
+        return true;
+      }
     }
   }
 
@@ -595,10 +695,16 @@ export const isOrderForSeller = (order, sellerId, allProducts = []) => {
   if (!order || !sellerId) return false;
   const cleanSellerId = String(sellerId).trim().toLowerCase();
 
+  const oSellerId = String(order.sellerId || '').trim().toLowerCase();
+  const oBizId = String(order.businessId || '').trim().toLowerCase();
   if (
-    order.sellerId &&
-    String(order.sellerId).trim().toLowerCase() === cleanSellerId
+    oSellerId &&
+    (oSellerId === cleanSellerId ||
+      (oSellerId === 'biz-sharma-handicrafts' && cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637'))
   ) {
+    return true;
+  }
+  if (oBizId && oBizId === cleanSellerId) {
     return true;
   }
 
@@ -823,6 +929,108 @@ export const saveDeliveryAddress = async (addressData) => {
   return inMemoryAddress;
 };
 
+export const remapOrderSellerId = async (oldSellerId, newSellerId) => {
+  if (!oldSellerId || !newSellerId || oldSellerId === newSellerId) return 0;
+  const cleanOld = String(oldSellerId).trim().toLowerCase();
+  const cleanNew = String(newSellerId).trim();
+
+  let modifiedCount = 0;
+  inMemoryOrders.forEach((order) => {
+    if (!order) return;
+    let orderChanged = false;
+    const oSellerId = order.sellerId ? String(order.sellerId).trim().toLowerCase() : '';
+    const oBizId = order.businessId ? String(order.businessId).trim().toLowerCase() : '';
+    if (oSellerId === cleanOld || oBizId === cleanOld) {
+      order.sellerId = cleanNew;
+      order.businessId = cleanNew;
+      orderChanged = true;
+    }
+    if (Array.isArray(order.items)) {
+      order.items.forEach((item) => {
+        if (!item) return;
+        const iSellerId = item.sellerId ? String(item.sellerId).trim().toLowerCase() : '';
+        if (iSellerId === cleanOld) {
+          item.sellerId = cleanNew;
+          orderChanged = true;
+        }
+        if (item.product) {
+          const prodSellerId = item.product.sellerId ? String(item.product.sellerId).trim().toLowerCase() : '';
+          const prodBizId = item.product.businessId ? String(item.product.businessId).trim().toLowerCase() : '';
+          if (prodSellerId === cleanOld || prodBizId === cleanOld) {
+            item.product.sellerId = cleanNew;
+            item.product.businessId = cleanNew;
+            orderChanged = true;
+          }
+        }
+      });
+    }
+    if (orderChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    }
+  } catch (err) {
+    console.warn('[orders] Failed to remap orders in storage:', err);
+  }
+
+  notifyOrderListeners();
+  return modifiedCount;
+};
+
+export const remapOrderProductId = async (oldProductId, newProductId) => {
+  if (!oldProductId || !newProductId || oldProductId === newProductId) return 0;
+  const cleanOld = String(oldProductId).trim().toLowerCase();
+  const cleanNew = String(newProductId).trim();
+
+  let modifiedCount = 0;
+  inMemoryOrders.forEach((order) => {
+    if (!order || !Array.isArray(order.items)) return;
+    let orderChanged = false;
+    order.items.forEach((item) => {
+      if (!item) return;
+      const pId = item.productId || item.id;
+      if (pId && String(pId).trim().toLowerCase() === cleanOld) {
+        item.productId = cleanNew;
+        if (item.id && String(item.id).trim().toLowerCase() === cleanOld) {
+          item.id = cleanNew;
+        }
+        if (!item.legacyProductId) {
+          item.legacyProductId = oldProductId;
+        }
+        orderChanged = true;
+      }
+      if (item.product) {
+        const itemPId = item.product.id || item.product.productId;
+        if (itemPId && String(itemPId).trim().toLowerCase() === cleanOld) {
+          item.product.id = cleanNew;
+          if (!item.product.legacyId) {
+            item.product.legacyId = oldProductId;
+          }
+          orderChanged = true;
+        }
+      }
+    });
+    if (orderChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    }
+  } catch (err) {
+    console.warn('[orders] Failed to remap product ID in orders storage:', err);
+  }
+
+  notifyOrderListeners();
+  return modifiedCount;
+};
+
 export default {
   STORAGE_KEY_ORDERS,
   STORAGE_KEY_ADDRESS,
@@ -850,4 +1058,6 @@ export default {
   getSavedAddress,
   saveDeliveryAddress,
   subscribeOrders,
+  remapOrderSellerId,
+  remapOrderProductId,
 };

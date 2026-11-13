@@ -34,6 +34,7 @@ import {
   businesses,
 } from '../data/businessProfileData';
 import { products as defaultProducts } from '../data/products';
+import orderService from '../services/orderService';
 
 export default function SellerOrderDetailsScreen({
   navigation,
@@ -73,9 +74,22 @@ export default function SellerOrderDetailsScreen({
 
   // Sync with global orders state
   useEffect(() => {
+    let isMounted = true;
     if (initialOrderId) {
       const found = getOrderById(initialOrderId);
-      if (found) setOrder(found);
+      if (found) {
+        setOrder(found);
+      } else {
+        orderService
+          .fetchOrderDetails(initialOrderId)
+          .then((res) => {
+            const remote = res?.data || res;
+            if (isMounted && remote && remote.id) {
+              setOrder(remote);
+            }
+          })
+          .catch(() => {});
+      }
     }
     return subscribeOrders(() => {
       if (initialOrderId) {
