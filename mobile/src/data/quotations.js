@@ -792,3 +792,47 @@ export const remapQuotationSellerId = async (oldSellerId, newSellerId) => {
   notifyQuotationListeners();
   return modifiedCount;
 };
+
+export const remapQuotationProductId = async (oldProductId, newProductId) => {
+  if (!oldProductId || !newProductId || oldProductId === newProductId) return 0;
+  const cleanOld = String(oldProductId).trim().toLowerCase();
+  const cleanNew = String(newProductId).trim();
+
+  let modifiedCount = 0;
+  inMemoryQuotations.forEach((q) => {
+    if (!q) return;
+    let qChanged = false;
+    const qPId = q.productId || q.product?.id;
+    if (qPId && String(qPId).trim().toLowerCase() === cleanOld) {
+      q.productId = cleanNew;
+      if (!q.legacyProductId) {
+        q.legacyProductId = oldProductId;
+      }
+      qChanged = true;
+    }
+    if (q.product) {
+      const prodPId = q.product.id || q.product.productId;
+      if (prodPId && String(prodPId).trim().toLowerCase() === cleanOld) {
+        q.product.id = cleanNew;
+        if (!q.product.legacyId) {
+          q.product.legacyId = oldProductId;
+        }
+        qChanged = true;
+      }
+    }
+    if (qChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
+    }
+  } catch (err) {
+    console.warn('[quotations] Failed to remap quotations in storage:', err);
+  }
+
+  notifyQuotationListeners();
+  return modifiedCount;
+};

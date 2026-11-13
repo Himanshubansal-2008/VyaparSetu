@@ -1094,3 +1094,53 @@ export const remapProductSellerId = async (oldSellerId, newSellerId) => {
   notifyProductListeners();
   return modifiedCount;
 };
+
+/**
+ * Updates an existing local product that has been migrated to PostgreSQL.
+ * Updates in-memory catalog, custom products storage, and archived/deleted caches.
+ *
+ * @param {string} legacyId - Original local product ID (e.g. "prod-custom-...")
+ * @param {string} newUUID - Generated PostgreSQL product UUID
+ * @returns {Promise<boolean>} True if product was found and updated
+ */
+export const remapMigratedProduct = async (legacyId, newUUID) => {
+  if (!legacyId || !newUUID || legacyId === newUUID) return false;
+  const cleanLegacy = String(legacyId).trim().toLowerCase();
+  const cleanNew = String(newUUID).trim();
+
+  let modified = false;
+
+  // 1. Update in-memory products array
+  const index = products.findIndex(
+    (p) => p && String(p.id).trim().toLowerCase() === cleanLegacy
+  );
+  if (index !== -1) {
+    const existing = products[index];
+    products[index] = {
+      ...existing,
+      id: cleanNew,
+      legacyId: legacyId,
+      isCustom: false,
+      isBackendSynced: true,
+      updatedAt: new Date().toISOString(),
+    };
+    modified = true;
+  }
+
+  // 2. Update archived and deleted ID caches
+  if (cachedArchivedIds.has(cleanLegacy)) {
+    cachedArchivedIds.add(cleanNew.toLowerCase());
+    await persistArchivedProductId(cleanNew);
+  }
+  if (cachedDeletedIds.has(cleanLegacy)) {
+    cachedDeletedIds.add(cleanNew.toLowerCase());
+    await persistDeletedProductId(cleanNew);
+  }
+
+  // 3. Update persisted custom products
+  await persistCustomProducts();
+  notifyProductListeners();
+
+  return modified;
+};
+

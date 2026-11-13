@@ -31,6 +31,7 @@ import {
 import { loadPersistedQuotations } from '../data/quotations';
 import { initUserSession } from '../services/userService';
 import { migrateLegacyBusinessProfileIfNeeded } from '../services/businessMigrationService';
+import { migrateLocalProductsToBackendIfNeeded } from '../services/productMigrationService';
 
 const VALID_ROUTES = [
   'Home',
@@ -174,6 +175,11 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
 
         // 4. Load persisted mode after migration so seller mode checks the migrated UUID
         await loadPersistedMode();
+
+        // 5. Migrate eligible local custom products to PostgreSQL
+        await migrateLocalProductsToBackendIfNeeded().catch((e) =>
+          console.warn('[AppNavigator] Product migration skipped/deferred:', e)
+        );
       } catch (err) {
         console.warn('[AppNavigator] App initialization error:', err);
       } finally {

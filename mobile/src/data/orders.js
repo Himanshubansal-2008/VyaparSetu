@@ -875,6 +875,56 @@ export const remapOrderSellerId = async (oldSellerId, newSellerId) => {
   return modifiedCount;
 };
 
+export const remapOrderProductId = async (oldProductId, newProductId) => {
+  if (!oldProductId || !newProductId || oldProductId === newProductId) return 0;
+  const cleanOld = String(oldProductId).trim().toLowerCase();
+  const cleanNew = String(newProductId).trim();
+
+  let modifiedCount = 0;
+  inMemoryOrders.forEach((order) => {
+    if (!order || !Array.isArray(order.items)) return;
+    let orderChanged = false;
+    order.items.forEach((item) => {
+      if (!item) return;
+      const pId = item.productId || item.id;
+      if (pId && String(pId).trim().toLowerCase() === cleanOld) {
+        item.productId = cleanNew;
+        if (item.id && String(item.id).trim().toLowerCase() === cleanOld) {
+          item.id = cleanNew;
+        }
+        if (!item.legacyProductId) {
+          item.legacyProductId = oldProductId;
+        }
+        orderChanged = true;
+      }
+      if (item.product) {
+        const itemPId = item.product.id || item.product.productId;
+        if (itemPId && String(itemPId).trim().toLowerCase() === cleanOld) {
+          item.product.id = cleanNew;
+          if (!item.product.legacyId) {
+            item.product.legacyId = oldProductId;
+          }
+          orderChanged = true;
+        }
+      }
+    });
+    if (orderChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    }
+  } catch (err) {
+    console.warn('[orders] Failed to remap product ID in orders storage:', err);
+  }
+
+  notifyOrderListeners();
+  return modifiedCount;
+};
+
 export default {
   STORAGE_KEY_ORDERS,
   STORAGE_KEY_ADDRESS,
@@ -903,4 +953,5 @@ export default {
   saveDeliveryAddress,
   subscribeOrders,
   remapOrderSellerId,
+  remapOrderProductId,
 };
