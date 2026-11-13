@@ -91,6 +91,20 @@ const findUserById = async (id) => {
 };
 
 /**
+ * Normalizes a phone number (extracts 10-digit Indian mobile standard if prefixed with +91 or 0).
+ *
+ * @param {string|null} phone
+ * @returns {string|null}
+ */
+const normalizePhone = (phone) => {
+  if (phone === undefined || phone === null) return null;
+  const cleaned = String(phone).trim().replace(/[\s-]/g, "");
+  if (!cleaned) return null;
+  const match = cleaned.match(/([6-9]\d{9})$/);
+  return match ? match[1] : cleaned;
+};
+
+/**
  * Registers a new user with hashed password and BUYER role.
  *
  * @param {Object} userData
@@ -103,27 +117,40 @@ const findUserById = async (id) => {
 const registerUser = async ({ name, email, phone, password }) => {
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedName = name.trim();
-  const normalizedPhone =
-    phone !== undefined && phone !== null && String(phone).trim() !== ""
-      ? String(phone).trim()
-      : null;
+  const normalizedPhone = normalizePhone(phone);
 
   // 1. Check if an account already exists with this email
-  const existingUser = await prisma.user.findUnique({
+  const existingEmailUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
     select: { id: true },
   });
 
-  if (existingUser) {
+  if (existingEmailUser) {
     const error = new Error("An account with this email already exists.");
     error.statusCode = 409;
+    error.field = "email";
     throw error;
   }
 
-  // 2. Hash password with bcryptjs (12 salt rounds)
+  // 2. Check if an account already exists with this phone number
+  if (normalizedPhone) {
+    const existingPhoneUser = await prisma.user.findFirst({
+      where: { phone: normalizedPhone },
+      select: { id: true },
+    });
+
+    if (existingPhoneUser) {
+      const error = new Error("An account with this mobile number already exists.");
+      error.statusCode = 409;
+      error.field = "phone";
+      throw error;
+    }
+  }
+
+  // 3. Hash password with bcryptjs (12 salt rounds)
   const hashedPassword = await hashPassword(password);
 
-  // 3. Create user in database with default BUYER role
+  // 4. Create user in database with default BUYER role
   try {
     const user = await prisma.user.create({
       data: {
@@ -146,10 +173,23 @@ const registerUser = async ({ name, email, phone, password }) => {
 
     return user;
   } catch (error) {
-    // Handle race conditions on unique email constraint
+    // Handle race conditions on unique email or phone constraints
     if (error.code === "P2002") {
+      const target = error.meta?.target;
+      const isPhone =
+        (Array.isArray(target) && target.includes("phone")) ||
+        (typeof target === "string" && target.includes("phone"));
+
+      if (isPhone) {
+        const conflictError = new Error("An account with this mobile number already exists.");
+        conflictError.statusCode = 409;
+        conflictError.field = "phone";
+        throw conflictError;
+      }
+
       const conflictError = new Error("An account with this email already exists.");
       conflictError.statusCode = 409;
+      conflictError.field = "email";
       throw conflictError;
     }
     throw error;

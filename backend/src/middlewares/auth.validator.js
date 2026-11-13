@@ -111,18 +111,18 @@ const validateSignup = (req, res, next) => {
     });
   }
 
-  // 7. Phone validation (optional)
-  if (body.phone !== undefined && body.phone !== null && body.phone !== "") {
-    if (typeof body.phone !== "string") {
-      errors.push({ field: "phone", message: "Phone must be a string." });
-    } else {
-      const trimmedPhone = body.phone.trim();
-      if (!PHONE_REGEX.test(trimmedPhone)) {
-        errors.push({
-          field: "phone",
-          message: "Phone number must be a valid 10 to 15 digit number.",
-        });
-      }
+  // 7. Phone validation (required and unique mobile number)
+  if (body.phone === undefined || body.phone === null || String(body.phone).trim() === "") {
+    errors.push({ field: "phone", message: "Mobile number is required." });
+  } else if (typeof body.phone !== "string") {
+    errors.push({ field: "phone", message: "Mobile number must be a string." });
+  } else {
+    const trimmedPhone = body.phone.trim().replace(/[\s-]/g, "");
+    if (!PHONE_REGEX.test(trimmedPhone)) {
+      errors.push({
+        field: "phone",
+        message: "Mobile number must be a valid 10 to 15 digit number.",
+      });
     }
   }
 

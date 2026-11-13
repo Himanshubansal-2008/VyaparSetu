@@ -32,6 +32,7 @@ export const signupUser = async (payload, options = {}) => {
   return {
     success: response?.success ?? true,
     message: response?.message || 'Account created successfully',
+    token: response?.data?.token || response?.token || null,
     user: response?.data?.user || null,
     data: response?.data || {},
   };
