@@ -12,11 +12,26 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 const extractClientIdentity = async (req, res, next) => {
   try {
-    const rawUserId =
+    let rawUserId =
       req.headers["x-user-id"] ||
       req.query?.userId ||
       req.body?.userId ||
       req.body?.ownerId;
+
+    if (!rawUserId && req.headers.authorization) {
+      try {
+        const { extractBearerToken, verifyToken } = require("../utils/token.utils");
+        const token = extractBearerToken(req.headers.authorization);
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded && (decoded.userId || decoded.id)) {
+            rawUserId = decoded.userId || decoded.id;
+          }
+        }
+      } catch (tokenErr) {
+        // Optional fallback: ignore invalid or expired tokens in passive identity extraction
+      }
+    }
 
     if (rawUserId && typeof rawUserId === "string" && UUID_REGEX.test(rawUserId.trim())) {
       const cleanUserId = rawUserId.trim();

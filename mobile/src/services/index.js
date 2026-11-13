@@ -7,4 +7,7 @@ export { default as productService } from './productService.js';
 export * from './categoryService.js';
 export { default as categoryService } from './categoryService.js';
 
+export * from './authService.js';
+export { default as authService } from './authService.js';
+
 export { default } from './apiClient.js';

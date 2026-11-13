@@ -100,6 +100,7 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
     const userAlpha = await prisma.user.create({
       data: {
         email: `auto_seller_alpha_${timestamp}@example.com`,
+        phone: `98000${String(timestamp).slice(-5)}1`,
         passwordHash: "secure_pass_hash_alpha_not_exposed",
         name: "Alpha Test Merchant",
       },
@@ -126,6 +127,7 @@ describe("Product Create & Update API Comprehensive Test Suite", () => {
     const userBeta = await prisma.user.create({
       data: {
         email: `auto_seller_beta_${timestamp}@example.com`,
+        phone: `98000${String(timestamp).slice(-5)}2`,
         passwordHash: "secure_pass_hash_beta_not_exposed",
         name: "Beta Test Merchant",
       },

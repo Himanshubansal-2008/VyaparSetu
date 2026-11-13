@@ -56,16 +56,19 @@ mobile/
 The frontend dynamically resolves the backend URL via the Expo public environment variable:
 
 ```bash
-# In mobile/.env
-EXPO_PUBLIC_API_URL=http://localhost:5050/api
+# In mobile/.env (Production Render Deployment)
+EXPO_PUBLIC_API_URL=https://vyaparsetu-ypre.onrender.com/api
+
+# For local development with offline backend:
+# EXPO_PUBLIC_API_URL=http://localhost:5050/api
 ```
 
 ### Dynamic Host Resolution (`api.js`)
 When running in web mode or testing across devices:
-- **Web Browser**: If accessed via LAN IP (e.g. `192.168.1.5:8081`), the client automatically replaces `localhost` with the active host IP so requests succeed without manual reconfiguration.
-- **Android Emulator**: Resolves to `http://10.0.2.2:5050/api`.
-- **iOS Simulator / Web**: Defaults to `http://localhost:5050/api`.
-- **Production**: Configurable via `EXPO_PUBLIC_API_URL=https://api.vyaparsetu.com/api`.
+- **Production (Render)**: Automatically connects directly to `https://vyaparsetu-ypre.onrender.com/api` via HTTPS.
+- **Web Browser (Local)**: If accessed via LAN IP (e.g. `192.168.1.5:8081`), the client automatically replaces `localhost` with the active host IP when pointing to a local server.
+- **Android Emulator**: Resolves to `http://10.0.2.2:5050/api` if no remote URL is configured.
+- **iOS Simulator / Web**: Defaults to `http://localhost:5050/api` if no remote URL is configured.
 
 ---
 
