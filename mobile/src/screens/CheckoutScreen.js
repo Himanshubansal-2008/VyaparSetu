@@ -266,23 +266,22 @@ export default function CheckoutScreen({
             productId: item.product?.id || item.id,
             quantity: item.quantity,
             price: item.unitPrice,
+            quotationId: item.quotationId || null,
           }))
         );
       } catch (validationErr) {
-        if (
-          validationErr?.status === 403 ||
-          validationErr?.data?.code === 'OWN_PRODUCT_PURCHASE_FORBIDDEN'
-        ) {
-          Alert.alert(
-            'Order Blocked',
-            validationErr?.data?.message ||
-              validationErr?.message ||
-              'You cannot purchase products belonging to your own business.'
-          );
-          setIsSubmitting(false);
-          return;
-        }
-        console.warn('[CheckoutScreen] Backend order validation warning:', validationErr);
+        const errorMsg =
+          validationErr?.data?.message ||
+          validationErr?.message ||
+          'Failed to validate order items with supplier catalog.';
+
+        Alert.alert(
+          validationErr?.status === 403 ? 'Order Blocked' : 'Order Validation Error',
+          errorMsg,
+          [{ text: 'OK' }]
+        );
+        setIsSubmitting(false);
+        return;
       }
 
       const orderId = generateOrderId();
@@ -359,9 +358,13 @@ export default function CheckoutScreen({
       }
     } catch (err) {
       console.warn('[CheckoutScreen] Failed to place order:', err);
+      const msg =
+        err?.data?.message ||
+        err?.message ||
+        'An error occurred while saving your wholesale order. Please try again.';
       Alert.alert(
-        'Order Placement Error',
-        'An error occurred while saving your wholesale order. Please try again.',
+        err?.status === 403 ? 'Order Blocked' : 'Order Placement Error',
+        msg,
         [{ text: 'OK' }]
       );
     } finally {

@@ -32,6 +32,7 @@ import {
   businesses,
 } from '../data/businessProfileData';
 import { products as defaultProducts } from '../data/products';
+import orderService from '../services/orderService';
 
 const FILTER_TABS = [
   { key: 'All', label: 'All Orders' },

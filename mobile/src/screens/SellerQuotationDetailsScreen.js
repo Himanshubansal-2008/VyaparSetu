@@ -734,6 +734,72 @@ export default function SellerQuotationDetailsScreen({
             )}
           </View>
         )}
+
+        {/* Negotiation History & Messages Timeline */}
+        {Array.isArray(quotation.messages) && quotation.messages.length > 0 && (
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md }}>
+              <Ionicons name="chatbubbles-outline" size={18} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.sectionHeading}>Negotiation History ({quotation.messages.length})</Text>
+            </View>
+
+            <View style={{ marginTop: spacing.xs }}>
+              {quotation.messages.map((msg, idx) => {
+                const isBuyerSender = msg.senderRole === 'BUYER';
+                return (
+                  <View key={msg.id || idx} style={styles.timelineItem}>
+                    <View style={[styles.timelineBadge, isBuyerSender ? styles.buyerBadge : styles.sellerBadge]}>
+                      <Text style={[styles.timelineBadgeText, isBuyerSender ? styles.buyerBadgeText : styles.sellerBadgeText]}>
+                        {isBuyerSender ? 'Buyer' : 'You (Supplier)'}
+                      </Text>
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <View style={styles.timelineHeader}>
+                        <Text style={styles.timelineAction}>
+                          {msg.action === 'SUBMIT'
+                            ? 'Initial Request Submitted'
+                            : msg.action === 'QUOTE'
+                            ? 'Formal Quotation Provided'
+                            : msg.action === 'BUYER_COUNTER'
+                            ? 'Buyer Counter-Offer'
+                            : msg.action === 'SELLER_COUNTER'
+                            ? 'Supplier Counter-Offer'
+                            : msg.action === 'ACCEPT'
+                            ? 'Quotation Accepted'
+                            : msg.action === 'CONVERT_TO_ORDER'
+                            ? 'Order Placed'
+                            : msg.action.includes('REJECT')
+                            ? 'Quotation Declined'
+                            : msg.action}
+                        </Text>
+                        {msg.createdAt && (
+                          <Text style={styles.timelineDate}>
+                            {new Date(msg.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </Text>
+                        )}
+                      </View>
+
+                      {msg.price !== null && msg.price !== undefined && (
+                        <Text style={styles.timelinePriceText}>
+                          {msg.quantity ? `${msg.quantity} ${prod.unit || 'units'} @ ` : ''}₹{msg.price}/unit
+                        </Text>
+                      )}
+
+                      {msg.notes ? (
+                        <Text style={styles.timelineNotes}>{msg.notes}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Action Footer */}
@@ -1187,6 +1253,73 @@ const styles = StyleSheet.create({
   notFoundText: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  // Timeline styles
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  timelineBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.sm,
+    marginTop: 2,
+  },
+  buyerBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+  },
+  sellerBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  timelineBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  buyerBadgeText: {
+    color: '#1E40AF',
+  },
+  sellerBadgeText: {
+    color: '#92400E',
+  },
+  timelineContent: {
+    flex: 1,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  timelineAction: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  timelineDate: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  timelinePriceText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    marginTop: 1,
+  },
+  timelineNotes: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 3,
+    fontStyle: 'italic',
   },
 });
 

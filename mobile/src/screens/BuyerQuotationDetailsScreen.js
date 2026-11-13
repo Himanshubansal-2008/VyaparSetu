@@ -12,6 +12,9 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -20,6 +23,7 @@ import {
   getQuotationById,
   acceptQuotationByBuyer,
   rejectQuotationByBuyer,
+  submitBuyerCounter,
   getQuotationStatusColor,
   subscribeQuotations,
 } from '../data/quotations';
@@ -49,7 +53,56 @@ export default function BuyerQuotationDetailsScreen({
   });
 
   const [actionLoading, setActionLoading] = useState(false);
+  const [showCounterModal, setShowCounterModal] = useState(false);
+  const [counterPriceInput, setCounterPriceInput] = useState('');
+  const [counterQtyInput, setCounterQtyInput] = useState('');
+  const [counterNotesInput, setCounterNotesInput] = useState('');
   const cart = useCart();
+
+  useEffect(() => {
+    if (quotation) {
+      setCounterPriceInput(String(quotation.quotedUnitPrice || quotation.buyerTargetPrice || quotation.product?.price || ''));
+      setCounterQtyInput(String(quotation.quotedQuantity || quotation.requestedQuantity || ''));
+    }
+  }, [quotation?.id]);
+
+  const handleSubmitBuyerCounter = async () => {
+    const priceNum = parseFloat(counterPriceInput);
+    const qtyNum = parseInt(counterQtyInput, 10);
+
+    if (isNaN(priceNum) || priceNum <= 0) {
+      Alert.alert('Invalid Price', 'Please enter a valid preferred unit price.');
+      return;
+    }
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      Alert.alert('Invalid Quantity', 'Please enter a valid requested quantity.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await submitBuyerCounter(quotation.id, {
+        counterPrice: priceNum,
+        counterQuantity: qtyNum,
+        buyerNotes: counterNotesInput.trim(),
+      });
+      if (res.success) {
+        setShowCounterModal(false);
+        setQuotation(res.quotation);
+        Alert.alert(
+          'Counter-Offer Submitted',
+          `Your counter-offer of ${qtyNum} ${quotation.product?.unit || 'units'} @ ₹${priceNum}/unit has been sent to the supplier.`
+        );
+      } else {
+        Alert.alert('Error', res.message || 'Failed to submit counter-offer.');
+      }
+    } catch (err) {
+      console.warn('Submit counter error:', err);
+      Alert.alert('Error', 'An error occurred while submitting your counter-offer.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Subscribe to reactive quotation updates
   useEffect(() => {
@@ -554,6 +607,71 @@ export default function BuyerQuotationDetailsScreen({
             )}
           </View>
         )}
+        {/* Negotiation History & Messages Timeline */}
+        {Array.isArray(quotation.messages) && quotation.messages.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="chatbubbles-outline" size={18} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Negotiation History ({quotation.messages.length})</Text>
+            </View>
+
+            <View style={styles.timelineList}>
+              {quotation.messages.map((msg, idx) => {
+                const isBuyerSender = msg.senderRole === 'BUYER';
+                return (
+                  <View key={msg.id || idx} style={styles.timelineItem}>
+                    <View style={[styles.timelineBadge, isBuyerSender ? styles.buyerBadge : styles.sellerBadge]}>
+                      <Text style={[styles.timelineBadgeText, isBuyerSender ? styles.buyerBadgeText : styles.sellerBadgeText]}>
+                        {isBuyerSender ? 'Buyer' : 'Supplier'}
+                      </Text>
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <View style={styles.timelineHeader}>
+                        <Text style={styles.timelineAction}>
+                          {msg.action === 'SUBMIT'
+                            ? 'Initial Request Submitted'
+                            : msg.action === 'QUOTE'
+                            ? 'Formal Quotation Provided'
+                            : msg.action === 'BUYER_COUNTER'
+                            ? 'Buyer Counter-Offer'
+                            : msg.action === 'SELLER_COUNTER'
+                            ? 'Supplier Counter-Offer'
+                            : msg.action === 'ACCEPT'
+                            ? 'Quotation Accepted'
+                            : msg.action === 'CONVERT_TO_ORDER'
+                            ? 'Order Placed'
+                            : msg.action.includes('REJECT')
+                            ? 'Quotation Declined'
+                            : msg.action}
+                        </Text>
+                        {msg.createdAt && (
+                          <Text style={styles.timelineDate}>
+                            {new Date(msg.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </Text>
+                        )}
+                      </View>
+
+                      {msg.price !== null && msg.price !== undefined && (
+                        <Text style={styles.timelinePriceText}>
+                          {msg.quantity ? `${msg.quantity} ${quotation.product?.unit || 'units'} @ ` : ''}₹{msg.price}/unit
+                        </Text>
+                      )}
+
+                      {msg.notes ? (
+                        <Text style={styles.timelineNotes}>{msg.notes}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Action Footer */}
@@ -566,8 +684,18 @@ export default function BuyerQuotationDetailsScreen({
               disabled={actionLoading}
               activeOpacity={0.8}
             >
-              <Ionicons name="close-circle-outline" size={18} color={colors.error} style={{ marginRight: 4 }} />
-              <Text style={styles.declineBtnText}>Decline Price Request</Text>
+              <Ionicons name="close-circle-outline" size={16} color={colors.error} style={{ marginRight: 3 }} />
+              <Text style={styles.declineBtnText}>Decline</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.counterBtn}
+              onPress={() => setShowCounterModal(true)}
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="swap-horizontal-outline" size={16} color={colors.primary} style={{ marginRight: 3 }} />
+              <Text style={styles.counterBtnText}>Suggest Price</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -580,8 +708,8 @@ export default function BuyerQuotationDetailsScreen({
                 <ActivityIndicator size="small" color={colors.textInverse} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={colors.textInverse} style={{ marginRight: 6 }} />
-                  <Text style={styles.acceptBtnText}>Accept Price & Order Terms</Text>
+                  <Ionicons name="checkmark-circle-outline" size={16} color={colors.textInverse} style={{ marginRight: 4 }} />
+                  <Text style={styles.acceptBtnText}>Accept Quote</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -627,6 +755,92 @@ export default function BuyerQuotationDetailsScreen({
           </View>
         )}
       </View>
+
+      {/* Buyer Counter-Offer Modal */}
+      <Modal
+        visible={showCounterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCounterModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Suggest a Different Price</Text>
+              <TouchableOpacity onPress={() => setShowCounterModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Submit a counter-offer to {quotation.sellerName || 'the supplier'} with your preferred price and consignment batch size.
+            </Text>
+
+            <View style={styles.counterField}>
+              <Text style={styles.counterLabel}>Preferred Unit Price (₹) *</Text>
+              <TextInput
+                style={styles.counterInput}
+                value={counterPriceInput}
+                onChangeText={setCounterPriceInput}
+                keyboardType="numeric"
+                placeholder="e.g. 250"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+
+            <View style={styles.counterField}>
+              <Text style={styles.counterLabel}>Requested Quantity ({prod.unit || 'units'}) *</Text>
+              <TextInput
+                style={styles.counterInput}
+                value={counterQtyInput}
+                onChangeText={setCounterQtyInput}
+                keyboardType="numeric"
+                placeholder="e.g. 50"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+
+            <View style={styles.counterField}>
+              <Text style={styles.counterLabel}>Notes for Supplier (Optional)</Text>
+              <TextInput
+                style={[styles.counterInput, styles.counterTextarea]}
+                value={counterNotesInput}
+                onChangeText={setCounterNotesInput}
+                multiline
+                numberOfLines={3}
+                placeholder="e.g. Can commit to 50 units if dispatched within 7 days"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowCounterModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleSubmitBuyerCounter}
+                disabled={actionLoading}
+                activeOpacity={0.8}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={colors.textInverse} />
+                ) : (
+                  <Text style={styles.modalSubmitBtnText}>Send Counter-Offer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -982,7 +1196,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.error,
@@ -990,22 +1204,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   declineBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.error,
+  },
+  counterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+    flex: 1.3,
+  },
+  counterBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
   },
   acceptBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     backgroundColor: colors.primary,
-    flex: 2,
+    flex: 1.4,
   },
   acceptBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.textInverse,
   },
@@ -1062,6 +1293,160 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.md,
     textAlign: 'center',
+  },
+  // Negotiation Timeline styles
+  timelineList: {
+    marginTop: spacing.sm,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  timelineBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.sm,
+    marginTop: 2,
+  },
+  buyerBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+  },
+  sellerBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  timelineBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  buyerBadgeText: {
+    color: '#1E40AF',
+  },
+  sellerBadgeText: {
+    color: '#92400E',
+  },
+  timelineContent: {
+    flex: 1,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  timelineAction: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  timelineDate: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  timelinePriceText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    marginTop: 1,
+  },
+  timelineNotes: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 3,
+    fontStyle: 'italic',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.lg,
+    borderTopRightRadius: borderRadius.lg,
+    padding: spacing.lg,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  counterField: {
+    marginBottom: spacing.md,
+  },
+  counterLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  counterInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 14,
+    color: colors.textPrimary,
+    backgroundColor: colors.surface,
+  },
+  counterTextarea: {
+    height: 70,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalCancelBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  modalSubmitBtn: {
+    flex: 2,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+  },
+  modalSubmitBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textInverse,
   },
 });
 

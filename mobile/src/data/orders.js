@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isProductOwnedByCurrentSeller } from './businessProfileData.js';
+import orderService from '../services/orderService.js';
 
 const storage = AsyncStorage.default || AsyncStorage;
 
@@ -420,21 +421,63 @@ export const loadPersistedOrders = async () => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         inMemoryOrders = parsed;
-        notifyOrderListeners();
-        return inMemoryOrders;
       }
+    } else {
+      inMemoryOrders = [...DEFAULT_SEED_ORDERS];
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
     }
-    // If not in storage yet, seed initial mock orders and save
-    inMemoryOrders = [...DEFAULT_SEED_ORDERS];
-    await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
-    notifyOrderListeners();
-    return inMemoryOrders;
   } catch (error) {
-    console.warn('[orders] Failed to load persisted orders:', error);
+    console.warn('[orders] Failed to load persisted orders from storage:', error);
   }
-  if (!inMemoryOrders.length) {
-    inMemoryOrders = [...DEFAULT_SEED_ORDERS];
+
+  // Attempt backend synchronization for buyer and seller orders
+  try {
+    const [buyerOrdersRes, sellerOrdersRes] = await Promise.allSettled([
+      orderService.fetchBuyerOrders(),
+      orderService.fetchSellerOrders(),
+    ]);
+
+    const remoteOrders = [];
+    if (buyerOrdersRes.status === 'fulfilled' && Array.isArray(buyerOrdersRes.value)) {
+      remoteOrders.push(...buyerOrdersRes.value);
+    }
+    if (sellerOrdersRes.status === 'fulfilled' && Array.isArray(sellerOrdersRes.value)) {
+      remoteOrders.push(...sellerOrdersRes.value);
+    }
+
+    if (remoteOrders.length > 0) {
+      const backendMap = new Map();
+      remoteOrders.forEach((bo) => {
+        const key = bo.id || bo.orderNumber;
+        backendMap.set(key, {
+          ...bo,
+          orderDate: bo.createdAt
+            ? new Date(bo.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })
+            : bo.orderDate,
+        });
+      });
+
+      // Merge backend orders with local seed/offline orders
+      const merged = [...backendMap.values()];
+      inMemoryOrders.forEach((localOrder) => {
+        const localKey = localOrder.id || localOrder.orderNumber;
+        if (!backendMap.has(localKey)) {
+          merged.push(localOrder);
+        }
+      });
+
+      inMemoryOrders = merged;
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    }
+  } catch (syncErr) {
+    // Backend offline / sync deferred
   }
+
+  notifyOrderListeners();
   return inMemoryOrders;
 };
 
@@ -461,7 +504,7 @@ export const getOrderById = (orderId) => {
 };
 
 /**
- * Saves a new placed order locally in memory and AsyncStorage.
+ * Saves a new placed order locally in memory, AsyncStorage, and PostgreSQL.
  */
 export const saveOrder = async (orderData) => {
   if (!orderData) return null;
@@ -482,11 +525,10 @@ export const saveOrder = async (orderData) => {
     }
   }
 
-  const orderId = orderData.id || generateOrderId();
-  const newOrder = {
+  let finalOrder = {
     ...orderData,
-    id: orderId,
-    orderNumber: orderId,
+    id: orderData.id || generateOrderId(),
+    orderNumber: orderData.orderNumber || orderData.id || generateOrderId(),
     createdAt: orderData.createdAt || new Date().toISOString(),
     status: orderData.status || 'Confirmed',
     orderDate:
@@ -498,7 +540,36 @@ export const saveOrder = async (orderData) => {
       }),
   };
 
-  inMemoryOrders = [newOrder, ...inMemoryOrders.filter((o) => o.id !== orderId)];
+  // Try creating in backend PostgreSQL
+  try {
+    const serverOrder = await orderService.createOrder({
+      ...orderData,
+      id: finalOrder.id,
+      orderNumber: finalOrder.orderNumber,
+    });
+    if (serverOrder && serverOrder.id) {
+      finalOrder = {
+        ...finalOrder,
+        ...serverOrder,
+        id: serverOrder.id,
+        orderNumber: serverOrder.orderNumber || serverOrder.id,
+        orderDate: serverOrder.createdAt
+          ? new Date(serverOrder.createdAt).toLocaleDateString('en-IN', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
+          : finalOrder.orderDate,
+      };
+    }
+  } catch (backendErr) {
+    console.warn('[orders] Backend order placement deferred to local:', backendErr.message || backendErr);
+    if (backendErr?.status === 403 || backendErr?.status === 400 || backendErr?.status === 409) {
+      throw backendErr;
+    }
+  }
+
+  inMemoryOrders = [finalOrder, ...inMemoryOrders.filter((o) => o.id !== finalOrder.id && o.orderNumber !== finalOrder.orderNumber)];
   notifyOrderListeners();
 
   try {
@@ -510,11 +581,11 @@ export const saveOrder = async (orderData) => {
     console.warn('[orders] Failed to persist orders:', error);
   }
 
-  return newOrder;
+  return finalOrder;
 };
 
 /**
- * Updates an existing order's status and persists to AsyncStorage.
+ * Updates an existing order's status and persists to AsyncStorage and backend.
  */
 export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
   if (!orderId || !newStatus) return null;
@@ -543,6 +614,16 @@ export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
       await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
     } catch (error) {
       console.warn('[orders] Failed to persist updated order status:', error);
+    }
+
+    // Backend synchronization
+    try {
+      await orderService.updateOrderStatus(orderId, {
+        status: newStatus,
+        ...extraData,
+      });
+    } catch (err) {
+      console.warn('[orders] Failed to sync order status update with backend:', err.message || err);
     }
   }
 
