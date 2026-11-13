@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Product & Inventory Controller
+ * Handles REST API endpoints for product catalog, stock updates,
+ * seller inventory filtering, and product lifecycle management.
+ */
+
 const productService = require("../services/product.service");
 const prisma = require("../lib/prisma");
 
