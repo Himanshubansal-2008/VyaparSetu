@@ -78,6 +78,8 @@ export const API_CONFIG = {
     PRODUCTS: '/products',
     FEATURED_PRODUCTS: '/products/featured',
     CATEGORIES: '/categories',
+    AUTH_SIGNUP: '/auth/signup',
+    AUTH_LOGIN: '/auth/login',
   },
 };
 

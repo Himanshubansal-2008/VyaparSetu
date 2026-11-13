@@ -1,5 +1,68 @@
 import { API_CONFIG } from '../config/api.js';
 
+let currentAuthToken = null;
+let unauthorizedHandler = null;
+let isHandlingUnauthorized = false;
+
+/**
+ * Updates the in-memory JWT authentication token for outgoing protected requests.
+ *
+ * @param {string|null} token
+ */
+export const setAuthToken = (token) => {
+  currentAuthToken = token || null;
+};
+
+/**
+ * Returns the currently active in-memory authentication token.
+ *
+ * @returns {string|null}
+ */
+export const getAuthToken = () => currentAuthToken;
+
+/**
+ * Registers a global callback invoked when a protected request returns HTTP 401 Unauthorized.
+ *
+ * @param {Function|null} handler
+ */
+export const setUnauthorizedHandler = (handler) => {
+  unauthorizedHandler = handler;
+};
+
+/**
+ * Determines whether a given endpoint and HTTP method represent an unauthenticated public resource.
+ *
+ * @param {string} endpoint
+ * @param {string} [method='GET']
+ * @returns {boolean}
+ */
+export const isPublicEndpoint = (endpoint, method = 'GET') => {
+  if (!endpoint || typeof endpoint !== 'string') return false;
+  const upperMethod = method.toUpperCase();
+  const clean = endpoint.toLowerCase().replace(/^\/+/, '').replace(/^api\//, '');
+
+  // Auth endpoints that do not require prior authentication
+  if (clean === 'auth/login' || clean === 'auth/signup' || clean === 'auth/status') {
+    return true;
+  }
+
+  // Public catalog and status endpoints
+  if (upperMethod === 'GET') {
+    if (
+      clean === 'health' ||
+      clean === 'products' ||
+      clean === 'products/featured' ||
+      clean.startsWith('products/') ||
+      clean === 'categories' ||
+      clean.startsWith('categories/')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 /**
  * Custom API Error class with HTTP status code and response payload
  */
@@ -82,10 +145,17 @@ export const request = async (endpoint, options = {}) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  const isPublic = options.isPublic ?? isPublicEndpoint(endpoint, method);
+
   const requestHeaders = {
     ...API_CONFIG.DEFAULT_HEADERS,
     ...headers,
   };
+
+  // Automatically attach Bearer token to protected endpoints without manual per-request handling
+  if (!isPublic && currentAuthToken && !requestHeaders.Authorization && !requestHeaders.authorization) {
+    requestHeaders.Authorization = `Bearer ${currentAuthToken}`;
+  }
 
   const fetchOptions = {
     method: method.toUpperCase(),
@@ -127,6 +197,22 @@ export const request = async (endpoint, options = {}) => {
         (responseData && typeof responseData === 'object' && responseData.message) ||
         (typeof responseData === 'string' && responseData) ||
         `HTTP Error ${response.status}: ${response.statusText}`;
+
+      // Handle 401 Unauthorized on protected endpoints
+      if (response.status === 401 && !isPublic && unauthorizedHandler) {
+        if (!isHandlingUnauthorized) {
+          isHandlingUnauthorized = true;
+          try {
+            unauthorizedHandler(new ApiError(message, 401, responseData));
+          } catch (handlerErr) {
+            console.error('[ApiClient] Error in unauthorizedHandler:', handlerErr);
+          } finally {
+            setTimeout(() => {
+              isHandlingUnauthorized = false;
+            }, 1000);
+          }
+        }
+      }
 
       throw new ApiError(message, response.status, responseData);
     }
@@ -196,6 +282,10 @@ const apiClient = {
   put,
   patch,
   delete: del,
+  setAuthToken,
+  getAuthToken,
+  setUnauthorizedHandler,
+  isPublicEndpoint,
   fetchProducts,
   fetchFeaturedProducts,
   fetchProductById,
