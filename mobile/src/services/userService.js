@@ -1,8 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient, { setClientUserId, setClientBusinessId } from './apiClient';
 import { API_CONFIG } from '../config/api';
+import {
+  setSessionBusinessProfile,
+  getSessionBusinessProfile,
+} from '../data/businessProfileData';
 
 export const STORAGE_KEY_USER_ID = '@vyaparsetu_user_id';
+export const PRIMARY_TEST_USER_ID = '2cb3e270-f3e9-4774-9701-41b212b205a8';
+export const PRIMARY_TEST_BUSINESS_ID = 'bbb0e0f2-9d38-44af-9c93-edc4004b1637';
 
 let cachedUser = null;
 
@@ -35,11 +41,14 @@ export const initUserSession = async (params = {}) => {
     console.warn('[userService] Failed to read stored user ID:', err);
   }
 
+  // Anchor to the original test user to prevent creating orphaned guest users
+  const effectiveUserId = params.userId || storedUserId || PRIMARY_TEST_USER_ID;
+
   try {
     const response = await apiClient.post(
       `${API_CONFIG.ENDPOINTS.USERS}/init`,
       {
-        userId: storedUserId || undefined,
+        userId: effectiveUserId,
         name: params.name,
         email: params.email,
         phone: params.phone,
@@ -54,6 +63,30 @@ export const initUserSession = async (params = {}) => {
 
       if (user.business && user.business.id) {
         setClientBusinessId(user.business.id);
+        const currentProfile = getSessionBusinessProfile();
+        if (!currentProfile || !currentProfile.id || currentProfile.id !== user.business.id) {
+          const businessProfileObj = {
+            id: user.business.id,
+            sellerId: user.business.id,
+            businessName: user.business.name || 'Test Business',
+            sellerName: user.business.name || 'Test Business',
+            name: user.business.name || 'Test Business',
+            description: user.business.description || '',
+            category: user.business.category || 'Handicrafts',
+            address: user.business.address || '',
+            city: user.business.city || '',
+            state: user.business.state || '',
+            pincode: user.business.pincode || '',
+            phone: user.business.phone || '',
+            contactNumber: user.business.phone || '',
+            email: user.business.email || '',
+            ownerId: user.id,
+            isVerified: true,
+            verificationStatus: 'Verified',
+            isSubmitted: true,
+          };
+          await setSessionBusinessProfile(businessProfileObj);
+        }
       }
 
       return user;
@@ -63,22 +96,23 @@ export const initUserSession = async (params = {}) => {
   }
 
   // Offline / Network fallback
-  const fallbackId = storedUserId || generateUUID();
-  if (!storedUserId) {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY_USER_ID, fallbackId);
-    } catch (e) {
-      console.warn('[userService] Failed to persist fallback user ID:', e);
-    }
+  const fallbackId = effectiveUserId || PRIMARY_TEST_USER_ID;
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY_USER_ID, fallbackId);
+  } catch (e) {
+    console.warn('[userService] Failed to persist fallback user ID:', e);
   }
 
   cachedUser = {
     id: fallbackId,
-    name: params.name || 'Guest Buyer',
-    role: 'BUYER',
+    name: params.name || (fallbackId === PRIMARY_TEST_USER_ID ? 'Test Business Seller' : 'Guest Buyer'),
+    role: fallbackId === PRIMARY_TEST_USER_ID ? 'SELLER' : 'BUYER',
     isOfflineFallback: true,
   };
   setClientUserId(fallbackId);
+  if (fallbackId === PRIMARY_TEST_USER_ID) {
+    setClientBusinessId(PRIMARY_TEST_BUSINESS_ID);
+  }
   return cachedUser;
 };
 

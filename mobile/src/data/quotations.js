@@ -424,21 +424,31 @@ export const getQuotationsForSeller = (sellerId, allProducts = []) => {
   const cleanSellerId = String(sellerId).trim().toLowerCase();
 
   return inMemoryQuotations.filter((q) => {
-    // 1. Direct match on quote sellerId
-    if (q.sellerId && String(q.sellerId).trim().toLowerCase() === cleanSellerId) {
+    const qSellerId = String(q.sellerId || '').trim().toLowerCase();
+    const qBizId = String(q.businessId || '').trim().toLowerCase();
+    const isLegacyMatch =
+      cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637' &&
+      (qSellerId === 'biz-sharma-handicrafts' || qBizId === 'biz-sharma-handicrafts');
+
+    // 1. Direct match on quote sellerId / businessId
+    if (qSellerId && (qSellerId === cleanSellerId || isLegacyMatch)) {
+      return true;
+    }
+    if (qBizId && (qBizId === cleanSellerId || isLegacyMatch)) {
       return true;
     }
     // 2. Direct match on quote product's sellerId / businessId
+    const prodSellerId = String(q.product?.sellerId || '').trim().toLowerCase();
+    const prodBizId = String(q.product?.businessId || '').trim().toLowerCase();
     if (
-      q.product?.sellerId &&
-      String(q.product.sellerId).trim().toLowerCase() === cleanSellerId
+      prodSellerId &&
+      (prodSellerId === cleanSellerId ||
+        (cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637' &&
+          prodSellerId === 'biz-sharma-handicrafts'))
     ) {
       return true;
     }
-    if (
-      q.product?.businessId &&
-      String(q.product.businessId).trim().toLowerCase() === cleanSellerId
-    ) {
+    if (prodBizId && prodBizId === cleanSellerId) {
       return true;
     }
     // 3. Fallback: match via catalog definition

@@ -951,6 +951,61 @@ export const loadPersistedProducts = async () => {
         }
       }
 
+      // Ensure primary test business products are present in catalog
+      const testProducts = [
+        {
+          id: '7262160a-84dd-4188-86ac-202fd2265649',
+          name: 'Cups',
+          description: 'Artisanal handcrafted ceramic cups set for wholesale distribution.',
+          price: 80,
+          stock: 50,
+          availableQuantity: 50,
+          minOrderQuantity: 2,
+          moq: 2,
+          unit: 'pack',
+          image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600',
+          isActive: true,
+          isFeatured: false,
+          businessId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerName: 'Test Business',
+          categoryId: '53a2d5f1-baaa-4928-ab5c-75639a452c50',
+          categoryName: 'Handicrafts',
+          isCustom: true,
+        },
+        {
+          id: 'c6a9b634-95a5-4b6d-b3f3-d3b5e2a453ed',
+          name: 'Cups',
+          description: 'Ceramic tea cups set.',
+          price: 80,
+          stock: 50,
+          availableQuantity: 50,
+          minOrderQuantity: 5,
+          moq: 5,
+          unit: 'pack',
+          image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600',
+          isActive: false,
+          isFeatured: false,
+          businessId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerId: 'bbb0e0f2-9d38-44af-9c93-edc4004b1637',
+          sellerName: 'Test Business',
+          categoryId: '53a2d5f1-baaa-4928-ab5c-75639a452c50',
+          categoryName: 'Handicrafts',
+          isCustom: true,
+        },
+      ];
+
+      testProducts.forEach((tp) => {
+        const cleanId = tp.id.toLowerCase();
+        if (deletedIds.has(cleanId)) return;
+        const idx = products.findIndex((p) => p && String(p.id).trim().toLowerCase() === cleanId);
+        if (idx !== -1) {
+          products[idx] = { ...products[idx], ...tp };
+        } else {
+          products.unshift(tp);
+        }
+      });
+
       // 3. Mark any archived products (for both seed and custom products)
       products.forEach((p, idx) => {
         if (p && p.id && archivedIds.has(String(p.id).trim().toLowerCase())) {

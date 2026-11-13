@@ -557,31 +557,50 @@ export const updateOrderStatus = async (orderId, newStatus, extraData = {}) => {
  * Helper to match seller identity between order item and seller business.
  */
 const matchesSeller = (item, sellerId, allProducts = []) => {
-  if (!sellerId) return false;
+  if (!item || !sellerId) return false;
   const cleanSellerId = String(sellerId).trim().toLowerCase();
 
-  // 1. Direct item sellerId match
+  // 1. Direct item sellerId / businessId match
+  const itemSellerId = String(item.sellerId || '').trim().toLowerCase();
+  const itemBizId = String(item.businessId || item.business?.id || '').trim().toLowerCase();
+  const itemLegacyId = String(item.legacySellerId || '').trim().toLowerCase();
+
   if (
-    item.sellerId &&
-    String(item.sellerId).trim().toLowerCase() === cleanSellerId
+    itemSellerId &&
+    (itemSellerId === cleanSellerId ||
+      (itemSellerId === 'biz-sharma-handicrafts' && cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637'))
   ) {
+    return true;
+  }
+  if (itemBizId && itemBizId === cleanSellerId) {
+    return true;
+  }
+  if (itemLegacyId && itemLegacyId === cleanSellerId) {
     return true;
   }
 
   // 2. Lookup by productId in products catalog
-  const prodId = item.productId || item.id;
+  const prodId = item.productId || item.id || item.product?.id;
   if (prodId && Array.isArray(allProducts) && allProducts.length > 0) {
+    const cleanProdId = String(prodId).trim().toLowerCase();
     const prod = allProducts.find(
       (p) =>
-        String(p.id || '').trim().toLowerCase() ===
-        String(prodId).trim().toLowerCase()
+        String(p.id || '').trim().toLowerCase() === cleanProdId ||
+        String(p.legacyId || '').trim().toLowerCase() === cleanProdId
     );
-    if (
-      prod &&
-      prod.sellerId &&
-      String(prod.sellerId).trim().toLowerCase() === cleanSellerId
-    ) {
-      return true;
+    if (prod) {
+      const pSellerId = String(prod.sellerId || '').trim().toLowerCase();
+      const pBizId = String(prod.businessId || prod.business?.id || '').trim().toLowerCase();
+      if (
+        pSellerId &&
+        (pSellerId === cleanSellerId ||
+          (pSellerId === 'biz-sharma-handicrafts' && cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637'))
+      ) {
+        return true;
+      }
+      if (pBizId && pBizId === cleanSellerId) {
+        return true;
+      }
     }
   }
 
@@ -595,10 +614,16 @@ export const isOrderForSeller = (order, sellerId, allProducts = []) => {
   if (!order || !sellerId) return false;
   const cleanSellerId = String(sellerId).trim().toLowerCase();
 
+  const oSellerId = String(order.sellerId || '').trim().toLowerCase();
+  const oBizId = String(order.businessId || '').trim().toLowerCase();
   if (
-    order.sellerId &&
-    String(order.sellerId).trim().toLowerCase() === cleanSellerId
+    oSellerId &&
+    (oSellerId === cleanSellerId ||
+      (oSellerId === 'biz-sharma-handicrafts' && cleanSellerId === 'bbb0e0f2-9d38-44af-9c93-edc4004b1637'))
   ) {
+    return true;
+  }
+  if (oBizId && oBizId === cleanSellerId) {
     return true;
   }
 
