@@ -19,7 +19,8 @@ export const categories = [
 
 export const products = [
   {
-    id: "prod-001",
+    id: "c1000000-0000-4000-8000-000000000001",
+    legacyId: "prod-001",
     name: "Handwoven Cotton Tote Bag",
     description:
       "Reusable cotton tote bags handcrafted by local artisans. Suitable for retail stores, events, and corporate gifting.",
@@ -33,7 +34,8 @@ export const products = [
     moq: 10,
     availableQuantity: 500,
     stock: 500,
-    sellerId: "biz-001",
+    sellerId: "b1000000-0000-4000-8000-000000000001",
+    legacySellerId: "biz-001",
     sellerName: "Shree Handloom Works",
     location: "Jaipur, Rajasthan",
     image:
@@ -63,7 +65,8 @@ export const products = [
     },
   },
   {
-    id: "prod-002",
+    id: "c1000000-0000-4000-8000-000000000002",
+    legacyId: "prod-002",
     name: "Wireless Bluetooth Earphones",
     description:
       "Compact wireless earphones suitable for electronics retailers and bulk resellers.",
@@ -77,7 +80,8 @@ export const products = [
     moq: 5,
     availableQuantity: 200,
     stock: 200,
-    sellerId: "biz-002",
+    sellerId: "b1000000-0000-4000-8000-000000000002",
+    legacySellerId: "biz-002",
     sellerName: "TechSource Distributors",
     location: "Delhi, India",
     image:
@@ -107,7 +111,8 @@ export const products = [
     },
   },
   {
-    id: "prod-003",
+    id: "c1000000-0000-4000-8000-000000000003",
+    legacyId: "prod-003",
     name: "Handcrafted Blue Pottery Vase",
     description:
       "Decorative pottery made by skilled artisans. Ideal for gift shops, home decor stores, and interior designers.",
@@ -121,7 +126,8 @@ export const products = [
     moq: 5,
     availableQuantity: 120,
     stock: 120,
-    sellerId: "biz-003",
+    sellerId: "b1000000-0000-4000-8000-000000000003",
+    legacySellerId: "biz-003",
     sellerName: "Rang Artisan Collective",
     location: "Jaipur, Rajasthan",
     image:
@@ -150,7 +156,8 @@ export const products = [
     },
   },
   {
-    id: "prod-004",
+    id: "c1000000-0000-4000-8000-000000000004",
+    legacyId: "prod-004",
     name: "Organic Turmeric Powder",
     description:
       "Aromatic turmeric powder packed for grocery retailers and food distributors. Check the seller's packaging and food-safety details before ordering.",
@@ -164,7 +171,8 @@ export const products = [
     moq: 10,
     availableQuantity: 300,
     stock: 300,
-    sellerId: "biz-004",
+    sellerId: "b1000000-0000-4000-8000-000000000004",
+    legacySellerId: "biz-004",
     sellerName: "PureHarvest Foods",
     location: "Sangli, Maharashtra",
     image:
@@ -188,7 +196,8 @@ export const products = [
     },
   },
   {
-    id: "prod-005",
+    id: "c1000000-0000-4000-8000-000000000005",
+    legacyId: "prod-005",
     name: "Decorative Ceramic Planters",
     description:
       "Minimal ceramic planters for nurseries, home decor shops, and lifestyle retailers.",
@@ -200,7 +209,8 @@ export const products = [
     moq: 8,
     availableQuantity: 12,
     stock: 12,
-    sellerId: "biz-005",
+    sellerId: "b1000000-0000-4000-8000-000000000005",
+    legacySellerId: "biz-005",
     sellerName: "EarthNest Ceramics",
     location: "Pune, Maharashtra",
     image:
@@ -225,7 +235,8 @@ export const products = [
     },
   },
   {
-    id: "prod-006",
+    id: "c1000000-0000-4000-8000-000000000006",
+    legacyId: "prod-006",
     name: "Cotton Kurta Fabric",
     description:
       "Soft cotton fabric suitable for boutique owners, garment makers, and textile retailers.",
@@ -237,7 +248,8 @@ export const products = [
     moq: 20,
     availableQuantity: 1000,
     stock: 1000,
-    sellerId: "biz-006",
+    sellerId: "b1000000-0000-4000-8000-000000000006",
+    legacySellerId: "biz-006",
     sellerName: "Maharashtra Textile House",
     location: "Ichalkaranji, Maharashtra",
     image:
@@ -262,7 +274,8 @@ export const products = [
     },
   },
   {
-    id: "prod-007",
+    id: "c1000000-0000-4000-8000-000000000007",
+    legacyId: "prod-007",
     name: "Jute Gift Bags - Clearance",
     description:
       "Surplus jute gift bags offered at a discounted price to clear excess inventory.",
@@ -274,7 +287,8 @@ export const products = [
     moq: 25,
     availableQuantity: 0,
     stock: 0,
-    sellerId: "biz-007",
+    sellerId: "b1000000-0000-4000-8000-000000000007",
+    legacySellerId: "biz-007",
     sellerName: "EcoCraft Industries",
     location: "Nashik, Maharashtra",
     image:
@@ -294,7 +308,8 @@ export const products = [
     },
   },
   {
-    id: "prod-008",
+    id: "c1000000-0000-4000-8000-000000000008",
+    legacyId: "prod-008",
     name: "LED Desk Lamp",
     description:
       "Energy-efficient desk lamp for office supply stores and electronics resellers.",
@@ -306,7 +321,8 @@ export const products = [
     moq: 5,
     availableQuantity: 18,
     stock: 18,
-    sellerId: "biz-002",
+    sellerId: "b1000000-0000-4000-8000-000000000002",
+    legacySellerId: "biz-002",
     sellerName: "TechSource Distributors",
     location: "Delhi, India",
     image:
@@ -331,7 +347,8 @@ export const products = [
     },
   },
   {
-    id: "prod-009",
+    id: "c1000000-0000-4000-8000-000000000009",
+    legacyId: "prod-009",
     name: "Roasted Peanut Snack Packs",
     description:
       "Individually packed roasted peanuts for convenience stores and wholesale distributors.",
@@ -343,7 +360,8 @@ export const products = [
     moq: 50,
     availableQuantity: 2000,
     stock: 2000,
-    sellerId: "biz-004",
+    sellerId: "b1000000-0000-4000-8000-000000000004",
+    legacySellerId: "biz-004",
     sellerName: "PureHarvest Foods",
     location: "Sangli, Maharashtra",
     image:
@@ -368,7 +386,8 @@ export const products = [
     },
   },
   {
-    id: "prod-010",
+    id: "c1000000-0000-4000-8000-000000000010",
+    legacyId: "prod-010",
     name: "Hand-painted Wooden Coasters",
     description:
       "Artisan-made wooden coasters for gift stores, cafes, and home decor retailers.",
@@ -380,7 +399,8 @@ export const products = [
     moq: 10,
     availableQuantity: 300,
     stock: 300,
-    sellerId: "biz-003",
+    sellerId: "b1000000-0000-4000-8000-000000000003",
+    legacySellerId: "biz-003",
     sellerName: "Rang Artisan Collective",
     location: "Jaipur, Rajasthan",
     image:
@@ -1087,7 +1107,10 @@ export const getProductById = (id) => {
   const cleanId = String(id).trim().toLowerCase();
   return (
     products.find(
-      (p) => p && String(p.id).trim().toLowerCase() === cleanId
+      (p) =>
+        p &&
+        (String(p.id).trim().toLowerCase() === cleanId ||
+          String(p.legacyId || '').trim().toLowerCase() === cleanId)
     ) || null
   );
 };

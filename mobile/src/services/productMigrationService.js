@@ -26,7 +26,10 @@ export const STORAGE_KEY_CART = '@vyaparsetu_cart';
 export const isMockSeedProduct = (id) => {
   if (!id) return true;
   const clean = String(id).trim().toLowerCase();
-  return /^prod-0\d{2}$/i.test(clean);
+  return (
+    /^prod-0\d{2}$/i.test(clean) ||
+    /^c1000000-0000-4000-8000-0000000000\d{2}$/i.test(clean)
+  );
 };
 
 /**
