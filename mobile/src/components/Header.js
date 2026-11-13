@@ -20,6 +20,7 @@ export default function Header({
   onNotificationPress,
   onCartPress,
   onSettingsPress,
+  onLogoutPress,
   onOrdersPress,
   unreadNotifications = 2,
   cartItemCount: propCartItemCount,
@@ -106,6 +107,22 @@ export default function Header({
               </View>
             )}
           </TouchableOpacity>
+
+          {onLogoutPress && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={onLogoutPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Logout"
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name="log-out-outline"
+                size={22}
+                color={colors.error}
+              />
+            </TouchableOpacity>
+          )}
 
           {onSettingsPress ? (
             <TouchableOpacity

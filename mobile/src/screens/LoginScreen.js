@@ -16,6 +16,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { loginUser } from '../services/authService';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({
   navigation,
@@ -40,6 +41,13 @@ export default function LoginScreen({
 
   // Focus tracking for interactive field borders & icons
   const [focusedField, setFocusedField] = useState(null);
+
+  let authContext = null;
+  try {
+    authContext = useAuth();
+  } catch (e) {
+    // Graceful fallback when rendered without AuthProvider
+  }
 
   const handleEmailChange = (val) => {
     setEmail(val);
@@ -105,6 +113,14 @@ export default function LoginScreen({
 
     try {
       const result = await loginUser(credentials);
+
+      // Persist token in SecureStore and update centralized AuthContext state
+      if (authContext?.login) {
+        await authContext.login({
+          token: result?.token,
+          user: result?.user,
+        });
+      }
 
       if (onLoginSuccess) {
         onLoginSuccess({

@@ -65,8 +65,37 @@ export const loginUser = async (credentials, options = {}) => {
   };
 };
 
+/**
+ * Fetches the currently authenticated user profile from the backend.
+ * Endpoint: GET /api/auth/profile
+ *
+ * @param {string} [token] - Optional explicit JWT token
+ * @param {Object} [options] - Additional request options
+ * @returns {Promise<{ success: boolean, message: string, user: Object, data: Object }>}
+ */
+export const fetchUserProfile = async (token = null, options = {}) => {
+  const customHeaders = {};
+  if (token) {
+    customHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  const endpoint = '/auth/profile';
+  const response = await apiClient.get(endpoint, {
+    ...options,
+    headers: { ...customHeaders, ...(options.headers || {}) },
+  });
+
+  return {
+    success: response?.success ?? true,
+    message: response?.message || 'Profile retrieved successfully',
+    user: response?.data || null,
+    data: response?.data || {},
+  };
+};
+
 export default {
   signupUser,
   loginUser,
+  fetchUserProfile,
 };
 

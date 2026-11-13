@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { StyleSheet, View, BackHandler, Platform } from 'react-native';
+import { StyleSheet, View, BackHandler, Platform, ActivityIndicator } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { colors } from '../theme/colors';
 import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
@@ -57,17 +59,64 @@ const VALID_ROUTES = [
   'Login',
 ];
 
-export default function AppNavigator({ initialRouteName = 'Home' }) {
+const AUTH_ROUTES = ['Login', 'Signup'];
+
+export default function AppNavigator({ initialRouteName = null }) {
+  let authContext = null;
+  try {
+    authContext = useAuth();
+  } catch (e) {
+    // Graceful fallback for environments/tests rendered without AuthProvider
+  }
+
+  const isAuthenticated = authContext?.isAuthenticated ?? false;
+  const isAuthLoading = authContext?.isLoading ?? false;
+  const logout = authContext?.logout;
+
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Compute resolved initial route:
+  // - If explicit initialRouteName is provided (e.g. testing), respect it.
+  // - Otherwise, default to 'Home' if authenticated, or 'Login' if unauthenticated.
+  const resolvedInitialRoute = useMemo(() => {
+    if (initialRouteName && VALID_ROUTES.includes(initialRouteName)) {
+      return initialRouteName;
+    }
+    return isAuthenticated ? 'Home' : 'Login';
+  }, [initialRouteName, isAuthenticated]);
+
   const [navState, setNavState] = useState({
     currentRoute: {
-      name: VALID_ROUTES.includes(initialRouteName) ? initialRouteName : 'Home',
+      name: resolvedInitialRoute,
       params: {},
     },
     history: [],
   });
 
   const { currentRoute, history } = navState;
+
+  // Protected navigation sync: automatically redirect when authentication state changes
+  useEffect(() => {
+    if (isAuthLoading || !isLoaded) return;
+
+    if (!isAuthenticated) {
+      // Unauthenticated: only Login or Signup permitted
+      if (!AUTH_ROUTES.includes(currentRoute.name)) {
+        setNavState({
+          currentRoute: { name: 'Login', params: {} },
+          history: [],
+        });
+      }
+    } else {
+      // Authenticated: Login and Signup are blocked
+      if (AUTH_ROUTES.includes(currentRoute.name)) {
+        setNavState({
+          currentRoute: { name: 'Home', params: {} },
+          history: [],
+        });
+      }
+    }
+  }, [isAuthenticated, isAuthLoading, isLoaded, currentRoute.name]);
 
   const navigate = useCallback((name, params = {}) => {
     if (!name || typeof name !== 'string' || !VALID_ROUTES.includes(name)) {
@@ -76,6 +125,20 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           ', '
         )}`
       );
+      return;
+    }
+
+    // Guard: Prevent unauthenticated users from entering protected screens
+    if (!isAuthenticated && !AUTH_ROUTES.includes(name)) {
+      console.warn(`[AppNavigator] Access to protected route "${name}" blocked while unauthenticated. Redirecting to Login.`);
+      navigate('Login');
+      return;
+    }
+
+    // Guard: Prevent authenticated users from entering Login or Signup unless explicitly logging out
+    if (isAuthenticated && AUTH_ROUTES.includes(name)) {
+      console.warn(`[AppNavigator] Access to auth route "${name}" blocked while authenticated. Redirecting to Home.`);
+      navigate('Home');
       return;
     }
 
@@ -104,7 +167,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         history: [...prevHistory, prevRoute],
       };
     });
-  }, []);
+  }, [isAuthenticated]);
 
   const goBack = useCallback(() => {
     setNavState((prevState) => {
@@ -126,8 +189,9 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
       navigate,
       goBack,
       canGoBack,
+      logout,
     }),
-    [navigate, goBack, canGoBack]
+    [navigate, goBack, canGoBack, logout]
   );
 
   // Handle Android hardware back press
@@ -473,8 +537,12 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     }
   }, [history, goBack, navigate]);
 
-  if (!isLoaded) {
-    return <View style={styles.container} />;
+  if (isAuthLoading || !isLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   return (
@@ -504,6 +572,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           onNavigateToRequestQuotation={handleNavigateToRequestQuotation}
           onNavigateToSignup={handleNavigateToSignup}
           onNavigateToLogin={handleNavigateToLogin}
+          onLogoutPress={logout}
         />
       </View>
 
@@ -858,6 +927,12 @@ const styles = StyleSheet.create({
   },
   screenHidden: {
     display: 'none',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
 });
 

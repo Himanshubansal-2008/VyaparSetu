@@ -61,6 +61,7 @@ export default function HomeScreen({
   onNavigateToSellerOrders,
   onNavigateToBuyerQuotations,
   onNavigateToSellerQuotations,
+  onLogoutPress,
 }) {
   const [localProducts, setLocalProducts] = useState(defaultProducts);
 
@@ -492,6 +493,7 @@ export default function HomeScreen({
         onNotificationPress={onNotificationPress}
         onCartPress={onCartPress}
         onOrdersPress={handleOrdersPress}
+        onLogoutPress={onLogoutPress}
       >
         {/* Quick Actions Header: Title + View All (6) */}
         <View style={styles.quickActionsBar}>
