@@ -496,6 +496,7 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
         ]}
       >
         <HomeScreen
+          isActive={currentRoute.name === 'Home'}
           navigation={navigation}
           route={homeRoute}
           onNavigateToProductListing={(params) =>
@@ -841,6 +842,7 @@ const styles = StyleSheet.create({
   },
   screenHidden: {
     display: 'none',
+    pointerEvents: 'none',
   },
 });
 
