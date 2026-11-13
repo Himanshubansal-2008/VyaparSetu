@@ -117,20 +117,29 @@ export default function HomeScreen({
   const allProducts = useMemo(() => {
     if (propProducts !== undefined) return propProducts;
     if (route?.params?.products !== undefined) return route.params.products;
-    if (apiProducts.length > 0) {
-      // Merge custom locally created products with API products
-      const customLocals = localProducts.filter(
-        (p) => p && isProductActive(p) && (p.isCustom || String(p.id).startsWith('prod-custom-'))
-      );
-      const combined = [...customLocals];
+
+    // Start with all active local products (default marketplace catalog + custom products)
+    const baseMap = new Map();
+    (localProducts || []).forEach((p) => {
+      if (p && isProductActive(p)) {
+        baseMap.set(String(p.id).trim().toLowerCase(), p);
+      }
+    });
+
+    // Merge API products, replacing local counterparts (by id or legacyId) or adding new ones
+    if (Array.isArray(apiProducts) && apiProducts.length > 0) {
       apiProducts.forEach((ap) => {
-        if (!combined.some((c) => String(c.id).trim().toLowerCase() === String(ap.id).trim().toLowerCase())) {
-          combined.push(ap);
+        if (ap && isProductActive(ap)) {
+          const cleanId = String(ap.id).trim().toLowerCase();
+          if (ap.legacyId) {
+            baseMap.delete(String(ap.legacyId).trim().toLowerCase());
+          }
+          baseMap.set(cleanId, ap);
         }
       });
-      return combined;
     }
-    return localProducts;
+
+    return Array.from(baseMap.values());
   }, [propProducts, route?.params?.products, apiProducts, localProducts]);
 
   // --- Categories State & API Integration ---
@@ -220,15 +229,6 @@ export default function HomeScreen({
     fetchFeatured();
   }, [fetchFeatured]);
 
-  const featuredProducts = useMemo(() => {
-    if (propFeaturedProducts !== undefined) return propFeaturedProducts;
-    if (route?.params?.featuredProducts !== undefined) return route.params.featuredProducts;
-    if (apiFeaturedProducts.length > 0) {
-      return filterActiveProducts(apiFeaturedProducts);
-    }
-    return allProducts.filter((product) => isProductActive(product) && product.isFeatured);
-  }, [propFeaturedProducts, route?.params?.featuredProducts, apiFeaturedProducts, allProducts]);
-
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
     propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
@@ -276,6 +276,49 @@ export default function HomeScreen({
     });
   }, []);
 
+  const featuredProducts = useMemo(() => {
+    if (isSellerMode) {
+      // In Seller Mode, show only the seller's own featured products
+      return allProducts.filter(
+        (product) =>
+          isProductActive(product) &&
+          product.isFeatured &&
+          isProductOwnedByCurrentSeller(product, savedProfile || activeBusinessProfile)
+      );
+    }
+    const baseList =
+      propFeaturedProducts !== undefined
+        ? propFeaturedProducts
+        : route?.params?.featuredProducts !== undefined
+        ? route.params.featuredProducts
+        : (() => {
+            const featMap = new Map();
+            allProducts
+              .filter((p) => isProductActive(p) && p.isFeatured)
+              .forEach((p) => featMap.set(String(p.id).trim().toLowerCase(), p));
+            if (Array.isArray(apiFeaturedProducts) && apiFeaturedProducts.length > 0) {
+              filterActiveProducts(apiFeaturedProducts).forEach((ap) => {
+                if (ap.legacyId) featMap.delete(String(ap.legacyId).trim().toLowerCase());
+                featMap.set(String(ap.id).trim().toLowerCase(), ap);
+              });
+            }
+            return Array.from(featMap.values());
+          })();
+
+    // In Buyer Mode, users browse other businesses' featured products
+    return baseList.filter(
+      (product) => !isProductOwnedByCurrentSeller(product, savedProfile || activeBusinessProfile)
+    );
+  }, [
+    isSellerMode,
+    savedProfile,
+    activeBusinessProfile,
+    propFeaturedProducts,
+    route?.params?.featuredProducts,
+    apiFeaturedProducts,
+    allProducts,
+  ]);
+
   // Ensure modals are closed whenever Home Screen is not active (e.g. navigated away)
   useEffect(() => {
     if (isActive === false) {
@@ -320,6 +363,12 @@ export default function HomeScreen({
       categoryId:
         selectedCategory !== 'all' ? selectedCategory : undefined,
       searchQuery: searchQuery || '',
+      ...(isSellerMode
+        ? {
+            isSellerOnly: true,
+            businessId: (savedProfile || activeBusinessProfile)?.id,
+          }
+        : {}),
       ...params,
     };
     if (onNavigateToProductListing) {
@@ -461,6 +510,23 @@ export default function HomeScreen({
     return allProducts.filter((product) => {
       if (!product || !isProductActive(product)) return false;
 
+      // In Seller Mode, users can see only products belonging to their own business
+      if (isSellerMode) {
+        const isOwn = isProductOwnedByCurrentSeller(
+          product,
+          savedProfile || activeBusinessProfile
+        );
+        if (!isOwn) return false;
+      } else {
+        // In Buyer Mode, users browse products from other businesses
+        // If hasSearch is true, allow finding it so user can test and see the own-product restriction
+        const isOwn = isProductOwnedByCurrentSeller(
+          product,
+          savedProfile || activeBusinessProfile
+        );
+        if (isOwn && !hasSearch) return false;
+      }
+
       const categoryIdVal =
         product.categoryId ||
         (typeof product.category === 'object' ? product.category?.id : product.category);
@@ -499,7 +565,16 @@ export default function HomeScreen({
 
       return true;
     });
-  }, [allProducts, hasCategory, selectedCategory, hasSearch, searchTokens]);
+  }, [
+    allProducts,
+    isSellerMode,
+    savedProfile,
+    activeBusinessProfile,
+    hasCategory,
+    selectedCategory,
+    hasSearch,
+    searchTokens,
+  ]);
 
   const quickSearches = [
     'Cotton Bags',
@@ -900,14 +975,16 @@ export default function HomeScreen({
       />
 
       {/* 3. Featured Products — horizontal carousel */}
-      <FeaturedProducts
-        products={featuredProducts}
-        loading={isLoadingFeatured}
-        error={featuredError}
-        onRetry={fetchFeatured}
-        onProductPress={handleProductPress}
-        onViewAllPress={() => handleNavigateToProductListing()}
-      />
+      {(!isSellerMode || featuredProducts.length > 0) && (
+        <FeaturedProducts
+          products={featuredProducts}
+          loading={isLoadingFeatured}
+          error={featuredError}
+          onRetry={fetchFeatured}
+          onProductPress={handleProductPress}
+          onViewAllPress={() => handleNavigateToProductListing()}
+        />
+      )}
 
       {/* 4. Product Grid — filtered by search query */}
       <FlatList
@@ -986,7 +1063,11 @@ export default function HomeScreen({
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionTitle}>
-                  {hasSearch && hasCategory
+                  {isSellerMode
+                    ? hasSearch
+                      ? 'Your Products Search Results'
+                      : 'Your Products'
+                    : hasSearch && hasCategory
                     ? `${categoryName} Results`
                     : hasSearch
                       ? 'Search Results'
@@ -1082,6 +1163,30 @@ export default function HomeScreen({
                 <Text style={styles.stateRetryText}>Retry</Text>
               </TouchableOpacity>
             </View>
+          ) : isSellerMode && !hasSearch && !hasCategory ? (
+            <EmptyState
+              icon="cube-outline"
+              title="You haven't listed any wholesale products yet"
+              description="Start listing your products to reach wholesale buyers across the country."
+              actionText="Add Product"
+              onActionPress={handleAddProductPress}
+            />
+          ) : isSellerMode && hasSearch ? (
+            <EmptyState
+              icon="search-outline"
+              title="No products found in your catalog"
+              description={`No products in your catalog match "${trimmedQuery}".`}
+              actionText="Clear Search"
+              onActionPress={() => handleSearchChange('')}
+            />
+          ) : isSellerMode && hasCategory ? (
+            <EmptyState
+              icon="file-tray-outline"
+              title="No products found in this category"
+              description={`You haven't listed any products under ${categoryName}.`}
+              actionText="View All Products"
+              onActionPress={() => handleSelectCategory('all')}
+            />
           ) : !allProducts || allProducts.length === 0 ? (
             <EmptyState
               icon="cube-outline"
