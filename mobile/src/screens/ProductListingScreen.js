@@ -22,7 +22,7 @@ import {
   isProductActive,
   filterActiveProducts,
 } from '../data/products';
-import { getProducts } from '../services/productService';
+import { getProducts, getSellerProducts } from '../services/productService';
 import { getCategories } from '../services/categoryService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
@@ -229,7 +229,14 @@ export default function ProductListingScreen({
         params.sortOrder = 'desc';
       }
 
-      const response = await getProducts(params);
+      const targetBusinessId = route?.params?.businessId || route?.params?.sellerId;
+      if (targetBusinessId) {
+        params.businessId = targetBusinessId;
+      }
+
+      const response = route?.params?.isSellerOnly
+        ? await getSellerProducts(params)
+        : await getProducts(params);
 
       // Only apply state if this request is still the active one
       if (requestId === activeRequestIdRef.current) {

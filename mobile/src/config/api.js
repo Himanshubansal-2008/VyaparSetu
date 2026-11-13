@@ -80,6 +80,7 @@ export const API_CONFIG = {
     CATEGORIES: '/categories',
     USERS: '/users',
     BUSINESSES: '/businesses',
+    SELLER_PRODUCTS: '/seller/products',
   },
 };
 

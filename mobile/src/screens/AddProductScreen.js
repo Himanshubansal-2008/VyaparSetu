@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -31,6 +31,8 @@ import {
   subscribeBusinessProfile,
   isProductOwnedByCurrentSeller,
 } from '../data/businessProfileData';
+import productService, { isUUID } from '../services/productService';
+import { resolveCategoryUUID } from '../services/categoryService';
 
 // Extract product categories (excluding filter-only 'all')
 const PRODUCT_CATEGORIES = categories
@@ -345,7 +347,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
   };
 
   // Form Submission & Persistence
-  const handleSubmitProduct = () => {
+  const handleSubmitProduct = async () => {
     if (!validateForm()) {
       Alert.alert(
         'Required Fields Missing',
@@ -391,7 +393,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           .join(', ') ||
         'India';
 
-      // Match category
+      // Match category name/slug and resolve PostgreSQL Category UUID
+      const categoryUUID = resolveCategoryUUID(formData.category, categories);
       const matchedCat = categories.find(
         (c) => c.name.toLowerCase() === formData.category.toLowerCase()
       );
@@ -421,9 +424,76 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
           ? initialProduct?.image || null
           : null;
 
+      const effectiveBusinessUUID =
+        isUUID(businessId) ? businessId :
+        (isUUID(sellerId) ? sellerId :
+        (isUUID(resolvedBusiness?.id) ? resolvedBusiness.id :
+        (isUUID(sessionProfile?.id) ? sessionProfile.id : null)));
+
+      let backendId = null;
+
+      if (isEditMode) {
+        // Edit Mode: if product has a valid backend UUID, update it in PostgreSQL
+        if (initialProduct?.id && isUUID(initialProduct.id)) {
+          try {
+            const updatePayload = {
+              name: formData.productName.trim(),
+              description: formData.description.trim() || null,
+              price: priceVal,
+              stock: parseInt(formData.stock, 10),
+              minOrderQuantity: parseInt(formData.moq, 10),
+              unit: formData.unit.trim().toLowerCase(),
+              imageUrl: primaryImage && (primaryImage.startsWith('http://') || primaryImage.startsWith('https://')) ? primaryImage : null,
+              categoryId: categoryUUID,
+              bulkPricing: cleanBulkTiers,
+            };
+            if (effectiveBusinessUUID) {
+              updatePayload.businessId = effectiveBusinessUUID;
+            }
+            await productService.updateProduct(initialProduct.id, updatePayload);
+          } catch (apiErr) {
+            if (apiErr?.statusCode === 403) {
+              Alert.alert(
+                'Action Not Allowed',
+                'You can only edit products belonging to your own business.'
+              );
+              return;
+            }
+            console.warn('[AddProductScreen] Backend update failed, updating locally:', apiErr);
+          }
+        }
+      } else {
+        // Create Mode: if business has a valid PostgreSQL UUID, create product on backend
+        if (effectiveBusinessUUID) {
+          try {
+            const createPayload = {
+              name: formData.productName.trim(),
+              description: formData.description.trim() || null,
+              price: priceVal,
+              stock: parseInt(formData.stock, 10),
+              minOrderQuantity: parseInt(formData.moq, 10),
+              unit: formData.unit.trim().toLowerCase(),
+              imageUrl: primaryImage && (primaryImage.startsWith('http://') || primaryImage.startsWith('https://')) ? primaryImage : null,
+              isActive: true,
+              isFeatured: false,
+              isSurplus: false,
+              categoryId: categoryUUID,
+              businessId: effectiveBusinessUUID,
+              bulkPricing: cleanBulkTiers,
+            };
+            const createdRes = await productService.createProduct(createPayload);
+            if (createdRes?.id && isUUID(createdRes.id)) {
+              backendId = createdRes.id;
+            }
+          } catch (apiErr) {
+            console.warn('[AddProductScreen] Backend create failed, creating locally:', apiErr);
+          }
+        }
+      }
+
       const productId = isEditMode
         ? initialProduct?.id || routeParams.productId || `prod-custom-${Date.now()}`
-        : `prod-custom-${Date.now()}`;
+        : backendId || `prod-custom-${Date.now()}`;
 
       const savedPayload = {
         ...(isEditMode && initialProduct ? initialProduct : {}),
@@ -433,6 +503,7 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         manufacturer: formData.manufacturer.trim() || undefined,
         description: formData.description.trim(),
         categoryId,
+        categoryUUID,
         categoryName: formData.category,
         category: formData.category,
         price: priceVal,
@@ -448,8 +519,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
             : primaryImage
             ? [primaryImage]
             : [],
-        sellerId,
-        businessId,
+        sellerId: effectiveBusinessUUID || sellerId,
+        businessId: effectiveBusinessUUID || businessId,
         sellerName,
         location,
         bulkPricing: cleanBulkTiers,
@@ -457,6 +528,8 @@ export default function AddProductScreen({ navigation, route, onBackPress }) {
         totalReviews: isEditMode ? initialProduct?.totalReviews || 0 : 0,
         isFeatured: isEditMode ? Boolean(initialProduct?.isFeatured) : false,
         isSurplus: isEditMode ? Boolean(initialProduct?.isSurplus) : false,
+        isCustom: !backendId && (!isEditMode || Boolean(initialProduct?.isCustom)),
+        isBackendSynced: Boolean(backendId) || (isEditMode && isUUID(productId)),
         tags: [
           formData.category.toLowerCase(),
           ...formData.productName.toLowerCase().split(/\s+/).filter(Boolean),

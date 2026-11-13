@@ -27,7 +27,7 @@ import {
   subscribeBusinessProfile,
   isProductOwnedByCurrentSeller,
 } from '../data/businessProfileData';
-import { getProductById } from '../services/productService';
+import { getProductById, isUUID } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
@@ -138,25 +138,62 @@ export default function ProductDetailsScreen({
       return;
     }
 
+    const cleanTargetId = String(targetProductId).trim();
+
+    // Check whether product ID is a UUID before making backend API request
+    if (!isUUID(cleanTargetId)) {
+      // Legacy ID (e.g. prod-001 or prod-custom-...): Use local fallback data
+      setIsLoading(false);
+      const localFound =
+        allProducts.find((p) => p && String(p.id).trim().toLowerCase() === cleanTargetId.toLowerCase()) ||
+        route?.params?.product ||
+        propProduct;
+
+      if (localFound) {
+        setError(null);
+      } else {
+        setError('Product not found in local catalog.');
+      }
+      setApiProduct(null);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getProductById(targetProductId);
+      const response = await getProductById(cleanTargetId);
       const data = response?.data || response;
       if (!data || !data.id) {
-        setError('Product not found.');
+        const localFallback = allProducts.find(
+          (p) => p && String(p.id).trim().toLowerCase() === cleanTargetId.toLowerCase()
+        );
+        if (localFallback) {
+          setError(null);
+        } else {
+          setError('Product not found.');
+        }
         setApiProduct(null);
       } else {
         setApiProduct(data);
       }
     } catch (err) {
-      console.error('[ProductDetailsScreen] Error fetching product details:', err);
-      setError(err?.message || 'Failed to load product details.');
+      console.warn('[ProductDetailsScreen] Error fetching product details from API:', err?.message);
+      // If valid local fallback product data is available, do not show error card!
+      const localFallback =
+        allProducts.find((p) => p && String(p.id).trim().toLowerCase() === cleanTargetId.toLowerCase()) ||
+        route?.params?.product ||
+        propProduct;
+
+      if (localFallback) {
+        setError(null);
+      } else {
+        setError(err?.message || 'Failed to load product details.');
+      }
       setApiProduct(null);
     } finally {
       setIsLoading(false);
     }
-  }, [targetProductId, propProduct, route?.params?.productId, route?.params?.id, route?.params?.product]);
+  }, [targetProductId, propProduct, route?.params?.productId, route?.params?.id, route?.params?.product, allProducts]);
 
   useEffect(() => {
     fetchProductDetails();
@@ -1017,8 +1054,8 @@ export default function ProductDetailsScreen({
     );
   }
 
-  // Error State with Retry
-  if (error) {
+  // Error State with Retry (only when no valid fallback product is available)
+  if (error && !product) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />

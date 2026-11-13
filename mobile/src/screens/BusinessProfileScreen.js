@@ -26,7 +26,9 @@ import {
   products as defaultProducts,
   subscribeProducts,
   isProductActive,
+  saveProduct,
 } from '../data/products';
+import productService, { isUUID } from '../services/productService';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
 import { getOrdersForSeller, subscribeOrders } from '../data/orders';
@@ -188,6 +190,38 @@ export default function BusinessProfileScreen({
     // Priority 2: Standalone fallback to mock data (Sharma Handicrafts)
     return businessProfileData;
   }, [propBusiness, route?.params, sessionProfile]);
+
+  // Synchronize backend products for this business if a PostgreSQL UUID exists
+  useEffect(() => {
+    let isCancelled = false;
+    const syncBackendProducts = async () => {
+      const bId = resolvedBusiness?.id;
+      if (!bId || !isUUID(bId)) return;
+      try {
+        const res = await productService.getProducts({ businessId: bId, limit: 50 });
+        if (!isCancelled && Array.isArray(res?.products) && res.products.length > 0) {
+          res.products.forEach((bp) => {
+            if (bp && bp.id) {
+              saveProduct({
+                ...bp,
+                sellerId: bp.businessId || bId,
+                businessId: bp.businessId || bId,
+                isCustom: false,
+                isBackendSynced: true,
+              });
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('[BusinessProfileScreen] Failed to sync backend products:', err?.message || err);
+      }
+    };
+
+    syncBackendProducts();
+    return () => {
+      isCancelled = true;
+    };
+  }, [resolvedBusiness?.id]);
 
   const allProducts =
     propProducts !== undefined

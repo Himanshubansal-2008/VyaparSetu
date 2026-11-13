@@ -6,6 +6,7 @@ import {
 } from './businessProfileData.js';
 import { getOrders } from './orders.js';
 import { getQuotations } from './quotations.js';
+import productService, { isUUID } from '../services/productService.js';
 
 export const categories = [
   { id: "all", name: "All Products", icon: "grid-outline" },
@@ -834,6 +835,22 @@ export const deleteProduct = async (productId, customProfile) => {
       archivedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    if (isUUID(product.id)) {
+      try {
+        await productService.deactivateProduct(product.id);
+      } catch (err) {
+        if (err?.statusCode === 403) {
+          return {
+            success: false,
+            reason: 'unauthorized',
+            message: 'You can only delete products belonging to your own business.',
+          };
+        }
+        console.warn('[products] Backend deactivate failed (continuing with local state):', err);
+      }
+    }
+
     products[index] = archivedProduct;
 
     cachedArchivedIds.add(String(product.id).trim().toLowerCase());
@@ -850,6 +867,21 @@ export const deleteProduct = async (productId, customProfile) => {
     };
   } else {
     // Hard-delete: permanently remove product from catalog
+    if (isUUID(product.id)) {
+      try {
+        await productService.deleteProduct(product.id);
+      } catch (err) {
+        if (err?.statusCode === 403) {
+          return {
+            success: false,
+            reason: 'unauthorized',
+            message: 'You can only delete products belonging to your own business.',
+          };
+        }
+        console.warn('[products] Backend delete failed (continuing with local state):', err);
+      }
+    }
+
     products.splice(index, 1);
 
     cachedDeletedIds.add(String(product.id).trim().toLowerCase());
