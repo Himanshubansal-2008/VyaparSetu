@@ -14,12 +14,22 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import {
+  validateFullName,
+  validateEmail,
+  validatePhone,
+  validatePassword,
+  validateConfirmPassword,
+  validateSignupForm,
+  prepareSignupPayload,
+} from '../utils/validation.utils';
 
 export default function SignupScreen({
   navigation,
   route,
   onBackPress,
   onNavigateToLogin,
+  onSubmit,
 }) {
   // Form State
   const [name, setName] = useState('');
@@ -28,12 +38,60 @@ export default function SignupScreen({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Error State for field-specific validation messages
+  const [errors, setErrors] = useState({});
+
   // Password Visibility State
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Focus tracking for interactive field borders & icons
   const [focusedField, setFocusedField] = useState(null);
+
+  // Handlers that update form values and clear/update field errors on correction
+  const handleNameChange = (val) => {
+    setName(val);
+    if (errors.name) {
+      const err = validateFullName(val);
+      setErrors((prev) => ({ ...prev, name: err }));
+    }
+  };
+
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    if (errors.email) {
+      const err = validateEmail(val);
+      setErrors((prev) => ({ ...prev, email: err }));
+    }
+  };
+
+  const handlePhoneChange = (val) => {
+    setPhone(val);
+    if (errors.phone) {
+      const err = validatePhone(val);
+      setErrors((prev) => ({ ...prev, phone: err }));
+    }
+  };
+
+  const handlePasswordChange = (val) => {
+    setPassword(val);
+    if (errors.password) {
+      const err = validatePassword(val);
+      setErrors((prev) => ({ ...prev, password: err }));
+    }
+    if (errors.confirmPassword && confirmPassword) {
+      const confirmErr = validateConfirmPassword(confirmPassword, val);
+      setErrors((prev) => ({ ...prev, confirmPassword: confirmErr }));
+    }
+  };
+
+  const handleConfirmPasswordChange = (val) => {
+    setConfirmPassword(val);
+    if (errors.confirmPassword) {
+      const err = validateConfirmPassword(val, password);
+      setErrors((prev) => ({ ...prev, confirmPassword: err }));
+    }
+  };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -54,7 +112,29 @@ export default function SignupScreen({
   };
 
   const handleCreateAccount = () => {
-    // UI only - API integration and validation will be handled in a subsequent task.
+    const formData = {
+      name,
+      email,
+      phone,
+      password,
+      confirmPassword,
+    };
+
+    const { isValid, errors: validationErrors } = validateSignupForm(formData);
+
+    if (!isValid) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    // Validation succeeded: clear all errors and prepare sanitized payload
+    setErrors({});
+    const payload = prepareSignupPayload(formData);
+
+    // Call onSubmit callback if provided by parent/testing without making API requests
+    if (onSubmit) {
+      onSubmit(payload);
+    }
   };
 
   const canGoBack = Boolean(onBackPress || navigation?.canGoBack?.());
@@ -122,13 +202,16 @@ export default function SignupScreen({
                 style={[
                   styles.inputWrapper,
                   focusedField === 'name' && styles.inputWrapperFocused,
+                  Boolean(errors.name) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="person-outline"
                   size={20}
                   color={
-                    focusedField === 'name'
+                    errors.name
+                      ? colors.error
+                      : focusedField === 'name'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -139,7 +222,7 @@ export default function SignupScreen({
                   placeholder="Enter your full name"
                   placeholderTextColor={colors.textMuted}
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={handleNameChange}
                   keyboardType="default"
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -148,6 +231,16 @@ export default function SignupScreen({
                   accessibilityLabel="Full Name input"
                 />
               </View>
+              {errors.name ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{errors.name}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* 2. Email Address */}
@@ -157,13 +250,16 @@ export default function SignupScreen({
                 style={[
                   styles.inputWrapper,
                   focusedField === 'email' && styles.inputWrapperFocused,
+                  Boolean(errors.email) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="mail-outline"
                   size={20}
                   color={
-                    focusedField === 'email'
+                    errors.email
+                      ? colors.error
+                      : focusedField === 'email'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -174,7 +270,7 @@ export default function SignupScreen({
                   placeholder="Enter your email address"
                   placeholderTextColor={colors.textMuted}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={handleEmailChange}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -184,6 +280,16 @@ export default function SignupScreen({
                   accessibilityLabel="Email Address input"
                 />
               </View>
+              {errors.email ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* 3. Phone Number */}
@@ -193,13 +299,16 @@ export default function SignupScreen({
                 style={[
                   styles.inputWrapper,
                   focusedField === 'phone' && styles.inputWrapperFocused,
+                  Boolean(errors.phone) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="call-outline"
                   size={20}
                   color={
-                    focusedField === 'phone'
+                    errors.phone
+                      ? colors.error
+                      : focusedField === 'phone'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -210,7 +319,7 @@ export default function SignupScreen({
                   placeholder="Enter your phone number"
                   placeholderTextColor={colors.textMuted}
                   value={phone}
-                  onChangeText={setPhone}
+                  onChangeText={handlePhoneChange}
                   keyboardType="phone-pad"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -219,6 +328,16 @@ export default function SignupScreen({
                   accessibilityLabel="Phone Number input"
                 />
               </View>
+              {errors.phone ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{errors.phone}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* 4. Password */}
@@ -228,13 +347,16 @@ export default function SignupScreen({
                 style={[
                   styles.inputWrapper,
                   focusedField === 'password' && styles.inputWrapperFocused,
+                  Boolean(errors.password) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="lock-closed-outline"
                   size={20}
                   color={
-                    focusedField === 'password'
+                    errors.password
+                      ? colors.error
+                      : focusedField === 'password'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -245,7 +367,7 @@ export default function SignupScreen({
                   placeholder="Create a password"
                   placeholderTextColor={colors.textMuted}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={handlePasswordChange}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -269,6 +391,16 @@ export default function SignupScreen({
                   />
                 </TouchableOpacity>
               </View>
+              {errors.password ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* 5. Confirm Password */}
@@ -279,13 +411,16 @@ export default function SignupScreen({
                   styles.inputWrapper,
                   focusedField === 'confirmPassword' &&
                     styles.inputWrapperFocused,
+                  Boolean(errors.confirmPassword) && styles.inputWrapperError,
                 ]}
               >
                 <Ionicons
                   name="shield-checkmark-outline"
                   size={20}
                   color={
-                    focusedField === 'confirmPassword'
+                    errors.confirmPassword
+                      ? colors.error
+                      : focusedField === 'confirmPassword'
                       ? colors.primary
                       : colors.textSecondary
                   }
@@ -296,7 +431,7 @@ export default function SignupScreen({
                   placeholder="Confirm your password"
                   placeholderTextColor={colors.textMuted}
                   value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  onChangeText={handleConfirmPasswordChange}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -326,6 +461,16 @@ export default function SignupScreen({
                   />
                 </TouchableOpacity>
               </View>
+              {errors.confirmPassword ? (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Primary Action Button */}
@@ -503,6 +648,34 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  inputWrapperError: {
+    borderColor: colors.error,
+    backgroundColor: colors.surface,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.error,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    paddingHorizontal: 2,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.error,
+    marginLeft: 4,
+    fontWeight: '500',
+    flex: 1,
+  },
   inputIcon: {
     marginRight: spacing.sm + 2,
   },
@@ -559,4 +732,3 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 });
-
