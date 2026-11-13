@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Product & Inventory Service Layer
+ * Encapsulates database transactions for inventory items, stock increments/decrements,
+ * and surplus inventory management using Prisma ORM.
+ */
+
 const { Prisma } = require("@prisma/client");
 const prisma = require("../lib/prisma");
 
