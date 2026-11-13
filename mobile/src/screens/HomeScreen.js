@@ -161,7 +161,7 @@ export default function HomeScreen({
       const activeList = rawList.filter((cat) => cat && cat.isActive !== false);
       setApiCategories(activeList);
     } catch (err) {
-      console.error('[HomeScreen] Error fetching categories:', err);
+      console.warn('[HomeScreen] Error fetching categories from API, falling back to local categories:', err);
       setCategoriesError(err?.message || 'Failed to load categories.');
     } finally {
       setIsLoadingCategories(false);

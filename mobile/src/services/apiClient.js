@@ -225,7 +225,15 @@ export const request = async (endpoint, options = {}) => {
       throw error;
     }
 
-    if (error.name === 'AbortError') {
+    const isAbort =
+      error.name === 'AbortError' ||
+      controller.signal.aborted ||
+      (typeof error.message === 'string' &&
+        (error.message.includes('canceled') ||
+          error.message.includes('cancelled') ||
+          error.message.includes('aborted')));
+
+    if (isAbort) {
       throw new ApiError(`Request timed out after ${timeout}ms`, 408, null, error);
     }
 

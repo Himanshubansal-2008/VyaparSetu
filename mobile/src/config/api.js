@@ -68,7 +68,7 @@ export const API_CONFIG = {
   get BASE_URL() {
     return resolveBaseUrl();
   },
-  TIMEOUT_MS: 15000,
+  TIMEOUT_MS: 45000,
   DEFAULT_HEADERS: {
     'Content-Type': 'application/json',
     Accept: 'application/json',

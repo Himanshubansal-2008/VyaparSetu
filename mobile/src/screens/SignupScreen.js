@@ -37,7 +37,12 @@ export default function SignupScreen({
   onSignupSuccess,
   onSubmit,
 }) {
-  const authContext = useAuth();
+  let authContext = null;
+  try {
+    authContext = useAuth();
+  } catch (e) {
+    // Graceful fallback when rendered without AuthProvider
+  }
   // Form State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

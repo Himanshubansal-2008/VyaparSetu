@@ -150,7 +150,7 @@ export default function ProductDetailsScreen({
         setApiProduct(data);
       }
     } catch (err) {
-      console.error('[ProductDetailsScreen] Error fetching product details:', err);
+      console.warn('[ProductDetailsScreen] Error fetching product details:', err);
       setError(err?.message || 'Failed to load product details.');
       setApiProduct(null);
     } finally {
