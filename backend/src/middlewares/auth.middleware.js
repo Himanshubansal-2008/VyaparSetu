@@ -23,18 +23,22 @@ const AUTH_USER_SELECT = {
 };
 
 /**
- * Authentication middleware that verifies JWT Bearer tokens and attaches sanitized user to req.user.
+ * Reusable JWT authentication middleware.
+ * Verifies Bearer tokens, confirms user existence in PostgreSQL,
+ * and attaches sanitized user information (id, userId, role, name, email) to req.user.
  *
- * Responds with standard HTTP 401 on missing, expired, or invalid tokens.
+ * Responses:
+ * - Missing Authorization header / missing Bearer token -> HTTP 401 ("Authentication required")
+ * - Expired, malformed, invalid signature, or deleted user -> HTTP 401 ("Invalid or expired token")
  */
-const authenticate = async (req, res, next) => {
+const authenticateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required. Missing Authorization header.",
+        message: "Authentication required",
       });
     }
 
@@ -42,36 +46,30 @@ const authenticate = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message:
-          'Invalid authorization format. Format must be "Bearer <token>".',
+        message: "Authentication required",
       });
     }
 
     let decoded;
     try {
       decoded = verifyToken(token);
-    } catch (jwtError) {
-      if (jwtError.name === "TokenExpiredError") {
-        return res.status(401).json({
-          success: false,
-          message: "Authentication token has expired. Please log in again.",
-        });
-      }
+    } catch (err) {
+      // Discard specific internal JWT verification error details for security
       return res.status(401).json({
         success: false,
-        message: "Invalid authentication token.",
+        message: "Invalid or expired token",
       });
     }
 
-    const userId = decoded.id || decoded.userId;
-    if (!userId) {
+    const userId = decoded.userId || decoded.id;
+    if (!userId || typeof userId !== "string") {
       return res.status(401).json({
         success: false,
-        message: "Malformed token: missing user identifier.",
+        message: "Invalid or expired token",
       });
     }
 
-    // Retrieve active user from database without passwordHash
+    // Verify user exists in database and retrieve active sanitized profile (no passwordHash)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: AUTH_USER_SELECT,
@@ -80,15 +78,26 @@ const authenticate = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "User associated with this token no longer exists.",
+        message: "Invalid or expired token",
       });
     }
 
-    // Attach sanitized user context to request
-    req.user = user;
+    // Attach verified user information to Express request
+    req.user = {
+      id: user.id,
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      business: user.business,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
     next();
   } catch (error) {
-    console.error("[Auth Middleware] Unexpected error during authentication:", error);
+    // Unhandled system errors (e.g. database connection drop)
     return res.status(500).json({
       success: false,
       message: "Internal server error during authentication verification.",
@@ -97,33 +106,33 @@ const authenticate = async (req, res, next) => {
 };
 
 /**
- * Role-based authorization middleware.
- * Ensures the authenticated user possesses one of the allowed roles.
- * Supports BUYER, SELLER, BOTH, ADMIN.
+ * Reusable role-based authorization middleware.
+ * Enforces role restrictions after authenticateUser runs.
  *
- * @param  {...string} allowedRoles - List of allowed roles (e.g. 'ADMIN', 'SELLER')
+ * @param {...string} allowedRoles - Permitted roles (e.g. 'ADMIN', 'SELLER')
  */
-const authorize = (...allowedRoles) => {
+const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required before checking permissions.",
+        message: "Authentication required",
       });
     }
 
     const userRole = req.user.role;
 
-    // ADMIN has universal permission; BOTH acts as both BUYER and SELLER
-    const hasRole =
+    // ADMIN has universal permission; BOTH qualifies for both BUYER and SELLER
+    const hasPermission =
       allowedRoles.includes(userRole) ||
       userRole === "ADMIN" ||
-      (userRole === "BOTH" && (allowedRoles.includes("BUYER") || allowedRoles.includes("SELLER")));
+      (userRole === "BOTH" &&
+        (allowedRoles.includes("BUYER") || allowedRoles.includes("SELLER")));
 
-    if (!hasRole) {
+    if (!hasPermission) {
       return res.status(403).json({
         success: false,
-        message: "Forbidden. You do not have permission to access this resource.",
+        message: "Forbidden. You do not have permission to access this resource",
       });
     }
 
@@ -133,7 +142,7 @@ const authorize = (...allowedRoles) => {
 
 /**
  * Optional authentication middleware:
- * Attaches req.user if a valid token is provided, but continues without error if no token is present.
+ * Attaches req.user if a valid token is present, but continues without error if omitted.
  */
 const optionalAuthenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -148,14 +157,22 @@ const optionalAuthenticate = async (req, res, next) => {
 
   try {
     const decoded = verifyToken(token);
-    const userId = decoded.id || decoded.userId;
+    const userId = decoded.userId || decoded.id;
     if (userId) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: AUTH_USER_SELECT,
       });
       if (user) {
-        req.user = user;
+        req.user = {
+          id: user.id,
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          business: user.business,
+        };
       }
     }
   } catch (err) {
@@ -166,9 +183,11 @@ const optionalAuthenticate = async (req, res, next) => {
 };
 
 module.exports = {
-  authenticate,
-  authorize,
+  authenticateUser,
+  authorizeRoles,
   optionalAuthenticate,
   AUTH_USER_SELECT,
+  // Backward compatibility aliases
+  authenticate: authenticateUser,
+  authorize: authorizeRoles,
 };
-

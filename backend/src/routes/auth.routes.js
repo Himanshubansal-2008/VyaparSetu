@@ -10,7 +10,10 @@ const {
   validateSignup,
   validateLogin,
 } = require("../middlewares/auth.validator");
-const { authenticate } = require("../middlewares/auth.middleware");
+const {
+  authenticateUser,
+  authorizeRoles,
+} = require("../middlewares/auth.middleware");
 
 // Public authentication health & foundation status
 router.get("/status", getAuthStatus);
@@ -21,7 +24,34 @@ router.post("/signup", validateSignup, signup);
 // Public User Login
 router.post("/login", validateLogin, login);
 
-// Protected user profile
-router.get("/profile", authenticate, getProfile);
+// Protected User Profile
+router.get("/profile", authenticateUser, getProfile);
+
+// Role-Protected Demonstration Endpoints
+router.get(
+  "/seller-only",
+  authenticateUser,
+  authorizeRoles("SELLER"),
+  (req, res) => {
+    res.status(200).json({
+      success: true,
+      message: "Seller resource accessed successfully",
+      user: req.user,
+    });
+  }
+);
+
+router.get(
+  "/admin-only",
+  authenticateUser,
+  authorizeRoles("ADMIN"),
+  (req, res) => {
+    res.status(200).json({
+      success: true,
+      message: "Admin resource accessed successfully",
+      user: req.user,
+    });
+  }
+);
 
 module.exports = router;
