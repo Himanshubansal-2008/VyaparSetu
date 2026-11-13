@@ -23,6 +23,8 @@ import {
   getSessionBusinessProfile,
   setSessionBusinessProfile,
   updateBusinessProfile,
+  savePersistedMode,
+  MODES,
 } from '../data/businessProfileData';
 
 const CATEGORIES = [
@@ -396,6 +398,7 @@ export default function CreateBusinessProfileScreen({
       updateBusinessProfile(payload);
     } else {
       setSessionBusinessProfile(payload);
+      savePersistedMode(MODES.SELLER);
     }
 
     if (navigation?.navigate) {

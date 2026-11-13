@@ -212,6 +212,12 @@ export const businessProfileData = businesses[0];
 
 export const STORAGE_KEY_SESSION_PROFILE = '@vyaparsetu_business_profile';
 export const STORAGE_KEY_CUSTOM_BUSINESSES = '@vyaparsetu_custom_businesses';
+export const STORAGE_KEY_ACTIVE_MODE = '@vyaparsetu_active_mode';
+
+export const MODES = {
+  BUYER: 'buyer',
+  SELLER: 'seller',
+};
 
 let sessionBusinessProfile = null;
 const profileListeners = new Set();
@@ -368,6 +374,43 @@ export const loadPersistedBusinessProfile = async () => {
   }
   notifyProfileListeners();
   return sessionBusinessProfile;
+};
+
+/**
+ * Loads the persisted mode from AsyncStorage.
+ * Returns 'seller' if saved and user has a valid user-created business profile.
+ * Otherwise returns 'buyer' (the default mode).
+ */
+export const loadPersistedMode = async () => {
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY_ACTIVE_MODE);
+    if (saved === MODES.SELLER) {
+      if (isUserCreatedProfile(sessionBusinessProfile)) {
+        return MODES.SELLER;
+      }
+      // Invalid seller mode: fall back to buyer and persist
+      await AsyncStorage.setItem(STORAGE_KEY_ACTIVE_MODE, MODES.BUYER);
+      return MODES.BUYER;
+    }
+    return MODES.BUYER;
+  } catch (error) {
+    console.warn('[businessProfileData] Failed to load persisted mode:', error);
+    return MODES.BUYER;
+  }
+};
+
+/**
+ * Saves the active mode to AsyncStorage.
+ */
+export const savePersistedMode = async (mode) => {
+  try {
+    const target = mode === MODES.SELLER ? MODES.SELLER : MODES.BUYER;
+    await AsyncStorage.setItem(STORAGE_KEY_ACTIVE_MODE, target);
+    return target;
+  } catch (error) {
+    console.warn('[businessProfileData] Failed to save persisted mode:', error);
+    return MODES.BUYER;
+  }
 };
 
 const persistData = async () => {

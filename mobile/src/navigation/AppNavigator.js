@@ -20,6 +20,7 @@ import SellerQuotationsScreen from '../screens/SellerQuotationsScreen';
 import SellerQuotationDetailsScreen from '../screens/SellerQuotationDetailsScreen';
 import {
   loadPersistedBusinessProfile,
+  loadPersistedMode,
   getSessionBusinessProfile,
 } from '../data/businessProfileData';
 import { loadPersistedProducts } from '../data/products';
@@ -146,10 +147,11 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     return () => backHandler.remove();
   }, [history.length, goBack]);
 
-  // Load persisted business profile, products, orders, and address on app launch
+  // Load persisted business profile, mode, products, orders, and address on app launch
   useEffect(() => {
     Promise.all([
       loadPersistedBusinessProfile(),
+      loadPersistedMode(),
       loadPersistedProducts(),
       loadPersistedOrders(),
       loadPersistedAddress(),
