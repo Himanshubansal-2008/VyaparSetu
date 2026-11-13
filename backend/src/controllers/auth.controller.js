@@ -45,6 +45,43 @@ const signup = async (req, res) => {
 };
 
 /**
+ * POST /api/auth/login
+ * Authenticates user credentials and issues a signed JWT token.
+ */
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const result = await authService.loginUser({
+      email,
+      password,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: {
+        token: result.token,
+        user: result.user,
+      },
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    console.error("[Auth Controller] Unexpected login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An unexpected error occurred during login.",
+    });
+  }
+};
+
+/**
  * GET /api/auth/profile
  * Returns the currently authenticated user's profile.
  * Protected by authenticate middleware.
@@ -90,6 +127,7 @@ const getAuthStatus = async (req, res) => {
 
 module.exports = {
   signup,
+  login,
   getProfile,
   getAuthStatus,
 };

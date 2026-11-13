@@ -156,6 +156,65 @@ const registerUser = async ({ name, email, phone, password }) => {
   }
 };
 
+/**
+ * Authenticates a user with email and password, returning a signed JWT token and sanitized user.
+ *
+ * @param {Object} credentials
+ * @param {string} credentials.email
+ * @param {string} credentials.password
+ * @returns {Promise<{ token: string, user: Object }>}
+ */
+const loginUser = async ({ email, password }) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // 1. Find user by normalized email including passwordHash
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      passwordHash: true,
+    },
+  });
+
+  // 2. Uniform error message to prevent user enumeration
+  if (!user) {
+    const error = new Error("Invalid email or password");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // 3. Verify password hash using bcryptjs
+  const isPasswordValid = await comparePassword(password, user.passwordHash);
+  if (!isPasswordValid) {
+    const error = new Error("Invalid email or password");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // 4. Generate signed JWT token with minimal, secure claims
+  const token = generateToken({
+    userId: user.id,
+    id: user.id,
+    role: user.role,
+  });
+
+  // 5. Return token and strictly sanitized user object (passwordHash excluded)
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+    },
+  };
+};
+
 module.exports = {
   hashPassword,
   comparePassword,
@@ -166,4 +225,5 @@ module.exports = {
   findUserByEmail,
   findUserById,
   registerUser,
+  loginUser,
 };

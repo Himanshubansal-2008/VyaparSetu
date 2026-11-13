@@ -137,7 +137,72 @@ const validateSignup = (req, res, next) => {
   next();
 };
 
-module.exports = {
-  validateSignup,
+/**
+ * Validates request payload for POST /api/auth/login
+ */
+const validateLogin = (req, res, next) => {
+  const body = req.body;
+  const errors = [];
+
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({
+      success: false,
+      message: "Request body must be a valid JSON object.",
+      errors: [{ field: "body", message: "Request body cannot be empty" }],
+    });
+  }
+
+  // Reject unauthorized security parameters
+  if (body.passwordHash !== undefined) {
+    return res.status(400).json({
+      success: false,
+      message: "Directly specifying passwordHash is not permitted.",
+      errors: [{ field: "passwordHash", message: "Invalid field in login request" }],
+    });
+  }
+
+  if (body.role !== undefined) {
+    return res.status(400).json({
+      success: false,
+      message: "Specifying role during login is not permitted.",
+      errors: [{ field: "role", message: "Invalid field in login request" }],
+    });
+  }
+
+  // 1. Email validation
+  if (body.email === undefined || body.email === null || typeof body.email !== "string") {
+    errors.push({ field: "email", message: "Email is required." });
+  } else {
+    const trimmedEmail = body.email.trim();
+    if (trimmedEmail.length === 0) {
+      errors.push({ field: "email", message: "Email cannot be empty." });
+    } else if (!EMAIL_REGEX.test(trimmedEmail)) {
+      errors.push({ field: "email", message: "Please enter a valid email address." });
+    } else {
+      // Normalize email in request body
+      req.body.email = trimmedEmail.toLowerCase();
+    }
+  }
+
+  // 2. Password validation
+  if (body.password === undefined || body.password === null || typeof body.password !== "string") {
+    errors.push({ field: "password", message: "Password is required." });
+  } else if (body.password.length === 0) {
+    errors.push({ field: "password", message: "Password cannot be empty." });
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: errors[0].message,
+      errors,
+    });
+  }
+
+  next();
 };
 
+module.exports = {
+  validateSignup,
+  validateLogin,
+};
