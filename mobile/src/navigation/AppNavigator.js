@@ -18,6 +18,7 @@ import BuyerQuotationsScreen from '../screens/BuyerQuotationsScreen';
 import BuyerQuotationDetailsScreen from '../screens/BuyerQuotationDetailsScreen';
 import SellerQuotationsScreen from '../screens/SellerQuotationsScreen';
 import SellerQuotationDetailsScreen from '../screens/SellerQuotationDetailsScreen';
+import SignupScreen from '../screens/SignupScreen';
 import {
   loadPersistedBusinessProfile,
   getSessionBusinessProfile,
@@ -51,6 +52,8 @@ const VALID_ROUTES = [
   'BuyerQuotationDetails',
   'SellerQuotations',
   'SellerQuotationDetails',
+  'Signup',
+  'Login',
 ];
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
@@ -451,6 +454,19 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     [navigate]
   );
 
+  const handleNavigateToSignup = useCallback(() => {
+    navigate('Signup');
+  }, [navigate]);
+
+  const handleNavigateToLogin = useCallback(() => {
+    const isLoginInHistory = history.some((r) => r.name === 'Login');
+    if (isLoginInHistory) {
+      goBack();
+    } else {
+      navigate('Login');
+    }
+  }, [history, goBack, navigate]);
+
   if (!isLoaded) {
     return <View style={styles.container} />;
   }
@@ -480,6 +496,8 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
           onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
           onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
           onNavigateToRequestQuotation={handleNavigateToRequestQuotation}
+          onNavigateToSignup={handleNavigateToSignup}
+          onNavigateToLogin={handleNavigateToLogin}
         />
       </View>
 
@@ -794,6 +812,18 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
             onBackPress={goBack}
             onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+          />
+        </View>
+      )}
+
+      {/* Signup Screen */}
+      {currentRoute.name === 'Signup' && (
+        <View style={styles.screen}>
+          <SignupScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToLogin={handleNavigateToLogin}
           />
         </View>
       )}
