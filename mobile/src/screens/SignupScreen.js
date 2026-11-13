@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   SafeAreaView,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   StatusBar,
   ActivityIndicator,
@@ -24,15 +25,19 @@ import {
   validateSignupForm,
   prepareSignupPayload,
 } from '../utils/validation.utils';
-import { signupUser } from '../services/authService';
+import { signupUser, loginUser } from '../services/authService';
+import { useAuth } from '../context/AuthContext';
 
 export default function SignupScreen({
   navigation,
   route,
   onBackPress,
   onNavigateToLogin,
+  onNavigateToHome,
+  onSignupSuccess,
   onSubmit,
 }) {
+  const authContext = useAuth();
   // Form State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -54,6 +59,66 @@ export default function SignupScreen({
 
   // Focus tracking for interactive field borders & icons
   const [focusedField, setFocusedField] = useState(null);
+
+  // ScrollView & Input Refs for keyboard navigation & auto-scrolling
+  const scrollViewRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const phoneInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
+
+  // Dynamic keyboard state tracking
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const focusedFieldRef = useRef(focusedField);
+  focusedFieldRef.current = focusedField;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setIsKeyboardVisible(true);
+      if (focusedFieldRef.current === 'confirmPassword') {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      } else if (focusedFieldRef.current === 'password') {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({ y: 320, animated: true });
+        }, 100);
+      }
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFieldFocus = (field) => {
+    setFocusedField(field);
+    if (field === 'confirmPassword') {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 150);
+    } else if (field === 'password') {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 320, animated: true });
+      }, 150);
+    } else if (field === 'phone') {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 180, animated: true });
+      }, 150);
+    }
+  };
+
+  const handleFieldBlur = () => {
+    setFocusedField(null);
+  };
 
   // Handlers that update form values and clear/update field errors on correction
   const handleNameChange = (val) => {
@@ -129,6 +194,7 @@ export default function SignupScreen({
   };
 
   const handleCreateAccount = async () => {
+    Keyboard.dismiss();
     if (isLoading) return;
 
     setApiError(null);
@@ -160,20 +226,59 @@ export default function SignupScreen({
 
     try {
       const result = await signupUser(payload);
-      setSuccessMessage(result?.message || 'Account created successfully! Redirecting to login...');
 
-      setTimeout(() => {
-        if (onNavigateToLogin) {
-          onNavigateToLogin();
-        } else if (navigation?.navigate) {
-          navigation.navigate('Login');
+      let authToken = result?.token || null;
+      let authUser = result?.user || null;
+
+      // If backend did not provide a token directly in signup response, auto-login seamlessly
+      if (!authToken) {
+        try {
+          const loginResult = await loginUser({
+            email: payload.email,
+            password: payload.password,
+          });
+          authToken = loginResult?.token || null;
+          authUser = loginResult?.user || authUser;
+        } catch (autoLoginErr) {
+          console.warn('[SignupScreen] Auto-login fallback note:', autoLoginErr);
         }
-      }, 1000);
+      }
+
+      // Persist authenticated credentials in AuthContext & SecureStore
+      if (authToken && authContext?.login) {
+        await authContext.login({
+          token: authToken,
+          user: authUser,
+        });
+      }
+
+      if (onSignupSuccess) {
+        onSignupSuccess({
+          token: authToken,
+          user: authUser,
+        });
+      }
+
+      setSuccessMessage('Account created successfully! Welcome to VyaparSetu.');
+
+      // Redirect directly to Home
+      if (onNavigateToHome) {
+        onNavigateToHome();
+      } else if (navigation?.navigate) {
+        navigation.navigate('Home');
+      }
     } catch (err) {
       let message = err?.message || 'Unable to create account. Please try again.';
 
       if (err?.statusCode === 409) {
-        message = err?.data?.message || 'An account with this email already exists. Please login instead.';
+        message = err?.data?.message || err?.message || 'An account with this email or mobile number already exists.';
+        if (err?.data?.field) {
+          setErrors((prev) => ({ ...prev, [err.data.field]: message }));
+        } else if (message.toLowerCase().includes('phone') || message.toLowerCase().includes('mobile')) {
+          setErrors((prev) => ({ ...prev, phone: message }));
+        } else if (message.toLowerCase().includes('email')) {
+          setErrors((prev) => ({ ...prev, email: message }));
+        }
       } else if (err?.statusCode === 400 && Array.isArray(err?.data?.errors)) {
         const backendFieldErrors = {};
         err.data.errors.forEach((e) => {
@@ -200,12 +305,18 @@ export default function SignupScreen({
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isKeyboardVisible && styles.scrollContentKeyboardVisible,
+          ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
+          bounces={true}
         >
           {/* Top Bar with Back Button */}
           {canGoBack && (
@@ -307,9 +418,12 @@ export default function SignupScreen({
                   keyboardType="default"
                   autoCapitalize="words"
                   autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => emailInputRef.current?.focus()}
+                  blurOnSubmit={false}
                   editable={!isLoading}
-                  onFocus={() => setFocusedField('name')}
-                  onBlur={() => setFocusedField(null)}
+                  onFocus={() => handleFieldFocus('name')}
+                  onBlur={handleFieldBlur}
                   accessibilityLabel="Full Name input"
                 />
               </View>
@@ -348,6 +462,7 @@ export default function SignupScreen({
                   style={styles.inputIcon}
                 />
                 <TextInput
+                  ref={emailInputRef}
                   style={styles.input}
                   placeholder="Enter your email address"
                   placeholderTextColor={colors.textMuted}
@@ -356,10 +471,13 @@ export default function SignupScreen({
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => phoneInputRef.current?.focus()}
+                  blurOnSubmit={false}
                   editable={!isLoading}
                   textContentType="emailAddress"
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
+                  onFocus={() => handleFieldFocus('email')}
+                  onBlur={handleFieldBlur}
                   accessibilityLabel="Email Address input"
                 />
               </View>
@@ -398,6 +516,7 @@ export default function SignupScreen({
                   style={styles.inputIcon}
                 />
                 <TextInput
+                  ref={phoneInputRef}
                   style={styles.input}
                   placeholder="Enter your phone number"
                   placeholderTextColor={colors.textMuted}
@@ -406,9 +525,12 @@ export default function SignupScreen({
                   keyboardType="phone-pad"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  blurOnSubmit={false}
                   editable={!isLoading}
-                  onFocus={() => setFocusedField('phone')}
-                  onBlur={() => setFocusedField(null)}
+                  onFocus={() => handleFieldFocus('phone')}
+                  onBlur={handleFieldBlur}
                   accessibilityLabel="Phone Number input"
                 />
               </View>
@@ -447,6 +569,7 @@ export default function SignupScreen({
                   style={styles.inputIcon}
                 />
                 <TextInput
+                  ref={passwordInputRef}
                   style={styles.input}
                   placeholder="Create a password"
                   placeholderTextColor={colors.textMuted}
@@ -455,10 +578,13 @@ export default function SignupScreen({
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
+                  blurOnSubmit={false}
                   editable={!isLoading}
                   textContentType="newPassword"
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
+                  onFocus={() => handleFieldFocus('password')}
+                  onBlur={handleFieldBlur}
                   accessibilityLabel="Password input"
                 />
                 <TouchableOpacity
@@ -513,6 +639,7 @@ export default function SignupScreen({
                   style={styles.inputIcon}
                 />
                 <TextInput
+                  ref={confirmPasswordInputRef}
                   style={styles.input}
                   placeholder="Confirm your password"
                   placeholderTextColor={colors.textMuted}
@@ -521,10 +648,12 @@ export default function SignupScreen({
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleCreateAccount}
                   editable={!isLoading}
                   textContentType="newPassword"
-                  onFocus={() => setFocusedField('confirmPassword')}
-                  onBlur={() => setFocusedField(null)}
+                  onFocus={() => handleFieldFocus('confirmPassword')}
+                  onBlur={handleFieldBlur}
                   accessibilityLabel="Confirm Password input"
                 />
                 <TouchableOpacity
@@ -617,6 +746,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
+  },
+  scrollContentKeyboardVisible: {
+    paddingBottom: Platform.OS === 'ios' ? 80 : 140,
   },
   topBar: {
     flexDirection: 'row',

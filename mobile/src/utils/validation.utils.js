@@ -60,16 +60,16 @@ export const validateEmail = (email) => {
 
 /**
  * Validates phone number.
- * - Optional.
- * - If provided, must match a 10-digit Indian mobile number (e.g. 9876543210 or +919876543210).
+ * - Required.
+ * - Must match a valid 10-digit Indian mobile number (e.g. 9876543210 or +919876543210).
  */
 export const validatePhone = (phone) => {
   if (phone === undefined || phone === null) {
-    return null;
+    return 'Mobile number is required.';
   }
   const trimmed = String(phone).trim();
   if (trimmed.length === 0) {
-    return null; // Optional
+    return 'Mobile number is required.';
   }
   const cleaned = trimmed.replace(/[\s-]/g, '');
   if (!INDIAN_PHONE_REGEX.test(cleaned)) {

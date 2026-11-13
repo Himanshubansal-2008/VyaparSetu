@@ -519,6 +519,10 @@ export default function AppNavigator({ initialRouteName = null }) {
     [navigate]
   );
 
+  const handleNavigateToHome = useCallback(() => {
+    navigate('Home');
+  }, [navigate]);
+
   const handleNavigateToSignup = useCallback(() => {
     const isSignupInHistory = history.some((r) => r.name === 'Signup');
     if (isSignupInHistory) {
@@ -899,6 +903,7 @@ export default function AppNavigator({ initialRouteName = null }) {
             route={currentRoute}
             onBackPress={goBack}
             onNavigateToLogin={handleNavigateToLogin}
+            onNavigateToHome={handleNavigateToHome}
           />
         </View>
       )}
@@ -911,6 +916,7 @@ export default function AppNavigator({ initialRouteName = null }) {
             route={currentRoute}
             onBackPress={goBack}
             onNavigateToSignup={handleNavigateToSignup}
+            onNavigateToHome={handleNavigateToHome}
           />
         </View>
       )}

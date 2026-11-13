@@ -1,4 +1,5 @@
 const authService = require("../services/auth.service");
+const { generateToken } = require("../utils/token.utils");
 
 /**
  * POST /api/auth/signup
@@ -15,10 +16,17 @@ const signup = async (req, res) => {
       password,
     });
 
+    const token = generateToken({
+      userId: user.id,
+      id: user.id,
+      role: user.role,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Account created successfully",
       data: {
+        token,
         user: {
           id: user.id,
           name: user.name,
@@ -33,6 +41,7 @@ const signup = async (req, res) => {
       return res.status(error.statusCode).json({
         success: false,
         message: error.message,
+        field: error.field || null,
       });
     }
 
@@ -70,6 +79,7 @@ const login = async (req, res) => {
       return res.status(error.statusCode).json({
         success: false,
         message: error.message,
+        field: error.field || null,
       });
     }
 
