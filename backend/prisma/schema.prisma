@@ -15,9 +15,9 @@ enum UserRole {
 
 model User {
   id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String
+  name         String   @default("Guest Buyer")
+  email        String?  @unique
+  passwordHash String?
   phone        String?
   role         UserRole @default(BUYER)
 

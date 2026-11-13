@@ -750,3 +750,45 @@ export const convertQuotationToCartItem = (quotation) => {
     addedAt: new Date().toISOString(),
   };
 };
+
+export const remapQuotationSellerId = async (oldSellerId, newSellerId) => {
+  if (!oldSellerId || !newSellerId || oldSellerId === newSellerId) return 0;
+  const cleanOld = String(oldSellerId).trim().toLowerCase();
+  const cleanNew = String(newSellerId).trim();
+
+  let modifiedCount = 0;
+  inMemoryQuotations.forEach((q) => {
+    if (!q) return;
+    let qChanged = false;
+    const qSellerId = q.sellerId ? String(q.sellerId).trim().toLowerCase() : '';
+    const qBizId = q.businessId ? String(q.businessId).trim().toLowerCase() : '';
+    if (qSellerId === cleanOld || qBizId === cleanOld) {
+      q.sellerId = cleanNew;
+      q.businessId = cleanNew;
+      qChanged = true;
+    }
+    if (q.product) {
+      const prodSellerId = q.product.sellerId ? String(q.product.sellerId).trim().toLowerCase() : '';
+      const prodBizId = q.product.businessId ? String(q.product.businessId).trim().toLowerCase() : '';
+      if (prodSellerId === cleanOld || prodBizId === cleanOld) {
+        q.product.sellerId = cleanNew;
+        q.product.businessId = cleanNew;
+        qChanged = true;
+      }
+    }
+    if (qChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_QUOTATIONS, JSON.stringify(inMemoryQuotations));
+    }
+  } catch (err) {
+    console.warn('[quotations] Failed to remap quotations in storage:', err);
+  }
+
+  notifyQuotationListeners();
+  return modifiedCount;
+};

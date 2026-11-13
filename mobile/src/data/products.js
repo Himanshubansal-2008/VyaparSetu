@@ -1004,3 +1004,61 @@ export const getProductById = (id) => {
     ) || null
   );
 };
+
+export const remapProductSellerId = async (oldSellerId, newSellerId) => {
+  if (!oldSellerId || !newSellerId || oldSellerId === newSellerId) return 0;
+  const cleanOld = String(oldSellerId).trim().toLowerCase();
+  const cleanNew = String(newSellerId).trim();
+
+  let modifiedCount = 0;
+  // 1. Update in-memory products array
+  products.forEach((p) => {
+    if (!p) return;
+    const pSellerId = p.sellerId ? String(p.sellerId).trim().toLowerCase() : '';
+    const pBizId = p.businessId ? String(p.businessId).trim().toLowerCase() : '';
+    if (pSellerId === cleanOld || pBizId === cleanOld) {
+      p.sellerId = cleanNew;
+      p.businessId = cleanNew;
+      if (!p.legacySellerId) {
+        p.legacySellerId = oldSellerId;
+      }
+      p.updatedAt = new Date().toISOString();
+      modifiedCount++;
+    }
+  });
+
+  // 2. Update persisted custom products in AsyncStorage
+  try {
+    if (storage && typeof storage.getItem === 'function') {
+      const raw = await storage.getItem(STORAGE_KEY_CUSTOM_PRODUCTS);
+      if (raw) {
+        const customProducts = JSON.parse(raw);
+        if (Array.isArray(customProducts)) {
+          let customUpdated = false;
+          customProducts.forEach((cp) => {
+            if (!cp) return;
+            const cpSellerId = cp.sellerId ? String(cp.sellerId).trim().toLowerCase() : '';
+            const cpBizId = cp.businessId ? String(cp.businessId).trim().toLowerCase() : '';
+            if (cpSellerId === cleanOld || cpBizId === cleanOld) {
+              cp.sellerId = cleanNew;
+              cp.businessId = cleanNew;
+              if (!cp.legacySellerId) {
+                cp.legacySellerId = oldSellerId;
+              }
+              cp.updatedAt = new Date().toISOString();
+              customUpdated = true;
+            }
+          });
+          if (customUpdated) {
+            await storage.setItem(STORAGE_KEY_CUSTOM_PRODUCTS, JSON.stringify(customProducts));
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[products] Failed to remap custom products in storage:', err);
+  }
+
+  notifyProductListeners();
+  return modifiedCount;
+};

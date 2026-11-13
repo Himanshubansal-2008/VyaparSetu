@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setClientBusinessId } from '../services/apiClient';
 
 /**
  * Mock data for Business Profile Screen
@@ -269,17 +270,21 @@ export const isProductOwnedByCurrentSeller = (productOrItem, customProfile) => {
 
   const profileId = String(profile.id || '').trim().toLowerCase();
   const profileSellerId = String(profile.sellerId || '').trim().toLowerCase();
+  const profileLegacyId = String(profile.legacyId || '').trim().toLowerCase();
   const profileName = String(profile.businessName || profile.sellerName || '').trim().toLowerCase();
 
   const prodSellerId = String(product.sellerId || '').trim().toLowerCase();
   const prodBizId = String(product.businessId || '').trim().toLowerCase();
   const prodSellerName = String(product.sellerName || '').trim().toLowerCase();
 
-  // 1. Direct ID / sellerId match
+  // 1. Direct ID / sellerId / legacyId match
   if (profileId && (profileId === prodSellerId || profileId === prodBizId)) {
     return true;
   }
   if (profileSellerId && (profileSellerId === prodSellerId || profileSellerId === prodBizId)) {
+    return true;
+  }
+  if (profileLegacyId && (profileLegacyId === prodSellerId || profileLegacyId === prodBizId)) {
     return true;
   }
 
@@ -364,6 +369,12 @@ export const loadPersistedBusinessProfile = async () => {
             }
           }
         });
+      }
+    }
+    if (sessionBusinessProfile) {
+      const targetId = sessionBusinessProfile.id || sessionBusinessProfile.sellerId;
+      if (targetId) {
+        setClientBusinessId(targetId);
       }
     }
   } catch (error) {
@@ -457,6 +468,7 @@ export const setSessionBusinessProfile = (profile) => {
   if (profile) {
     const targetId = profile.id || profile.sellerId;
     if (targetId) {
+      setClientBusinessId(targetId);
       const cleanId = String(targetId).trim().toLowerCase();
       const index = businesses.findIndex(
         (b) =>
@@ -472,6 +484,7 @@ export const setSessionBusinessProfile = (profile) => {
     notifyProfileListeners();
     return persistData();
   }
+  setClientBusinessId(null);
   notifyProfileListeners();
   return persistData();
 };
@@ -486,6 +499,7 @@ export const updateBusinessProfile = (updatedProfile) => {
 
   const targetId = updatedProfile.id || updatedProfile.sellerId;
   if (targetId) {
+    setClientBusinessId(targetId);
     const cleanId = String(targetId).trim().toLowerCase();
     const index = businesses.findIndex(
       (b) =>
@@ -500,6 +514,48 @@ export const updateBusinessProfile = (updatedProfile) => {
   }
   notifyProfileListeners();
   return persistData();
+};
+
+export const remapBusinessProfileId = async (oldId, newUUID) => {
+  if (!oldId || !newUUID || oldId === newUUID) return null;
+  const cleanOld = String(oldId).trim().toLowerCase();
+  const cleanNew = String(newUUID).trim();
+
+  if (sessionBusinessProfile) {
+    sessionBusinessProfile = {
+      ...sessionBusinessProfile,
+      id: cleanNew,
+      sellerId: cleanNew,
+      legacyId: sessionBusinessProfile.legacyId || oldId,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  // Update in businesses array
+  const index = businesses.findIndex(
+    (b) =>
+      b &&
+      ((b.id && String(b.id).trim().toLowerCase() === cleanOld) ||
+        (b.sellerId && String(b.sellerId).trim().toLowerCase() === cleanOld))
+  );
+
+  if (index !== -1) {
+    businesses[index] = {
+      ...businesses[index],
+      ...(sessionBusinessProfile || {}),
+      id: cleanNew,
+      sellerId: cleanNew,
+      legacyId: businesses[index].legacyId || sessionBusinessProfile?.legacyId || oldId,
+      updatedAt: new Date().toISOString(),
+    };
+  } else if (sessionBusinessProfile) {
+    businesses.push(sessionBusinessProfile);
+  }
+
+  setClientBusinessId(cleanNew);
+  await persistData();
+  notifyProfileListeners();
+  return sessionBusinessProfile;
 };
 
 export default businessProfileData;

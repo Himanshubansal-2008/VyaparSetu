@@ -228,8 +228,15 @@ export default function BusinessProfileScreen({
         ? String(product.sellerName).trim().toLowerCase()
         : null;
 
+      const normLegacyId = resolvedBusiness.legacyId
+        ? String(resolvedBusiness.legacyId).trim().toLowerCase()
+        : null;
+
+      const matchesLegacyId =
+        Boolean(normLegacyId) && (pSellerId === normLegacyId || pBusinessId === normLegacyId);
+
       const matchesId =
-        Boolean(normId) && (pSellerId === normId || pBusinessId === normId);
+        (Boolean(normId) && (pSellerId === normId || pBusinessId === normId)) || matchesLegacyId;
 
       if (isSubmittedBusiness) {
         return matchesId;

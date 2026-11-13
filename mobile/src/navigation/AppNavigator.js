@@ -29,6 +29,8 @@ import {
   loadPersistedAddress,
 } from '../data/orders';
 import { loadPersistedQuotations } from '../data/quotations';
+import { initUserSession } from '../services/userService';
+import { migrateLegacyBusinessProfileIfNeeded } from '../services/businessMigrationService';
 
 const VALID_ROUTES = [
   'Home',
@@ -147,18 +149,39 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
     return () => backHandler.remove();
   }, [history.length, goBack]);
 
-  // Load persisted business profile, mode, products, orders, and address on app launch
+  // Load user session, persisted business profile, mode, products, orders, and address on app launch
   useEffect(() => {
-    Promise.all([
-      loadPersistedBusinessProfile(),
-      loadPersistedMode(),
-      loadPersistedProducts(),
-      loadPersistedOrders(),
-      loadPersistedAddress(),
-      loadPersistedQuotations(),
-    ]).finally(() => {
-      setIsLoaded(true);
-    });
+    const initApp = async () => {
+      try {
+        // 1. Initialize user session first
+        await initUserSession().catch((e) =>
+          console.warn('[AppNavigator] User session init error:', e)
+        );
+
+        // 2. Load persisted local data
+        await Promise.all([
+          loadPersistedBusinessProfile(),
+          loadPersistedProducts(),
+          loadPersistedOrders(),
+          loadPersistedAddress(),
+          loadPersistedQuotations(),
+        ]);
+
+        // 3. Perform seamless one-time migration for legacy business profile if present
+        await migrateLegacyBusinessProfileIfNeeded().catch((e) =>
+          console.warn('[AppNavigator] Business migration skipped/deferred:', e)
+        );
+
+        // 4. Load persisted mode after migration so seller mode checks the migrated UUID
+        await loadPersistedMode();
+      } catch (err) {
+        console.warn('[AppNavigator] App initialization error:', err);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    initApp();
   }, []);
 
   const homeRoute = useMemo(

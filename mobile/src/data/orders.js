@@ -823,6 +823,58 @@ export const saveDeliveryAddress = async (addressData) => {
   return inMemoryAddress;
 };
 
+export const remapOrderSellerId = async (oldSellerId, newSellerId) => {
+  if (!oldSellerId || !newSellerId || oldSellerId === newSellerId) return 0;
+  const cleanOld = String(oldSellerId).trim().toLowerCase();
+  const cleanNew = String(newSellerId).trim();
+
+  let modifiedCount = 0;
+  inMemoryOrders.forEach((order) => {
+    if (!order) return;
+    let orderChanged = false;
+    const oSellerId = order.sellerId ? String(order.sellerId).trim().toLowerCase() : '';
+    const oBizId = order.businessId ? String(order.businessId).trim().toLowerCase() : '';
+    if (oSellerId === cleanOld || oBizId === cleanOld) {
+      order.sellerId = cleanNew;
+      order.businessId = cleanNew;
+      orderChanged = true;
+    }
+    if (Array.isArray(order.items)) {
+      order.items.forEach((item) => {
+        if (!item) return;
+        const iSellerId = item.sellerId ? String(item.sellerId).trim().toLowerCase() : '';
+        if (iSellerId === cleanOld) {
+          item.sellerId = cleanNew;
+          orderChanged = true;
+        }
+        if (item.product) {
+          const prodSellerId = item.product.sellerId ? String(item.product.sellerId).trim().toLowerCase() : '';
+          const prodBizId = item.product.businessId ? String(item.product.businessId).trim().toLowerCase() : '';
+          if (prodSellerId === cleanOld || prodBizId === cleanOld) {
+            item.product.sellerId = cleanNew;
+            item.product.businessId = cleanNew;
+            orderChanged = true;
+          }
+        }
+      });
+    }
+    if (orderChanged) {
+      modifiedCount++;
+    }
+  });
+
+  try {
+    if (storage && typeof storage.setItem === 'function') {
+      await storage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(inMemoryOrders));
+    }
+  } catch (err) {
+    console.warn('[orders] Failed to remap orders in storage:', err);
+  }
+
+  notifyOrderListeners();
+  return modifiedCount;
+};
+
 export default {
   STORAGE_KEY_ORDERS,
   STORAGE_KEY_ADDRESS,
@@ -850,4 +902,5 @@ export default {
   getSavedAddress,
   saveDeliveryAddress,
   subscribeOrders,
+  remapOrderSellerId,
 };
