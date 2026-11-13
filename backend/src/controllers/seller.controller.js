@@ -1,4 +1,5 @@
 const productService = require("../services/product.service");
+const orderService = require("../services/order.service");
 const prisma = require("../lib/prisma");
 const { UUID_REGEX } = require("../middlewares/clientIdentity");
 
@@ -10,7 +11,6 @@ const getSellerProducts = async (req, res) => {
     const userBizId = req.business?.id;
     let businessId = userBizId || headerBizId || queryBizId;
 
-    // If no businessId header yet, look up business owned by current user
     if (!businessId) {
       const userId = req.user?.id || req.headers["x-user-id"];
       if (userId && UUID_REGEX.test(userId.trim())) {
@@ -76,7 +76,124 @@ const getSellerProducts = async (req, res) => {
   }
 };
 
-module.exports = {
-  getSellerProducts,
+// GET /api/seller/orders - Retrieve incoming orders for active seller's business
+const getSellerOrders = async (req, res) => {
+  try {
+    const headerBizId = req.headers["x-business-id"];
+    const queryBizId = req.query?.businessId;
+    const userBizId = req.business?.id;
+    let businessId = userBizId || headerBizId || queryBizId;
+
+    if (!businessId) {
+      const userId = req.user?.id || req.headers["x-user-id"];
+      if (userId && UUID_REGEX.test(userId.trim())) {
+        const userBiz = await prisma.business.findUnique({
+          where: { ownerId: userId.trim() },
+          select: { id: true },
+        });
+        if (userBiz) {
+          businessId = userBiz.id;
+        }
+      }
+    }
+
+    if (!businessId || typeof businessId !== "string" || !UUID_REGEX.test(businessId.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller business identification required. Provide x-business-id or x-user-id header.",
+      });
+    }
+
+    const filters = {
+      status: req.query?.status,
+    };
+
+    const orders = await orderService.getSellerOrders(businessId.trim(), filters);
+
+    return res.status(200).json({
+      success: true,
+      message: "Seller orders fetched successfully",
+      data: orders,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    console.error("[SellerController] Get seller orders error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch seller orders",
+    });
+  }
 };
 
+// PUT /api/seller/orders/:id/status - Seller updates order status
+const updateSellerOrderStatus = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const headerBizId = req.headers["x-business-id"];
+    const userId = req.headers["x-user-id"] || req.user?.id;
+    let businessId = headerBizId || req.business?.id;
+
+    if (!businessId && userId && UUID_REGEX.test(userId.trim())) {
+      const userBiz = await prisma.business.findUnique({
+        where: { ownerId: userId.trim() },
+        select: { id: true },
+      });
+      if (userBiz) {
+        businessId = userBiz.id;
+      }
+    }
+
+    const { status, carrierName, trackingNumber, rejectionReason, cancellationReason } = req.body;
+
+    if (!orderId || !status) {
+      return res.status(400).json({
+        success: false,
+        message: "Order ID and status are required",
+      });
+    }
+
+    const updated = await orderService.updateOrderStatus(
+      orderId,
+      userId,
+      businessId,
+      status,
+      {
+        carrierName,
+        trackingNumber,
+        rejectionReason,
+        cancellationReason,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Order status updated to "${status}"`,
+      data: updated,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    console.error("[SellerController] Update order status error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update order status",
+    });
+  }
+};
+
+module.exports = {
+  getSellerProducts,
+  getSellerOrders,
+  updateSellerOrderStatus,
+};
