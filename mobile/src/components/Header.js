@@ -131,7 +131,7 @@ export default function Header({
                 color={colors.textPrimary}
               />
             </TouchableOpacity>
-          ) : (
+          ) : !isSellerMode ? (
             <TouchableOpacity
               style={styles.actionButton}
               onPress={onCartPress}
@@ -151,7 +151,7 @@ export default function Header({
                 </View>
               )}
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
       </View>
 

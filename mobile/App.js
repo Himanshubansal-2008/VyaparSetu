@@ -9,11 +9,11 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <CartProvider>
-        <ModeProvider>
+      <ModeProvider>
+        <CartProvider>
           <AppNavigator />
-        </ModeProvider>
-      </CartProvider>
+        </CartProvider>
+      </ModeProvider>
     </View>
   );
 }

@@ -31,6 +31,7 @@ import { getProductById, isUUID } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
+import { useMode } from '../context/ModeContext';
 
 function ThumbnailItem({
   uri,
@@ -89,6 +90,7 @@ export default function ProductDetailsScreen({
   onCartPress,
 }) {
   const { addToCart, isInCart, cartItemCount } = useCart();
+  const { isSellerMode } = useMode();
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
@@ -966,6 +968,13 @@ export default function ProductDetailsScreen({
   };
 
   const handleAddToCart = () => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Purchasing products is disabled in Seller Mode. Switch to Buyer Mode to add products to your cart.'
+      );
+      return;
+    }
     if (isProductInactive) {
       Alert.alert(
         'Product Unavailable',
@@ -997,6 +1006,13 @@ export default function ProductDetailsScreen({
   };
 
   const handleRequestQuotation = () => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Requesting price quotations is disabled in Seller Mode. Switch to Buyer Mode to request quotations.'
+      );
+      return;
+    }
     if (isProductInactive) {
       Alert.alert(
         'Product Unavailable',
@@ -1121,23 +1137,27 @@ export default function ProductDetailsScreen({
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Product Details</Text>
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            onPress={handleCartPress}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Shopping Cart"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
-            {cartItemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>
-                  {cartItemCount > 9 ? '9+' : cartItemCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {!isSellerMode ? (
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleCartPress}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Shopping Cart"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
+              {cartItemCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>
+                    {cartItemCount > 9 ? '9+' : cartItemCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerRightSpacer} />
+          )}
         </View>
 
         {/* Empty / Not Found State */}
@@ -1185,23 +1205,25 @@ export default function ProductDetailsScreen({
               <Ionicons name="create-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            onPress={handleCartPress}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Shopping Cart"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
-            {cartItemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>
-                  {cartItemCount > 9 ? '9+' : cartItemCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {!isSellerMode && (
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleCartPress}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Shopping Cart"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
+              {cartItemCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>
+                    {cartItemCount > 9 ? '9+' : cartItemCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -1717,6 +1739,24 @@ export default function ProductDetailsScreen({
                 </View>
               </View>
             </View>
+          ) : isSellerMode ? (
+            <View style={styles.sellerListingCard}>
+              <View style={styles.sellerListingHeaderRow}>
+                <View style={styles.sellerListingIconBox}>
+                  <Ionicons
+                    name="information-circle"
+                    size={20}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.sellerListingTextWrapper}>
+                  <Text style={styles.sellerListingTitle}>Seller Mode Active</Text>
+                  <Text style={styles.sellerListingSubtitle}>
+                    Purchasing and price quotation requests are disabled in Seller Mode. Switch to Buyer Mode to purchase wholesale products from other businesses.
+                  </Text>
+                </View>
+              </View>
+            </View>
           ) : (
             <>
               {/* Select Quantity & Estimated Price Section */}
@@ -2167,6 +2207,13 @@ export default function ProductDetailsScreen({
               </Text>
             </TouchableOpacity>
           </View>
+        ) : isSellerMode ? (
+          <View style={styles.sellerBottomDisabledRow}>
+            <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.sellerBottomDisabledText}>
+              Purchasing is disabled in Seller Mode
+            </Text>
+          </View>
         ) : (
           <>
             <View style={styles.bottomBarPriceContainer}>
@@ -2513,6 +2560,19 @@ const styles = StyleSheet.create({
   },
   sellerButtonIcon: {
     marginRight: spacing.xs + 2,
+  },
+  sellerBottomDisabledRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+  },
+  sellerBottomDisabledText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginLeft: 6,
   },
   sellerListingCard: {
     backgroundColor: '#F8FAFC',

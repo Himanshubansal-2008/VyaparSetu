@@ -7,7 +7,11 @@ import React, {
   useMemo,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
+import {
+  isProductOwnedByCurrentSeller,
+  getActiveMode,
+  MODES,
+} from '../data/businessProfileData';
 import {
   isProductActive,
   getProductById,
@@ -256,6 +260,14 @@ export function CartProvider({ children }) {
           success: false,
           reason: 'product_unavailable',
           message: 'This product has been deleted or is no longer available for purchase.',
+        };
+      }
+
+      if (getActiveMode() === MODES.SELLER) {
+        return {
+          success: false,
+          reason: 'seller_mode',
+          message: 'Adding products to cart is disabled in Seller Mode.',
         };
       }
 

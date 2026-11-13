@@ -25,6 +25,7 @@ import {
   getSessionBusinessProfile,
   subscribeBusinessProfile,
 } from '../data/businessProfileData';
+import { useMode } from '../context/ModeContext';
 import EmptyState from '../components/EmptyState';
 
 export default function CartScreen({
@@ -37,6 +38,7 @@ export default function CartScreen({
   onNavigateToRequestQuotation,
   onNavigateToBuyerQuotations,
 }) {
+  const { isSellerMode } = useMode();
   const {
     cartItems,
     cartItemCount,
@@ -274,6 +276,13 @@ export default function CartScreen({
 
   const handleCheckoutPress = () => {
     if (isEmpty) return;
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Checkout is disabled in Seller Mode. Switch to Buyer Mode to place wholesale orders.'
+      );
+      return;
+    }
     if (hasOwnProducts) {
       Alert.alert(
         'Cannot Proceed to Checkout',
@@ -468,6 +477,23 @@ export default function CartScreen({
               All prices update automatically based on wholesale quantity tiers.
             </Text>
           </View>
+
+          {/* Seller Mode Notice Banner */}
+          {isSellerMode && (
+            <View style={[styles.ownProductsAlertCard, { borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', marginBottom: spacing.sm }]}>
+              <View style={styles.ownProductsAlertHeader}>
+                <Ionicons name="information-circle" size={22} color={colors.primary} />
+                <View style={styles.ownProductsAlertTitleWrapper}>
+                  <Text style={[styles.ownProductsAlertTitle, { color: colors.primary }]}>
+                    Seller Mode Active
+                  </Text>
+                  <Text style={styles.ownProductsAlertSubtitle}>
+                    Purchasing and checkout are disabled while in Seller Mode. Switch to Buyer Mode to place wholesale orders.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Own Products Warning Banner */}
           {hasOwnProducts && (
@@ -993,13 +1019,16 @@ export default function CartScreen({
           <TouchableOpacity
             style={[
               styles.checkoutButton,
-              (hasOwnProducts || hasUnavailableProducts) && styles.checkoutButtonBlocked,
+              (isSellerMode || hasOwnProducts || hasUnavailableProducts) && styles.checkoutButtonBlocked,
             ]}
             onPress={handleCheckoutPress}
+            disabled={isSellerMode || hasOwnProducts || hasUnavailableProducts}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel={
-              hasOwnProducts
+              isSellerMode
+                ? 'Checkout disabled in Seller Mode'
+                : hasOwnProducts
                 ? 'Remove own products to checkout'
                 : hasUnavailableProducts
                 ? 'Remove unavailable products to checkout'
@@ -1007,13 +1036,21 @@ export default function CartScreen({
             }
           >
             <Ionicons
-              name={hasOwnProducts || hasUnavailableProducts ? 'alert-circle-outline' : 'card-outline'}
+              name={
+                isSellerMode
+                  ? 'lock-closed-outline'
+                  : hasOwnProducts || hasUnavailableProducts
+                  ? 'alert-circle-outline'
+                  : 'card-outline'
+              }
               size={18}
               color={colors.textInverse}
               style={styles.checkoutButtonIcon}
             />
             <Text style={styles.checkoutButtonText}>
-              {hasOwnProducts
+              {isSellerMode
+                ? 'Checkout Disabled in Seller Mode'
+                : hasOwnProducts
                 ? 'Remove Own Products to Checkout'
                 : hasUnavailableProducts
                 ? 'Remove Unavailable Products to Checkout'

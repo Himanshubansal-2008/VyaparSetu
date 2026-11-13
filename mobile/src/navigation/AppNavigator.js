@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { StyleSheet, View, BackHandler, Platform } from 'react-native';
+import { StyleSheet, View, BackHandler, Platform, Alert } from 'react-native';
+import { useMode } from '../context/ModeContext';
 import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
@@ -59,6 +60,7 @@ const VALID_ROUTES = [
 
 export default function AppNavigator({ initialRouteName = 'Home' }) {
   const [isLoaded, setIsLoaded] = useState(false);
+  const { isSellerMode } = useMode();
   const [navState, setNavState] = useState({
     currentRoute: {
       name: VALID_ROUTES.includes(initialRouteName) ? initialRouteName : 'Home',
@@ -69,12 +71,32 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
 
   const { currentRoute, history } = navState;
 
+  // If user switches to Seller Mode while on buyer purchasing screens, redirect safely to Home
+  useEffect(() => {
+    if (isSellerMode && ['Cart', 'Checkout', 'OrderConfirmation'].includes(currentRoute.name)) {
+      setNavState((prevState) => ({
+        currentRoute: { name: 'Home', params: {} },
+        history: prevState.history.filter(
+          (r) => !['Cart', 'Checkout', 'OrderConfirmation'].includes(r.name)
+        ),
+      }));
+    }
+  }, [isSellerMode, currentRoute.name]);
+
   const navigate = useCallback((name, params = {}) => {
     if (!name || typeof name !== 'string' || !VALID_ROUTES.includes(name)) {
       console.warn(
         `[AppNavigator] Invalid or missing navigation target: "${name}". Valid routes are: ${VALID_ROUTES.join(
           ', '
         )}`
+      );
+      return;
+    }
+
+    if (isSellerMode && (name === 'Cart' || name === 'Checkout' || name === 'OrderConfirmation')) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Purchasing and cart access are disabled in Seller Mode. Switch to Buyer Mode to make purchases.'
       );
       return;
     }
@@ -306,12 +328,26 @@ export default function AppNavigator({ initialRouteName = 'Home' }) {
   );
 
   const handleNavigateToCart = useCallback(() => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Cart is not accessible while in Seller Mode. Switch to Buyer Mode to access your cart.'
+      );
+      return;
+    }
     navigate('Cart');
-  }, [navigate]);
+  }, [navigate, isSellerMode]);
 
   const handleNavigateToCheckout = useCallback(() => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Checkout is not accessible while in Seller Mode. Switch to Buyer Mode to checkout.'
+      );
+      return;
+    }
     navigate('Checkout');
-  }, [navigate]);
+  }, [navigate, isSellerMode]);
 
   const handleNavigateToConfirmation = useCallback(
     (order) => {

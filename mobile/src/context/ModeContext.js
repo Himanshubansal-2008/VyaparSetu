@@ -6,6 +6,7 @@ import {
   isUserCreatedProfile,
   STORAGE_KEY_ACTIVE_MODE,
   MODES,
+  setActiveMode,
 } from '../data/businessProfileData';
 
 export { MODES, STORAGE_KEY_ACTIVE_MODE };
@@ -28,6 +29,10 @@ export function ModeProvider({ children }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Subscribe to business profile updates to keep eligibility and data in sync
+  useEffect(() => {
+    setActiveMode(mode);
+  }, [mode]);
+
   useEffect(() => {
     setSessionProfile(getSessionBusinessProfile());
     return subscribeBusinessProfile((updated) => {
