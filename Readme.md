@@ -94,6 +94,13 @@ Planned functionality:
 - Cost reduction strategies.
 - Digital business and market expansion resources.
 
+### 📦 Inventory Management Module Architecture
+
+- **Dashboard**: Live analytics displaying total inventory, low-stock warnings (<= 20 units), and out-of-stock items.
+- **Stock Management**: Instant quantity updates with non-negative whole-number validation.
+- **Product Lifecycle**: Add new products with categories, edit existing items, and soft-deactivate discontinued items.
+- **Search & Filters**: Multi-criteria search with real-time status pills (All, In Stock, Low Stock, Out of Stock).
+
 ## 🛠️ Proposed Technology Stack
 
 | Technology | Planned Use |
