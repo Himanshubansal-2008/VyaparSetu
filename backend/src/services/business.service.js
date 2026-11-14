@@ -1,23 +1,23 @@
+
 const prisma = require("../lib/prisma");
 const { UUID_REGEX } = require("../middlewares/clientIdentity");
 
-/**
- * Creates a new business profile linked to an owner User.
- * Enforces the schema's 1-to-1 unique relationship between User and Business.
- * 
- * @param {Object} businessData
- * @param {string} businessData.name - Business / Seller Name
- * @param {string} businessData.ownerId - User UUID owning this business
- * @param {string} [businessData.description]
- * @param {string} [businessData.category]
- * @param {string} [businessData.address]
- * @param {string} [businessData.city]
- * @param {string} [businessData.state]
- * @param {string} [businessData.pincode]
- * @param {string} [businessData.phone]
- * @param {string} [businessData.email]
- * @returns {Promise<Object>} Created business record
- */
+// Fetch all businesses for the inventory module
+const getBusinesses = async () => {
+  return await prisma.business.findMany({
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      city: true,
+      state: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+};
+
 const createBusiness = async (businessData) => {
   const {
     name,
@@ -271,7 +271,9 @@ const updateBusiness = async (id, updateData = {}, requesterId = null) => {
 };
 
 module.exports = {
+  getBusinesses,
   createBusiness,
+  getMyBusiness,
   getBusinessById,
   getBusinessByOwnerId,
   updateBusiness,

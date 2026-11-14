@@ -976,6 +976,35 @@ export default function HomeScreen({
         onRetry={fetchCategoriesList}
       />
 
+
+{/* 2.5 Inventory Management Entry */}
+<TouchableOpacity
+  style={styles.inventoryEntry}
+  onPress={() => navigation?.navigate('InventoryList')}
+  activeOpacity={0.8}
+  accessibilityRole="button"
+>
+  <View style={styles.inventoryIconContainer}>
+    <Ionicons name="cube-outline" size={24} color={colors.primary} />
+  </View>
+
+  <View style={styles.inventoryEntryContent}>
+    <Text style={styles.inventoryEntryTitle}>
+      Inventory Management
+    </Text>
+    <Text style={styles.inventoryEntrySubtitle}>
+      Manage stock, track low inventory and surplus products
+    </Text>
+  </View>
+
+  <Ionicons
+    name="chevron-forward"
+    size={20}
+    color={colors.primary}
+  />
+</TouchableOpacity>
+
+
       {/* 3. Featured Products — horizontal carousel */}
       {(!isSellerMode || featuredProducts.length > 0) && (
         <FeaturedProducts
@@ -1792,6 +1821,47 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+
+  inventoryEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  inventoryIconContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.infoLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+
+  inventoryEntryContent: {
+    flex: 1,
+  },
+
+  inventoryEntryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+
+  inventoryEntrySubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+
   quickActionsBar: {
     flexDirection: 'row',
     alignItems: 'center',

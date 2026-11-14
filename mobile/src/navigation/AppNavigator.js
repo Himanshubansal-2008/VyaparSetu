@@ -6,6 +6,11 @@ import { colors } from '../theme/colors';
 import HomeScreen from '../screens/HomeScreen';
 import ProductListingScreen from '../screens/ProductListingScreen';
 import ProductDetailsScreen from '../screens/ProductDetailsScreen';
+import InventoryDashboardScreen from '../screens/InventoryDashboardScreen';
+import InventoryListScreen from '../screens/InventoryListScreen';
+import EditProductScreen from '../screens/EditProductScreen';
+import UpdateStockScreen from '../screens/UpdateStockScreen';
+
 import BusinessProfileScreen from '../screens/BusinessProfileScreen';
 import CreateBusinessProfileScreen from '../screens/CreateBusinessProfileScreen';
 import AddProductScreen from '../screens/AddProductScreen';
@@ -23,6 +28,7 @@ import SellerQuotationsScreen from '../screens/SellerQuotationsScreen';
 import SellerQuotationDetailsScreen from '../screens/SellerQuotationDetailsScreen';
 import SignupScreen from '../screens/SignupScreen';
 import LoginScreen from '../screens/LoginScreen';
+
 import {
   loadPersistedBusinessProfile,
   loadPersistedMode,
@@ -43,24 +49,39 @@ const VALID_ROUTES = [
   'Home',
   'ProductListing',
   'ProductDetails',
+
+  // Inventory
+  'InventoryDashboard',
+  'InventoryList',
+  'AddProduct',
+  'EditProduct',
+  'UpdateStock',
+
+  // Business
   'BusinessProfile',
   'CreateBusinessProfile',
   'EditBusinessProfile',
-  'AddProduct',
-  'EditProduct',
+
+  // Buyer
   'Cart',
   'Checkout',
   'OrderConfirmation',
   'OrderHistory',
   'Orders',
   'OrderDetails',
+
+  // Seller
   'SellerOrders',
   'SellerOrderDetails',
+
+  // Quotations
   'RequestQuotation',
   'BuyerQuotations',
   'BuyerQuotationDetails',
   'SellerQuotations',
   'SellerQuotationDetails',
+
+  // Authentication
   'Signup',
   'Login',
 ];
@@ -625,6 +646,37 @@ export default function AppNavigator({ initialRouteName = null }) {
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
+      {/* Inventory Dashboard Screen */}
+      {currentRoute.name === 'InventoryDashboard' && (
+        <View style={styles.screen}>
+          <InventoryDashboardScreen navigation={navigation} />
+        </View>
+      )}
+      
+      {currentRoute.name === 'InventoryList' && (
+        <View style={styles.screen}>
+          <InventoryListScreen navigation={navigation} />
+        </View>
+      )}
+
+      {currentRoute.name === 'EditProduct' && (
+        <View style={styles.screen}>
+          <EditProductScreen
+            navigation={navigation}
+            route={currentRoute}
+          />
+        </View>
+      )}
+
+      {currentRoute.name === 'UpdateStock' && (
+        <View style={styles.screen}>
+          <UpdateStockScreen
+            navigation={navigation}
+            route={currentRoute}
+          />
+        </View>
+      )}
+
       <View
         style={[
           styles.screen,
@@ -743,22 +795,17 @@ export default function AppNavigator({ initialRouteName = null }) {
         </View>
       )}
 
-      {/* Add / Edit Product Screen */}
-      {(currentRoute.name === 'AddProduct' ||
-        currentRoute.name === 'EditProduct') && (
-        <View style={styles.screen}>
-          <AddProductScreen
-            key={
-              currentRoute.params?.product?.id ||
-              currentRoute.params?.productId ||
-              currentRoute.name
-            }
-            navigation={navigation}
-            route={currentRoute}
-            onBackPress={goBack}
-          />
-        </View>
-      )}
+      {/* Add Product Screen */}
+{currentRoute.name === 'AddProduct' && (
+  <View style={styles.screen}>
+    <AddProductScreen
+      key={currentRoute.name}
+      navigation={navigation}
+      route={currentRoute}
+      onBackPress={goBack}
+    />
+  </View>
+)}
 
       {/* Wholesale Cart Screen */}
       {currentRoute.name === 'Cart' && (

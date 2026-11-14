@@ -1,8 +1,3 @@
-/**
- * Realistic sample products and bulk pricing tiers for VyaparSetu marketplace
- * Covering all 10 standard categories with realistic wholesale pricing, MOQs, and units.
- */
-
 const sampleProducts = [
   // ---------------------------------------------------------------------------
   // 1. Category: Electronics
