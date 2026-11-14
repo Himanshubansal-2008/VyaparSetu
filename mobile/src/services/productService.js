@@ -93,3 +93,23 @@ export const updateProductStock = async (productId, stock) => {
 
   return result.data;
 };
+
+export const deactivateProduct = async (productId) => {
+  const response = await fetch(
+    `${API_BASE_URL}/products/${productId}/deactivate`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Failed to deactivate product");
+  }
+
+  return result.data;
+};

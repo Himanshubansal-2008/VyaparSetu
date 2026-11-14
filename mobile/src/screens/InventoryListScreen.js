@@ -8,7 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-import { getProducts } from '../services/productService';
+import { getProducts, deactivateProduct } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -54,6 +54,32 @@ useEffect(() => {
   loadProducts();
 }, []);
 
+const [notification, setNotification] = useState({
+  visible: false,
+  message: '',
+  type: 'success',
+});
+
+const handleDeactivate = async (product) => {
+  try {
+    await deactivateProduct(product.id);
+
+    setNotification({
+      visible: true,
+      message: `${product.name} has been deactivated successfully!`,
+      type: 'success',
+    });
+
+    await loadProducts();
+  } catch (error) {
+    setNotification({
+      visible: true,
+      message: error.message || 'Failed to deactivate product.',
+      type: 'error',
+    });
+  }
+};
+
 const categories = useMemo(() => {
   const uniqueCategories = new Map();
 
@@ -98,6 +124,21 @@ const filteredProducts = useMemo(() => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {notification.visible && (
+  <View
+    style={[
+      styles.notification,
+      notification.type === 'success'
+        ? styles.successNotification
+        : styles.errorNotification,
+    ]}
+  >
+    <Text style={styles.notificationText}>
+      {notification.type === 'success' ? '✓ ' : '⚠ '}
+      {notification.message}
+    </Text>
+  </View>
+)}
 
 <View style={styles.header}>
   <TouchableOpacity onPress={() => navigation?.goBack?.()}>
@@ -310,6 +351,12 @@ const filteredProducts = useMemo(() => {
     <Text style={styles.stockButtonText}>📦 Update Stock</Text>
   </TouchableOpacity>
 </View>
+<TouchableOpacity
+  style={styles.deactivateButton}
+  onPress={() => handleDeactivate(product)}
+>
+  <Text style={styles.deactivateButtonText}>Deactivate Product</Text>
+</TouchableOpacity>
       </View>
     );
   })
@@ -576,5 +623,37 @@ stockButtonText: {
   color: '#FFFFFF',
   fontWeight: '700',
   fontSize: 13,
+},
+deactivateButton: {
+  backgroundColor: '#FEE2E2',
+  paddingVertical: spacing.sm,
+  borderRadius: borderRadius.md,
+  alignItems: 'center',
+  marginTop: spacing.sm,
+},
+
+deactivateButtonText: {
+  color: '#B91C1C',
+  fontWeight: '700',
+  fontSize: 13,
+},
+notification: {
+  padding: spacing.md,
+  borderRadius: borderRadius.md,
+  marginBottom: spacing.md,
+},
+
+successNotification: {
+  backgroundColor: '#DCFCE7',
+},
+
+errorNotification: {
+  backgroundColor: '#FEE2E2',
+},
+
+notificationText: {
+  color: '#166534',
+  fontWeight: '600',
+  fontSize: 14,
 },
 });
