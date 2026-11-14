@@ -1,24 +1,109 @@
-const express = require('express');
-const cors = require("cors");
+
+const express = require("express");
+
 const categoryRoutes = require("./routes/category.routes");
 const productRoutes = require("./routes/product.routes");
 const businessRoutes = require("./routes/business.routes");
+const authRoutes = require("./routes/auth.routes");
+const userRoutes = require("./routes/user.routes");
+const sellerRoutes = require("./routes/seller.routes");
+const orderRoutes = require("./routes/order.routes");
+const cartRoutes = require("./routes/cart.routes");
+const quotationRoutes = require("./routes/quotation.routes");
+
+const { extractClientIdentity } = require("./middlewares/clientIdentity");
 
 const app = express();
 
-app.use(cors({
-  origin: "http://localhost:8081",
-}));
+// Configurable CORS supporting development, Expo Web, and production origins
+const rawOrigins = process.env.CORS_ORIGIN || process.env.ALLOWED_ORIGINS;
+const configuredOrigins = rawOrigins
+  ? rawOrigins.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
+
+const defaultDevOrigins = [
+  "http://localhost:8081",
+  "http://localhost:19006",
+  "http://localhost:3000",
+  "http://127.0.0.1:8081",
+];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin) {
+    const isAllowed =
+      configuredOrigins.includes("*") ||
+      configuredOrigins.includes(origin) ||
+      (process.env.NODE_ENV !== "production" &&
+        defaultDevOrigins.includes(origin)) ||
+      configuredOrigins.length === 0;
+
+    if (isAllowed) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+  } else {
+    res.header("Access-Control-Allow-Origin", "*");
+  }
+
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+  );
+
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-id, x-business-id, X-User-Id, X-Business-Id"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 app.use(express.json());
+app.use(extractClientIdentity);
+
+// API Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/businesses", businessRoutes);
+app.use("/api/seller", sellerRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/quotations", quotationRoutes);
 
-app.get('/api/health', (req, res) => {
+// Root endpoint
+app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: 'VyaparSetu API is running',
+    message: "VyaparSetu Backend Server is running",
+    version: "1.0.0",
+    endpoints: {
+      health: "/api/health",
+      auth: "/api/auth",
+      categories: "/api/categories",
+      products: "/api/products",
+      featuredProducts: "/api/products/featured",
+      users: "/api/users",
+      businesses: "/api/businesses",
+      seller: "/api/seller",
+      orders: "/api/orders",
+      cart: "/api/cart",
+      quotations: "/api/quotations",
+    },
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "VyaparSetu API is running",
   });
 });
 

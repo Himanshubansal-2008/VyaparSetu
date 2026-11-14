@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "name" SET DEFAULT 'Guest Buyer',
+ALTER COLUMN "email" DROP NOT NULL,
+ALTER COLUMN "passwordHash" DROP NOT NULL;

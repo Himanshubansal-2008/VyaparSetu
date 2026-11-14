@@ -1,13 +1,19 @@
 const productService = require("../services/product.service");
+const prisma = require("../lib/prisma");
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /api/products - Get all products (with optional query filters and pagination)
 const getAllProducts = async (req, res) => {
   try {
-    const { category, categoryId, search, isFeatured, page, limit, sortBy, sortOrder } = req.query;
+    const { category, categoryId, businessId, search, isFeatured, page, limit, sortBy, sortOrder } = req.query;
 
     const parsedFilters = {};
+
+    // 0. Validate businessId if provided
+    if (businessId !== undefined && typeof businessId === "string" && businessId.trim() && UUID_REGEX.test(businessId.trim())) {
+      parsedFilters.businessId = businessId.trim();
+    }
 
     // 1. Validate search query if provided
     if (search !== undefined) {
@@ -234,7 +240,22 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedProduct = await productService.updateProduct(id, req.body);
+
+    let requesterBusinessId = req.headers["x-business-id"] || req.business?.id;
+    if (!requesterBusinessId) {
+      const userId = req.headers["x-user-id"] || req.user?.id;
+      if (userId && UUID_REGEX.test(userId.trim())) {
+        const userBiz = await prisma.business.findUnique({
+          where: { ownerId: userId.trim() },
+          select: { id: true },
+        });
+        if (userBiz) {
+          requesterBusinessId = userBiz.id;
+        }
+      }
+    }
+
+    const updatedProduct = await productService.updateProduct(id, req.body, requesterBusinessId);
 
     return res.status(200).json({
       success: true,
@@ -268,7 +289,21 @@ const deactivateProduct = async (req, res) => {
       });
     }
 
-    const deactivatedProduct = await productService.deactivateProduct(id.trim());
+    let requesterBusinessId = req.headers["x-business-id"] || req.business?.id;
+    if (!requesterBusinessId) {
+      const userId = req.headers["x-user-id"] || req.user?.id;
+      if (userId && UUID_REGEX.test(userId.trim())) {
+        const userBiz = await prisma.business.findUnique({
+          where: { ownerId: userId.trim() },
+          select: { id: true },
+        });
+        if (userBiz) {
+          requesterBusinessId = userBiz.id;
+        }
+      }
+    }
+
+    const deactivatedProduct = await productService.deactivateProduct(id.trim(), requesterBusinessId);
 
     return res.status(200).json({
       success: true,
@@ -286,6 +321,54 @@ const deactivateProduct = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to deactivate product",
+    });
+  }
+};
+
+// DELETE /api/products/:id - Delete or soft-deactivate a product
+const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || typeof id !== "string" || !id.trim() || !UUID_REGEX.test(id.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID format",
+      });
+    }
+
+    let requesterBusinessId = req.headers["x-business-id"] || req.business?.id;
+    if (!requesterBusinessId) {
+      const userId = req.headers["x-user-id"] || req.user?.id;
+      if (userId && UUID_REGEX.test(userId.trim())) {
+        const userBiz = await prisma.business.findUnique({
+          where: { ownerId: userId.trim() },
+          select: { id: true },
+        });
+        if (userBiz) {
+          requesterBusinessId = userBiz.id;
+        }
+      }
+    }
+
+    const result = await productService.deleteProduct(id.trim(), requesterBusinessId);
+
+    return res.status(200).json({
+      success: true,
+      message: result.message || "Product deleted successfully",
+      data: result,
+    });
+  } catch (error) {
+    if (error.statusCode && error.statusCode < 500) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete product",
     });
   }
 };
@@ -398,5 +481,6 @@ module.exports = {
   createProduct,
   updateProduct,
   deactivateProduct,
+  deleteProduct,
   updateProductFeaturedStatus,
 };

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,6 +11,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import {
+  isProductOwnedByCurrentSeller,
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+} from '../data/businessProfileData';
 
 export default function ProductCard({
   product,
@@ -18,21 +23,91 @@ export default function ProductCard({
   name = product?.name,
   price = product?.price,
   originalPrice = product?.originalPrice,
-  category = product?.categoryName || product?.category,
-  sellerName = product?.sellerName,
-  location = product?.location,
-  image = product?.image,
+  category = product?.categoryName ||
+    (typeof product?.category === 'object' ? product?.category?.name : product?.category),
+  sellerName,
+  location,
+  image = product?.imageUrl || product?.image,
   unit = product?.unit || 'piece',
-  moq = product?.moq,
+  moq = product?.minOrderQuantity !== undefined ? product?.minOrderQuantity : product?.moq,
   rating = product?.rating,
   totalReviews = product?.totalReviews,
   isSurplus = product?.isSurplus,
   isFeatured = product?.isFeatured,
+  isOwnProduct: propIsOwnProduct,
   onPress,
+  onEditPress,
   style,
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [imageError, setImageError] = useState(false);
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const isOwn = useMemo(() => {
+    if (propIsOwnProduct !== undefined) return Boolean(propIsOwnProduct);
+    return isProductOwnedByCurrentSeller(
+      product || {
+        id,
+        name,
+        price,
+        originalPrice,
+        category,
+        sellerName,
+        location,
+        image,
+        unit,
+        moq,
+        rating,
+        totalReviews,
+        isSurplus,
+        isFeatured,
+      },
+      sessionProfile
+    );
+  }, [
+    propIsOwnProduct,
+    product,
+    id,
+    name,
+    price,
+    originalPrice,
+    category,
+    sellerName,
+    location,
+    image,
+    unit,
+    moq,
+    rating,
+    totalReviews,
+    isSurplus,
+    isFeatured,
+    sessionProfile,
+  ]);
+
+  // Reset image error state whenever product image URI changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [image]);
+
+  // Correctly resolve seller/business name and location from database or props
+  const resolvedSellerName =
+    sellerName ||
+    product?.sellerName ||
+    product?.business?.name ||
+    product?.businessName ||
+    null;
+
+  const resolvedLocation =
+    location ||
+    product?.location ||
+    ([product?.business?.city, product?.business?.state].filter(Boolean).join(', ') || null);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -52,21 +127,24 @@ export default function ProductCard({
     }).start();
   };
 
+  const numPrice = typeof price === 'number' ? price : Number(price);
+  const numOrigPrice = typeof originalPrice === 'number' ? originalPrice : Number(originalPrice);
+
   const discountPercent =
-    originalPrice && price && originalPrice > price
-      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    !isNaN(numOrigPrice) && !isNaN(numPrice) && numOrigPrice > numPrice
+      ? Math.round(((numOrigPrice - numPrice) / numOrigPrice) * 100)
       : 0;
 
   const formattedPrice =
-    typeof price === 'number'
-      ? price.toLocaleString('en-IN')
+    !isNaN(numPrice) && price !== '' && price !== null && price !== undefined
+      ? numPrice.toLocaleString('en-IN')
       : price !== undefined && price !== null
       ? String(price)
       : '0';
 
   const formattedOriginalPrice =
-    typeof originalPrice === 'number'
-      ? originalPrice.toLocaleString('en-IN')
+    !isNaN(numOrigPrice) && originalPrice !== '' && originalPrice !== null && originalPrice !== undefined
+      ? numOrigPrice.toLocaleString('en-IN')
       : originalPrice !== undefined && originalPrice !== null
       ? String(originalPrice)
       : null;
@@ -116,8 +194,8 @@ export default function ProductCard({
               price,
               originalPrice,
               category,
-              sellerName,
-              location,
+              sellerName: resolvedSellerName,
+              location: resolvedLocation,
               image,
               unit,
               moq,
@@ -163,6 +241,13 @@ export default function ProductCard({
               <Text style={styles.featuredText}>Featured</Text>
             </View>
           )}
+
+          {isOwn && (
+            <View style={styles.myProductBadge}>
+              <Ionicons name="person" size={10} color={colors.textInverse} />
+              <Text style={styles.myProductBadgeText}>My Product</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.details}>
@@ -186,11 +271,11 @@ export default function ProductCard({
 
           {moq ? (
             <Text style={styles.moq}>
-              MOQ: {moq} {moqUnitLabel}
+              Min. Order: {moq} {moqUnitLabel}
             </Text>
           ) : null}
 
-          {(rating || location) && (
+          {(rating || resolvedLocation) && (
             <View style={styles.metaRow}>
               {rating ? (
                 <View style={styles.ratingChip}>
@@ -204,7 +289,7 @@ export default function ProductCard({
                 <View />
               )}
 
-              {location ? (
+              {resolvedLocation ? (
                 <View style={styles.locationChip}>
                   <Ionicons
                     name="location-outline"
@@ -212,14 +297,14 @@ export default function ProductCard({
                     color={colors.textMuted}
                   />
                   <Text style={styles.locationText} numberOfLines={1}>
-                    {location}
+                    {resolvedLocation}
                   </Text>
                 </View>
               ) : null}
             </View>
           )}
 
-          {sellerName ? (
+          {resolvedSellerName ? (
             <View style={styles.sellerRow}>
               <Ionicons
                 name="storefront-outline"
@@ -227,10 +312,44 @@ export default function ProductCard({
                 color={colors.success}
               />
               <Text style={styles.sellerName} numberOfLines={1}>
-                {sellerName}
+                {resolvedSellerName}
               </Text>
             </View>
           ) : null}
+
+          {onEditPress && (
+            <TouchableOpacity
+              style={styles.editCardButton}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                onEditPress(
+                  product || {
+                    id,
+                    name,
+                    price,
+                    originalPrice,
+                    category,
+                    sellerName,
+                    location,
+                    image,
+                    unit,
+                    moq,
+                    rating,
+                    totalReviews,
+                    isSurplus,
+                    isFeatured,
+                  }
+                );
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${product?.name || name || 'product'}`}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="create-outline" size={13} color={colors.primary} />
+              <Text style={styles.editCardButtonText}>Edit</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -329,6 +448,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.accent,
   },
+  myProductBadge: {
+    position: 'absolute',
+    bottom: spacing.xs + 2,
+    left: spacing.xs + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  myProductBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
   details: {
     padding: spacing.sm + 2,
     flex: 1,
@@ -426,5 +568,22 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
     flexShrink: 1,
+  },
+  editCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    marginTop: spacing.xs + 2,
+    gap: 4,
+  },
+  editCardButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
   },
 });

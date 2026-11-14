@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,12 +11,27 @@ import {
   Platform,
   Pressable,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
-import { products as defaultProducts } from '../data/products';
+import {
+  products as defaultProducts,
+  subscribeProducts,
+  deleteProduct,
+  isProductActive,
+} from '../data/products';
+import {
+  getSessionBusinessProfile,
+  subscribeBusinessProfile,
+  isProductOwnedByCurrentSeller,
+} from '../data/businessProfileData';
+import { getProductById, isUUID } from '../services/productService';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
+import { useCart } from '../context/CartContext';
+import { useMode } from '../context/ModeContext';
 
 function ThumbnailItem({
   uri,
@@ -27,6 +42,10 @@ function ThumbnailItem({
   totalImages,
 }) {
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [uri]);
 
   return (
     <Pressable
@@ -64,59 +83,157 @@ export default function ProductDetailsScreen({
   onBackPress,
   product: propProduct,
   products: propProducts,
+  onNavigateToBusinessProfile,
+  onNavigateToEditProduct,
+  onNavigateToRequestQuotation,
+  onNavigateToBuyerQuotations,
+  onCartPress,
 }) {
+  const { addToCart, isInCart, cartItemCount } = useCart();
+  const { isSellerMode } = useMode();
   const scrollViewRef = useRef(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [productList, setProductList] = useState(defaultProducts);
+
+  useEffect(() => {
+    return subscribeProducts((updated) => {
+      setProductList([...updated]);
+    });
+  }, []);
+  const [categoryImageError, setCategoryImageError] = useState(false);
 
   const allProducts =
     propProducts !== undefined
       ? propProducts
       : route?.params?.products !== undefined
       ? route.params.products
-      : defaultProducts;
+      : productList;
 
-  const routeProductId =
+  const targetProductId =
     route?.params?.productId ||
     route?.params?.id ||
-    route?.params?.product?.id;
+    route?.params?.product?.id ||
+    propProduct?.id;
 
-  // Retrieve matching product dynamically from catalog using product ID as primary reference
+  // --- Real API Data Fetching ---
+  const [apiProduct, setApiProduct] = useState(null);
+  const [isLoading, setIsLoading] = useState(
+    Boolean(targetProductId) && !propProduct
+  );
+  const [error, setError] = useState(null);
+
+  const fetchProductDetails = useCallback(async () => {
+    // If a full product object was passed as direct prop (e.g. testing) without route ID, skip fetch
+    if (propProduct && !route?.params?.productId && !route?.params?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (!targetProductId) {
+      setIsLoading(false);
+      // If product object is present in route params, we can use it
+      if (route?.params?.product) {
+        return;
+      }
+      setError('Product ID is required.');
+      return;
+    }
+
+    const cleanTargetId = String(targetProductId).trim();
+
+    // Check whether product ID is a UUID before making backend API request
+    if (!isUUID(cleanTargetId)) {
+      // Legacy ID (e.g. prod-001 or prod-custom-...): Use local fallback data
+      setIsLoading(false);
+      const localFound =
+        allProducts.find((p) => p && String(p.id).trim().toLowerCase() === cleanTargetId.toLowerCase()) ||
+        route?.params?.product ||
+        propProduct;
+
+      if (localFound) {
+        setError(null);
+      } else {
+        setError('Product not found in local catalog.');
+      }
+      setApiProduct(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await getProductById(cleanTargetId);
+      const data = response?.data || response;
+      if (!data || !data.id) {
+        const localFallback = allProducts.find(
+          (p) => p && String(p.id).trim().toLowerCase() === cleanTargetId.toLowerCase()
+        );
+        if (localFallback) {
+          setError(null);
+        } else {
+          setError('Product not found.');
+        }
+        setApiProduct(null);
+      } else {
+        setApiProduct(data);
+      }
+    } catch (err) {
+      console.warn('[ProductDetailsScreen] Error fetching product details from API:', err?.message);
+      // If valid local fallback product data is available, do not show error card!
+      const localFallback =
+        allProducts.find((p) => p && String(p.id).trim().toLowerCase() === cleanTargetId.toLowerCase()) ||
+        route?.params?.product ||
+        propProduct;
+
+      if (localFallback) {
+        setError(null);
+      } else {
+        setError(err?.message || 'Failed to load product details.');
+      }
+      setApiProduct(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [targetProductId, propProduct, route?.params?.productId, route?.params?.id, route?.params?.product, allProducts]);
+
+  useEffect(() => {
+    fetchProductDetails();
+  }, [fetchProductDetails]);
+
+  // Retrieve active product dynamically: API data takes priority over mock fallbacks
   const product = useMemo(() => {
-    if (routeProductId) {
+    if (apiProduct) {
+      return apiProduct;
+    }
+
+    if (propProduct) {
+      return propProduct;
+    }
+
+    if (targetProductId) {
       const found = allProducts.find(
-        (p) => String(p.id) === String(routeProductId)
+        (p) => String(p.id) === String(targetProductId)
       );
       if (found) {
         return found;
       }
     }
 
-    if (propProduct?.id) {
-      const found = allProducts.find(
-        (p) => String(p.id) === String(propProduct.id)
-      );
-      if (found) {
-        return found;
-      }
-      return propProduct;
-    }
-
-    if (propProduct && propProduct.name) {
-      return propProduct;
-    }
-
-    if (route?.params?.product && route.params.product.name) {
+    if (route?.params?.product && !isLoading && !error) {
       return route.params.product;
     }
 
     return null;
-  }, [allProducts, propProduct, routeProductId, route?.params?.product]);
+  }, [apiProduct, propProduct, targetProductId, allProducts, route?.params?.product, isLoading, error]);
 
-  // Extract images array from product data
+  // Extract images array from product data (supporting images array, imageUrl, and image)
   const productImages = useMemo(() => {
     if (Array.isArray(product?.images) && product.images.length > 0) {
       return product.images;
+    }
+    if (product?.imageUrl) {
+      return [product.imageUrl];
     }
     if (product?.image) {
       return [product.image];
@@ -132,6 +249,11 @@ export default function ProductDetailsScreen({
   }, [product?.id]);
 
   const currentImage = productImages[selectedImageIndex] || null;
+
+  // Reset image error state whenever selected image changes
+  useEffect(() => {
+    setImageError(false);
+  }, [currentImage]);
 
   const handleSelectImage = (index) => {
     if (index !== selectedImageIndex) {
@@ -157,7 +279,71 @@ export default function ProductDetailsScreen({
         )
       : 0;
 
-  const categoryName = product?.categoryName || product?.category || 'General';
+  const categoryName = useMemo(() => {
+    if (typeof product?.category === 'object' && product?.category?.name) {
+      return product.category.name;
+    }
+    return product?.categoryName || (typeof product?.category === 'string' ? product.category : 'General');
+  }, [product?.category, product?.categoryName]);
+
+  const categoryImageUrl = useMemo(() => {
+    return typeof product?.category === 'object' && product?.category?.imageUrl
+      ? product.category.imageUrl
+      : null;
+  }, [product?.category]);
+
+  useEffect(() => {
+    setCategoryImageError(false);
+  }, [categoryImageUrl]);
+
+  const sellerBusiness = useMemo(() => {
+    if (product?.business && typeof product.business === 'object') {
+      const b = product.business;
+      const locationParts = [b.city, b.state].filter(Boolean);
+      return {
+        name: b.name || product?.sellerName || product?.businessName || null,
+        description: b.description || null,
+        city: b.city || null,
+        state: b.state || null,
+        location: locationParts.length > 0 ? locationParts.join(', ') : null,
+      };
+    }
+    if (product?.sellerName || product?.businessName) {
+      const locationParts = [product?.city, product?.state].filter(Boolean);
+      return {
+        name: product.sellerName || product.businessName,
+        description: product?.sellerDescription || null,
+        city: product?.city || null,
+        state: product?.state || null,
+        location: product?.location || (locationParts.length > 0 ? locationParts.join(', ') : null),
+      };
+    }
+    return null;
+  }, [
+    product?.business,
+    product?.sellerName,
+    product?.businessName,
+    product?.city,
+    product?.state,
+    product?.location,
+    product?.sellerDescription,
+  ]);
+
+  const resolvedMoq = useMemo(() => {
+    const raw =
+      product?.minOrderQuantity !== undefined
+        ? product.minOrderQuantity
+        : product?.moq;
+    if (raw !== undefined && raw !== null && !isNaN(raw) && Number(raw) > 0) {
+      return Math.max(1, Math.floor(Number(raw)));
+    }
+    return 1;
+  }, [product?.minOrderQuantity, product?.moq]);
+
+  const rawMoqDisplay =
+    product?.minOrderQuantity !== undefined
+      ? product.minOrderQuantity
+      : product?.moq;
 
   // Pluralized / readable unit label
   const unitPlural = useMemo(() => {
@@ -203,16 +389,141 @@ export default function ProductDetailsScreen({
         : String(product.originalPrice)
       : null;
 
-  // Resolve brand or manufacturer label and value
+  // Resolve brand, manufacturer, and seller identity
   const brandValue = product?.brand || null;
   const manufacturerValue = product?.manufacturer || null;
+  const sellerNameValue = sellerBusiness?.name || product?.sellerName || null;
   const brandOrMaker =
-    brandValue || manufacturerValue || product?.sellerName || null;
+    brandValue || manufacturerValue || sellerNameValue || null;
   const brandLabel = brandValue
     ? 'Brand'
     : manufacturerValue
     ? 'Manufacturer'
-    : 'Manufacturer / Seller';
+    : 'Seller / Business';
+
+  const sellerDisplayName =
+    sellerBusiness?.name ||
+    product?.sellerName ||
+    manufacturerValue ||
+    brandValue ||
+    'Verified Seller';
+
+  const handleViewBusinessProfile = () => {
+    const businessId =
+      product?.sellerId ||
+      product?.businessId ||
+      product?.seller?.id ||
+      null;
+
+    const navParams = {
+      businessId,
+      sellerId: businessId,
+      sellerName: sellerDisplayName,
+      businessName: sellerDisplayName,
+      location: product?.location,
+    };
+
+    if (onNavigateToBusinessProfile) {
+      onNavigateToBusinessProfile(navParams);
+    } else if (navigation?.navigate) {
+      navigation.navigate('BusinessProfile', navParams);
+    }
+  };
+
+  const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
+
+  useEffect(() => {
+    setSessionProfile(getSessionBusinessProfile());
+    return subscribeBusinessProfile((updated) => {
+      setSessionProfile(updated);
+    });
+  }, []);
+
+  const isOwner = useMemo(() => {
+    return isProductOwnedByCurrentSeller(product, sessionProfile);
+  }, [product, sessionProfile]);
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isProductInactive = useMemo(() => {
+    return product ? !isProductActive(product) : false;
+  }, [product]);
+
+  const handleEditProduct = () => {
+    if (onNavigateToEditProduct) {
+      onNavigateToEditProduct(product);
+    } else if (navigation?.navigate) {
+      navigation.navigate('EditProduct', {
+        product,
+        productId: product?.id,
+        isEdit: true,
+      });
+    }
+  };
+
+  const handleDeleteProduct = () => {
+    if (isDeleting) return;
+    if (!product || !product.id) return;
+
+    if (!isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You can only delete products belonging to your own business.'
+      );
+      return;
+    }
+
+    const productName = product.name || 'this product';
+
+    Alert.alert(
+      'Delete Product',
+      `Are you sure you want to delete "${productName}"?\n\nThis product will no longer be available for purchase.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const res = await deleteProduct(product.id, sessionProfile);
+              if (res?.success) {
+                Alert.alert(
+                  'Product Deleted',
+                  'This product has been removed from your catalog and will no longer appear in the marketplace.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        if (onBackPress) {
+                          onBackPress();
+                        } else if (navigation?.goBack) {
+                          navigation.goBack();
+                        }
+                      },
+                    },
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Error',
+                  res?.message || 'Could not delete product. Please try again.'
+                );
+              }
+            } catch (err) {
+              console.warn('[ProductDetailsScreen] Delete error:', err);
+              Alert.alert('Error', 'An error occurred while deleting the product.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   // Resolve stock quantity (using stock property or availableQuantity fallback)
   const stockValue = useMemo(() => {
@@ -254,13 +565,6 @@ export default function ProductDetailsScreen({
         icon: 'close-circle',
       };
     }
-    const resolvedMoq =
-      product?.moq !== undefined &&
-      product?.moq !== null &&
-      !isNaN(product.moq) &&
-      Number(product.moq) > 0
-        ? Math.max(1, Math.floor(Number(product.moq)))
-        : 1;
 
     if (stockValue < resolvedMoq) {
       return {
@@ -290,7 +594,7 @@ export default function ProductDetailsScreen({
       borderColor: colors.success,
       icon: 'checkmark-circle',
     };
-  }, [stockValue, product?.moq]);
+  }, [stockValue, resolvedMoq]);
 
   // Build key details list dynamically from available basic product properties
   const keyDetails = useMemo(() => {
@@ -305,10 +609,10 @@ export default function ProductDetailsScreen({
     if (product?.unit) {
       details.push({ label: 'Sold By', value: `Per ${product.unit}` });
     }
-    if (product?.moq !== undefined && product?.moq !== null) {
+    if (rawMoqDisplay !== undefined && rawMoqDisplay !== null) {
       details.push({
-        label: 'Min. Order Qty (MOQ)',
-        value: `${product.moq} ${unitPlural}`,
+        label: 'Minimum Order Quantity',
+        value: `${rawMoqDisplay} ${unitPlural}`,
       });
     }
     if (stockValue !== null && !isNaN(stockValue)) {
@@ -322,48 +626,43 @@ export default function ProductDetailsScreen({
     }
     if (manufacturerValue) {
       details.push({ label: 'Manufacturer', value: manufacturerValue });
-    } else if (product?.sellerName && !brandValue) {
-      details.push({ label: 'Manufacturer / Seller', value: product.sellerName });
+    } else if (sellerBusiness?.name) {
+      details.push({ label: 'Seller / Business', value: sellerBusiness.name });
     }
 
     return details;
   }, [
-    product,
+    product?.id,
+    product?.unit,
     categoryName,
-    brandValue,
-    manufacturerValue,
+    rawMoqDisplay,
     unitPlural,
     stockValue,
     stockStatus,
+    brandValue,
+    manufacturerValue,
+    sellerBusiness?.name,
   ]);
 
-  // Extract and validate bulk pricing tiers from product data
+  // Extract and validate bulk pricing tiers from product data (sorted ascending by minQuantity)
   const bulkTiers = useMemo(() => {
     if (!Array.isArray(product?.bulkPricing) || product.bulkPricing.length === 0) {
       return [];
     }
-    return product.bulkPricing.filter(
-      (tier) =>
-        tier &&
-        tier.minQuantity !== undefined &&
-        tier.minQuantity !== null &&
-        tier.pricePerUnit !== undefined &&
-        tier.pricePerUnit !== null
-    );
-  }, [product]);
+    return product.bulkPricing
+      .filter(
+        (tier) =>
+          tier &&
+          tier.minQuantity !== undefined &&
+          tier.minQuantity !== null &&
+          tier.pricePerUnit !== undefined &&
+          tier.pricePerUnit !== null
+      )
+      .sort((a, b) => Number(a.minQuantity) - Number(b.minQuantity));
+  }, [product?.bulkPricing]);
 
   // Minimum Order Quantity bound (defaults to 1 if missing, invalid, or non-positive)
-  const minQty = useMemo(() => {
-    if (
-      product?.moq !== undefined &&
-      product?.moq !== null &&
-      !isNaN(product.moq) &&
-      Number(product.moq) > 0
-    ) {
-      return Math.max(1, Math.floor(Number(product.moq)));
-    }
-    return 1;
-  }, [product?.moq]);
+  const minQty = resolvedMoq;
 
   // Maximum quantity bound (based on available stock)
   const maxQty = useMemo(() => {
@@ -490,12 +789,14 @@ export default function ProductDetailsScreen({
     if (isOutOfStock || isStockBelowMoq) return;
     setInputError(null);
     setQuantity((prev) => {
-      const current = prev < minQty ? minQty : prev;
+      const parsedInput = parseInt(quantityInputText.replace(/[^0-9]/g, ''), 10);
+      const current = !isNaN(parsedInput) ? parsedInput : prev;
       if (current >= maxQty) {
         setInputError(
           `Cannot exceed available stock of ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
         );
-        return current;
+        setQuantityInputText(String(maxQty));
+        return maxQty;
       }
       const next = current + 1;
       setQuantityInputText(String(next));
@@ -507,12 +808,14 @@ export default function ProductDetailsScreen({
     if (isOutOfStock || isStockBelowMoq) return;
     setInputError(null);
     setQuantity((prev) => {
-      if (prev <= minQty) {
+      const parsedInput = parseInt(quantityInputText.replace(/[^0-9]/g, ''), 10);
+      const current = !isNaN(parsedInput) ? parsedInput : prev;
+      if (current <= minQty) {
         setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
         setQuantityInputText(String(minQty));
         return minQty;
       }
-      const next = prev - 1;
+      const next = current - 1;
       setQuantityInputText(String(next));
       return next;
     });
@@ -521,46 +824,31 @@ export default function ProductDetailsScreen({
   const handleQuantityInputChange = (text) => {
     if (isOutOfStock || isStockBelowMoq) return;
 
-    if (text === '') {
+    // Filter out non-numeric characters (negatives, decimals, letters, symbols)
+    const cleanDigits = text.replace(/[^0-9]/g, '');
+
+    // Allow user to clear text to backspace and type freely
+    if (cleanDigits === '') {
       setQuantityInputText('');
-      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-      setQuantity(0);
+      setInputError(null);
       return;
     }
 
-    // Check if input contains non-digit characters (decimals, negatives, symbols, letters)
-    const hasNonDigits = /[^0-9]/.test(text);
-    if (hasNonDigits) {
-      setQuantityInputText(text);
-      setInputError('Please enter a valid positive whole number');
-      const parsedFloat = parseFloat(text);
-      const val = !isNaN(parsedFloat)
-        ? Math.floor(parsedFloat)
-        : parseInt(text.replace(/[^0-9]/g, ''), 10);
-      if (!isNaN(val) && val > 0) {
-        setQuantity(Math.min(Math.max(val, minQty), maxQty));
-      } else {
-        setQuantity(minQty);
-      }
-      return;
-    }
-
-    setQuantityInputText(text);
-    const val = parseInt(text, 10);
+    setQuantityInputText(cleanDigits);
+    const val = parseInt(cleanDigits, 10);
     if (isNaN(val) || val <= 0) {
-      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-      setQuantity(0);
+      setInputError(null);
       return;
     }
 
-    if (val < minQty) {
-      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
-      setQuantity(val);
-    } else if (val > maxQty) {
+    if (val > maxQty) {
       setInputError(
         `Cannot exceed available stock of ${maxQty.toLocaleString('en-IN')} ${unitPlural}`
       );
       setQuantity(maxQty);
+    } else if (val < minQty) {
+      setInputError(`Minimum order quantity is ${minQty} ${unitPlural}`);
+      // Keep input text for typing, do not clamp prematurely
     } else {
       setInputError(null);
       setQuantity(val);
@@ -569,14 +857,16 @@ export default function ProductDetailsScreen({
 
   const handleQuantityInputBlur = () => {
     if (isOutOfStock || isStockBelowMoq) return;
-    if (quantityInputText === '') {
+
+    const cleanDigits = quantityInputText.replace(/[^0-9]/g, '');
+    if (cleanDigits === '') {
       setQuantity(minQty);
       setQuantityInputText(String(minQty));
       setInputError(null);
       return;
     }
 
-    const val = parseInt(quantityInputText, 10);
+    const val = parseInt(cleanDigits, 10);
     if (isNaN(val) || val < minQty) {
       setQuantity(minQty);
       setQuantityInputText(String(minQty));
@@ -667,6 +957,168 @@ export default function ProductDetailsScreen({
     return extracted;
   }, [product]);
 
+  const itemInCart = isInCart(product?.id);
+
+  const handleCartPress = () => {
+    if (onCartPress) {
+      onCartPress();
+    } else if (navigation?.navigate) {
+      navigation.navigate('Cart');
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Purchasing products is disabled in Seller Mode. Switch to Buyer Mode to add products to your cart.'
+      );
+      return;
+    }
+    if (isProductInactive) {
+      Alert.alert(
+        'Product Unavailable',
+        'This product has been removed by the seller and is no longer available for purchase.'
+      );
+      return;
+    }
+    if (isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You cannot add your own product to your wholesale cart.'
+      );
+      return;
+    }
+    if (!product || isOutOfStock || isStockBelowMoq || !isValidQuantity) return;
+    const result = addToCart(product, quantity, { replace: itemInCart });
+    if (result?.success) {
+      Alert.alert(
+        itemInCart ? 'Wholesale Cart Updated' : 'Added to Cart',
+        `Added ${quantity} ${unitPlural} of "${product.name}" to your wholesale cart at ₹${formattedApplicableUnitPrice}/${unitSingular}.`,
+        [
+          { text: 'Continue Browsing', style: 'cancel' },
+          { text: 'View Cart', onPress: handleCartPress },
+        ]
+      );
+    } else if (result?.message) {
+      Alert.alert('Unable to Add to Cart', result.message);
+    }
+  };
+
+  const handleRequestQuotation = () => {
+    if (isSellerMode) {
+      Alert.alert(
+        'Seller Mode Active',
+        'Requesting price quotations is disabled in Seller Mode. Switch to Buyer Mode to request quotations.'
+      );
+      return;
+    }
+    if (isProductInactive) {
+      Alert.alert(
+        'Product Unavailable',
+        'This product has been removed by the seller and is no longer available for quotation requests.'
+      );
+      return;
+    }
+    if (isOwner) {
+      Alert.alert(
+        'Action Not Allowed',
+        'You cannot request a price quotation for your own product.'
+      );
+      return;
+    }
+    if (!product) return;
+    const initialQty = isValidQuantity ? quantity : (product.moq || 1);
+    const params = {
+      product,
+      productId: product.id,
+      initialQuantity: initialQty,
+    };
+    if (onNavigateToRequestQuotation) {
+      onNavigateToRequestQuotation(params);
+    } else if (navigation?.navigate) {
+      navigation.navigate('RequestQuotation', params);
+    }
+  };
+
+  // Loading State
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Product Details</Text>
+          <View style={styles.headerRightSpacer} />
+        </View>
+
+        <View style={styles.centerContainer} testID="product-details-loading">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading product details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error State with Retry (only when no valid fallback product is available)
+  if (error && !product) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Product Details</Text>
+          <View style={styles.headerRightSpacer} />
+        </View>
+
+        <View style={styles.centerContainer} testID="product-details-error">
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color={colors.error || '#EF4444'}
+          />
+          <Text style={styles.errorTitle}>Failed to load product</Text>
+          <Text style={styles.errorSubtitle}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchProductDetails}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading product details"
+          >
+            <Ionicons
+              name="refresh"
+              size={15}
+              color={colors.textInverse}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!product) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -685,7 +1137,27 @@ export default function ProductDetailsScreen({
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Product Details</Text>
-          <View style={styles.headerRightSpacer} />
+          {!isSellerMode ? (
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleCartPress}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Shopping Cart"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
+              {cartItemCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>
+                    {cartItemCount > 9 ? '9+' : cartItemCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerRightSpacer} />
+          )}
         </View>
 
         {/* Empty / Not Found State */}
@@ -720,7 +1192,39 @@ export default function ProductDetailsScreen({
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Product Details</Text>
-        <View style={styles.headerRightSpacer} />
+        <View style={styles.headerRightActions}>
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleEditProduct}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Edit Product"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          {!isSellerMode && (
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={handleCartPress}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Shopping Cart"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="cart-outline" size={22} color={colors.textPrimary} />
+              {cartItemCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>
+                    {cartItemCount > 9 ? '9+' : cartItemCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Scrollable Content Container */}
@@ -799,12 +1303,20 @@ export default function ProductDetailsScreen({
             {/* Badges: Category Name & Product ID */}
             <View style={styles.tagsRow}>
               <View style={styles.categoryBadge}>
-                <Ionicons
-                  name="pricetag-outline"
-                  size={12}
-                  color={colors.info}
-                  style={styles.categoryIcon}
-                />
+                {categoryImageUrl && !categoryImageError ? (
+                  <Image
+                    source={{ uri: categoryImageUrl }}
+                    style={styles.categoryBadgeImage}
+                    onError={() => setCategoryImageError(true)}
+                  />
+                ) : (
+                  <Ionicons
+                    name="pricetag-outline"
+                    size={12}
+                    color={colors.info}
+                    style={styles.categoryIcon}
+                  />
+                )}
                 <Text style={styles.categoryText}>{categoryName}</Text>
               </View>
 
@@ -819,6 +1331,18 @@ export default function ProductDetailsScreen({
                   <Text style={styles.idText}>ID: {product.id}</Text>
                 </View>
               ) : null}
+
+              {isOwner && (
+                <View style={styles.myProductBadge}>
+                  <Ionicons
+                    name="person"
+                    size={11}
+                    color={colors.primary}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.myProductBadgeText}>My Product</Text>
+                </View>
+              )}
             </View>
 
             {/* Product Name */}
@@ -826,18 +1350,68 @@ export default function ProductDetailsScreen({
               {product?.name || 'Unnamed Product'}
             </Text>
 
-            {/* Brand or Manufacturer Row (if available) */}
-            {brandOrMaker ? (
-              <View style={styles.brandContainer}>
+            {/* Own Product Seller Notice Banner */}
+            {isOwner && (
+              <View style={styles.ownProductAlertBanner}>
                 <Ionicons
-                  name="business-outline"
-                  size={14}
-                  color={colors.textSecondary}
+                  name="information-circle"
+                  size={16}
+                  color={colors.primary}
+                  style={{ marginRight: 6 }}
                 />
-                <Text style={styles.brandLabel}>{brandLabel}: </Text>
-                <Text style={styles.brandValue}>{brandOrMaker}</Text>
+                <Text style={styles.ownProductAlertText}>
+                  This is your product listing. As the seller, you cannot add it to your cart or purchase it.
+                </Text>
               </View>
-            ) : null}
+            )}
+
+            {/* Inactive Product Notice Banner */}
+            {isProductInactive && !isOwner && (
+              <View style={styles.inactiveProductAlertBanner}>
+                <Ionicons
+                  name="alert-circle"
+                  size={16}
+                  color={colors.error}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.inactiveProductAlertText}>
+                  This product has been removed by the seller and is no longer available for purchase or price quotations.
+                </Text>
+              </View>
+            )}
+
+            {/* Seller Information & View Business Profile Action (visible immediately without scrolling) */}
+            <TouchableOpacity
+              style={styles.sellerHeaderBanner}
+              onPress={handleViewBusinessProfile}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`View Business Profile for ${sellerDisplayName}`}
+            >
+              <View style={styles.sellerHeaderBannerLeft}>
+                <Ionicons
+                  name="storefront-outline"
+                  size={15}
+                  color={colors.primary}
+                  style={styles.sellerHeaderIcon}
+                />
+                <Text style={styles.sellerHeaderLabel}>Seller: </Text>
+                <Text style={styles.sellerHeaderName} numberOfLines={1}>
+                  {sellerDisplayName}
+                </Text>
+              </View>
+
+              <View style={styles.viewProfilePill}>
+                <Text style={styles.viewProfilePillText}>
+                  View Business Profile
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={13}
+                  color={colors.primary}
+                />
+              </View>
+            </TouchableOpacity>
 
             {/* Product Price Row */}
             <View style={styles.priceContainer}>
@@ -865,10 +1439,22 @@ export default function ProductDetailsScreen({
                 Wholesale base price
                 {product?.unit ? ` (per ${product.unit})` : ''}
               </Text>
+
+              {rawMoqDisplay !== undefined && rawMoqDisplay !== null ? (
+                <View style={styles.moqBannerRow}>
+                  <Ionicons name="cart-outline" size={13} color={colors.primary} />
+                  <Text style={styles.moqBannerText}>
+                    Minimum Order Quantity:{' '}
+                    <Text style={styles.moqBannerBold}>
+                      {rawMoqDisplay} {unitPlural}
+                    </Text>
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
 
-          {/* Bulk Pricing Section */}
+          {/* Wholesale Pricing Section */}
           <View style={styles.bulkPricingCard}>
             <View style={styles.bulkHeaderRow}>
               <View style={styles.sectionHeaderRow}>
@@ -878,12 +1464,12 @@ export default function ProductDetailsScreen({
                   color={colors.primary}
                   style={styles.sectionHeaderIcon}
                 />
-                <Text style={styles.sectionTitle}>Bulk Pricing</Text>
+                <Text style={styles.sectionTitle}>Wholesale Pricing</Text>
               </View>
               {bulkTiers.length > 0 && (
                 <View style={styles.helperBadge}>
                   <Ionicons name="sparkles" size={11} color={colors.accent} />
-                  <Text style={styles.helperBadgeText}>Buy more, save more</Text>
+                  <Text style={styles.helperBadgeText}>Buy more and get a lower price per item</Text>
                 </View>
               )}
             </View>
@@ -1035,7 +1621,7 @@ export default function ProductDetailsScreen({
                 />
                 <View style={styles.emptyBulkTextWrapper}>
                   <Text style={styles.emptyBulkTitle}>
-                    Bulk pricing not available
+                    Wholesale pricing not available
                   </Text>
                   <Text style={styles.emptyBulkSubtext}>
                     This item is sold at the standard wholesale unit price.
@@ -1045,7 +1631,7 @@ export default function ProductDetailsScreen({
             )}
           </View>
 
-          {/* Minimum Order Quantity (MOQ) Section */}
+          {/* Minimum Order Quantity Section */}
           <View style={styles.orderMetricCard}>
             <View style={styles.sectionHeaderRow}>
               <Ionicons
@@ -1068,7 +1654,7 @@ export default function ProductDetailsScreen({
                 </Text>
               )}
               <Text style={styles.moqHelperText}>
-                Minimum quantity required per order
+                The minimum number of pieces a customer must order.
               </Text>
             </View>
           </View>
@@ -1135,230 +1721,303 @@ export default function ProductDetailsScreen({
             </View>
           </View>
 
-          {/* Select Quantity & Estimated Price Section */}
-          <View style={styles.quantityCard}>
-            <View style={styles.quantityHeaderRow}>
-              <View style={styles.sectionHeaderRow}>
-                <Ionicons
-                  name="calculator-outline"
-                  size={18}
-                  color={colors.primary}
-                  style={styles.sectionHeaderIcon}
-                />
-                <Text style={styles.sectionTitle}>Select Quantity</Text>
-              </View>
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitBadgeText}>
-                  Per {unitSingular}
-                </Text>
+          {isOwner ? (
+            <View style={styles.sellerListingCard}>
+              <View style={styles.sellerListingHeaderRow}>
+                <View style={styles.sellerListingIconBox}>
+                  <Ionicons
+                    name="storefront"
+                    size={20}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.sellerListingTextWrapper}>
+                  <Text style={styles.sellerListingTitle}>Seller Product Listing</Text>
+                  <Text style={styles.sellerListingSubtitle}>
+                    This is your product listing on VyaparSetu. You can update pricing tiers, available stock, or manage this listing anytime using the action bar below.
+                  </Text>
+                </View>
               </View>
             </View>
-
-            {isOutOfStock ? (
-              <View style={styles.outOfStockBanner}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={20}
-                  color={colors.error}
-                />
-                <View style={styles.outOfStockTextWrapper}>
-                  <Text style={styles.outOfStockTitle}>Out of Stock</Text>
-                  <Text style={styles.outOfStockSubtext}>
-                    This item is currently out of stock. Quantity selection is disabled.
+          ) : isSellerMode ? (
+            <View style={styles.sellerListingCard}>
+              <View style={styles.sellerListingHeaderRow}>
+                <View style={styles.sellerListingIconBox}>
+                  <Ionicons
+                    name="information-circle"
+                    size={20}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.sellerListingTextWrapper}>
+                  <Text style={styles.sellerListingTitle}>Seller Mode Active</Text>
+                  <Text style={styles.sellerListingSubtitle}>
+                    Purchasing and price quotation requests are disabled in Seller Mode. Switch to Buyer Mode to purchase wholesale products from other businesses.
                   </Text>
                 </View>
               </View>
-            ) : isStockBelowMoq ? (
-              <View style={styles.stockBelowMoqBanner}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={20}
-                  color={colors.warning}
-                />
-                <View style={styles.stockBelowMoqTextWrapper}>
-                  <Text style={styles.stockBelowMoqTitle}>
-                    Stock Below Minimum Order Quantity
-                  </Text>
-                  <Text style={styles.stockBelowMoqSubtext}>
-                    Available stock ({stockValue.toLocaleString('en-IN')} {unitPlural}) is lower than the minimum order quantity ({minQty} {unitPlural}). Quantity selection is unavailable until restocked.
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.quantityControlsWrapper}>
-                {/* Stepper & Input Row */}
-                <View style={styles.stepperContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.stepperButton,
-                      (isOutOfStock || quantity <= minQty) && styles.stepperButtonDisabled,
-                    ]}
-                    onPress={handleDecrement}
-                    disabled={isOutOfStock || quantity <= minQty}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Decrease quantity"
-                    accessibilityState={{ disabled: isOutOfStock || quantity <= minQty }}
-                  >
+            </View>
+          ) : (
+            <>
+              {/* Select Quantity & Estimated Price Section */}
+              <View style={styles.quantityCard}>
+                <View style={styles.quantityHeaderRow}>
+                  <View style={styles.sectionHeaderRow}>
                     <Ionicons
-                      name="remove"
-                      size={20}
-                      color={
-                        isOutOfStock || quantity <= minQty
-                          ? colors.textMuted
-                          : colors.primary
-                      }
+                      name="calculator-outline"
+                      size={18}
+                      color={colors.primary}
+                      style={styles.sectionHeaderIcon}
                     />
-                  </TouchableOpacity>
-
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      inputError && styles.inputWrapperError,
-                    ]}
-                  >
-                    <TextInput
-                      style={styles.quantityInput}
-                      value={quantityInputText}
-                      onChangeText={handleQuantityInputChange}
-                      onBlur={handleQuantityInputBlur}
-                      onSubmitEditing={handleQuantityInputBlur}
-                      returnKeyType="done"
-                      keyboardType="number-pad"
-                      selectTextOnFocus
-                      accessibilityRole="spinbutton"
-                      accessibilityLabel="Order quantity"
-                      accessibilityValue={{ min: minQty, max: maxQty, now: quantity }}
-                    />
+                    <Text style={styles.sectionTitle}>Select Quantity</Text>
                   </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.stepperButton,
-                      (isOutOfStock || quantity >= maxQty) && styles.stepperButtonDisabled,
-                    ]}
-                    onPress={handleIncrement}
-                    disabled={isOutOfStock || quantity >= maxQty}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Increase quantity"
-                    accessibilityState={{ disabled: isOutOfStock || quantity >= maxQty }}
-                  >
-                    <Ionicons
-                      name="add"
-                      size={20}
-                      color={
-                        isOutOfStock || quantity >= maxQty
-                          ? colors.textMuted
-                          : colors.primary
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  <View style={styles.unitLabelBox}>
-                    <Text style={styles.unitLabelText}>{unitPlural}</Text>
+                  <View style={styles.unitBadge}>
+                    <Text style={styles.unitBadgeText}>
+                      Per {unitSingular}
+                    </Text>
                   </View>
                 </View>
 
-                {/* Validation message if input is invalid / out of bounds */}
-                {inputError && (
-                  <View style={styles.validationRow}>
+                {isOutOfStock ? (
+                  <View style={styles.outOfStockBanner}>
                     <Ionicons
-                      name="alert-circle"
-                      size={14}
+                      name="alert-circle-outline"
+                      size={20}
+                      color={colors.error}
+                    />
+                    <View style={styles.outOfStockTextWrapper}>
+                      <Text style={styles.outOfStockTitle}>Out of Stock</Text>
+                      <Text style={styles.outOfStockSubtext}>
+                        This item is currently out of stock. Quantity selection is disabled.
+                      </Text>
+                    </View>
+                  </View>
+                ) : isStockBelowMoq ? (
+                  <View style={styles.stockBelowMoqBanner}>
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={20}
                       color={colors.warning}
                     />
-                    <Text style={styles.validationText}>{inputError}</Text>
-                  </View>
-                )}
-
-                {/* Constraints limits helper row */}
-                <View style={styles.limitsRow}>
-                  <Text style={styles.limitText}>
-                    MOQ: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
-                  </Text>
-                  <Text style={styles.limitDot}>·</Text>
-                  <Text style={styles.limitText}>
-                    Available Stock:{' '}
-                    <Text style={styles.limitBold}>
-                      {stockValue !== null && !isNaN(stockValue)
-                        ? `${stockValue.toLocaleString('en-IN')} ${unitPlural}`
-                        : 'Available'}
-                    </Text>
-                  </Text>
-                </View>
-
-                {/* Price Calculation Summary Container */}
-                <View style={styles.calculationContainer}>
-                  {/* Applicable Unit Price Row */}
-                  <View style={styles.calculationRow}>
-                    <View>
-                      <Text style={styles.calcLabel}>Applicable Unit Price</Text>
-                      <Text style={styles.calcTierApplied}>
-                        {activeTier
-                          ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity !== null && activeTier.maxQuantity !== undefined ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
-                          : 'Standard Wholesale Price'}
+                    <View style={styles.stockBelowMoqTextWrapper}>
+                      <Text style={styles.stockBelowMoqTitle}>
+                        Stock Below Minimum Order Quantity
+                      </Text>
+                      <Text style={styles.stockBelowMoqSubtext}>
+                        Available stock ({stockValue.toLocaleString('en-IN')} {unitPlural}) is lower than the minimum order quantity ({minQty} {unitPlural}). Quantity selection is unavailable until restocked.
                       </Text>
                     </View>
-                    <View style={styles.calcPriceRow}>
-                      <Text style={styles.calcCurrency}>₹</Text>
-                      <Text style={styles.calcUnitPriceValue}>
-                        {formattedApplicableUnitPrice}
-                      </Text>
-                      {product?.unit && (
-                        <Text style={styles.calcUnit}>/{product.unit}</Text>
-                      )}
-                    </View>
                   </View>
-
-                  <View style={styles.calcDivider} />
-
-                  {/* Estimated Total Price Row */}
-                  <View style={styles.calculationRow}>
-                    <View style={styles.calcFormulaWrapper}>
-                      <Text style={styles.calcTotalLabel}>Estimated Total</Text>
-                      <Text
+                ) : (
+                  <View style={styles.quantityControlsWrapper}>
+                    {/* Stepper & Input Row */}
+                    <View style={styles.stepperContainer}>
+                      <TouchableOpacity
                         style={[
-                          styles.calcTotalFormula,
-                          !isValidQuantity && inputError && styles.calcTotalFormulaError,
+                          styles.stepperButton,
+                          (isOutOfStock || quantity <= minQty) && styles.stepperButtonDisabled,
+                        ]}
+                        onPress={handleDecrement}
+                        disabled={isOutOfStock || quantity <= minQty}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Decrease quantity"
+                        accessibilityState={{ disabled: isOutOfStock || quantity <= minQty }}
+                      >
+                        <Ionicons
+                          name="remove"
+                          size={20}
+                          color={
+                            isOutOfStock || quantity <= minQty
+                              ? colors.textMuted
+                              : colors.primary
+                          }
+                        />
+                      </TouchableOpacity>
+
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          inputError && styles.inputWrapperError,
                         ]}
                       >
-                        {isValidQuantity
-                          ? `${quantity} ${unitPlural} × ₹${formattedApplicableUnitPrice}`
-                          : inputError || `Enter a valid quantity (min. ${minQty} ${unitPlural})`}
+                        <TextInput
+                          style={styles.quantityInput}
+                          value={quantityInputText}
+                          onChangeText={handleQuantityInputChange}
+                          onBlur={handleQuantityInputBlur}
+                          onSubmitEditing={handleQuantityInputBlur}
+                          returnKeyType="done"
+                          keyboardType="number-pad"
+                          selectTextOnFocus
+                          accessibilityRole="spinbutton"
+                          accessibilityLabel="Order quantity"
+                          accessibilityValue={{ min: minQty, max: maxQty, now: quantity }}
+                        />
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.stepperButton,
+                          (isOutOfStock || quantity >= maxQty) && styles.stepperButtonDisabled,
+                        ]}
+                        onPress={handleIncrement}
+                        disabled={isOutOfStock || quantity >= maxQty}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Increase quantity"
+                        accessibilityState={{ disabled: isOutOfStock || quantity >= maxQty }}
+                      >
+                        <Ionicons
+                          name="add"
+                          size={20}
+                          color={
+                            isOutOfStock || quantity >= maxQty
+                              ? colors.textMuted
+                              : colors.primary
+                          }
+                        />
+                      </TouchableOpacity>
+
+                      <View style={styles.unitLabelBox}>
+                        <Text style={styles.unitLabelText}>{unitPlural}</Text>
+                      </View>
+                    </View>
+
+                    {/* Validation message if input is invalid / out of bounds */}
+                    {inputError && (
+                      <View style={styles.validationRow}>
+                        <Ionicons
+                          name="alert-circle"
+                          size={14}
+                          color={colors.warning}
+                        />
+                        <Text style={styles.validationText}>{inputError}</Text>
+                      </View>
+                    )}
+
+                    {/* Constraints limits helper row */}
+                    <View style={styles.limitsRow}>
+                      <Text style={styles.limitText}>
+                        Min. Order: <Text style={styles.limitBold}>{minQty} {unitPlural}</Text>
+                      </Text>
+                      <Text style={styles.limitDot}>·</Text>
+                      <Text style={styles.limitText}>
+                        Available Stock:{' '}
+                        <Text style={styles.limitBold}>
+                          {stockValue !== null && !isNaN(stockValue)
+                            ? `${stockValue.toLocaleString('en-IN')} ${unitPlural}`
+                            : 'Available'}
+                        </Text>
                       </Text>
                     </View>
-                    <View style={styles.calcPriceRow}>
-                      {isValidQuantity ? (
-                        <>
-                          <Text style={styles.calcTotalCurrency}>₹</Text>
-                          <Text style={styles.calcTotalValue}>
-                            {formattedEstimatedTotal}
+
+                    {/* Price Calculation Summary Container */}
+                    <View style={styles.calculationContainer}>
+                      {/* Applicable Unit Price Row */}
+                      <View style={styles.calculationRow}>
+                        <View>
+                          <Text style={styles.calcLabel}>Applicable Unit Price</Text>
+                          <Text style={styles.calcTierApplied}>
+                            {activeTier
+                              ? `Tier ${activeTierIndex + 1} Applied (${activeTier.maxQuantity !== null && activeTier.maxQuantity !== undefined ? `${activeTier.minQuantity}–${activeTier.maxQuantity}` : `${activeTier.minQuantity}+`} ${unitPlural})`
+                              : 'Standard Wholesale Price'}
                           </Text>
-                        </>
-                      ) : (
-                        <Text style={styles.calcTotalPlaceholder}>—</Text>
+                        </View>
+                        <View style={styles.calcPriceRow}>
+                          <Text style={styles.calcCurrency}>₹</Text>
+                          <Text style={styles.calcUnitPriceValue}>
+                            {formattedApplicableUnitPrice}
+                          </Text>
+                          {product?.unit && (
+                            <Text style={styles.calcUnit}>/{product.unit}</Text>
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.calcDivider} />
+
+                      {/* Estimated Total Price Row */}
+                      <View style={styles.calculationRow}>
+                        <View style={styles.calcFormulaWrapper}>
+                          <Text style={styles.calcTotalLabel}>Estimated Total</Text>
+                          <Text
+                            style={[
+                              styles.calcTotalFormula,
+                              !isValidQuantity && inputError && styles.calcTotalFormulaError,
+                            ]}
+                          >
+                            {isValidQuantity
+                              ? `${quantity} ${unitPlural} × ₹${formattedApplicableUnitPrice}`
+                              : inputError || `Enter a valid quantity (min. ${minQty} ${unitPlural})`}
+                          </Text>
+                        </View>
+                        <View style={styles.calcPriceRow}>
+                          {isValidQuantity ? (
+                            <>
+                              <Text style={styles.calcTotalCurrency}>₹</Text>
+                              <Text style={styles.calcTotalValue}>
+                                {formattedEstimatedTotal}
+                              </Text>
+                            </>
+                          ) : (
+                            <Text style={styles.calcTotalPlaceholder}>—</Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Savings Callout (if bulk tier gives savings) */}
+                      {savings.hasSavings && (
+                        <View style={styles.savingsCallout}>
+                          <Ionicons
+                            name="pricetag"
+                            size={15}
+                            color={colors.success}
+                          />
+                          <Text style={styles.savingsCalloutText}>
+                            You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> on this purchase ({savings.percent}% off)!
+                          </Text>
+                        </View>
                       )}
                     </View>
                   </View>
-
-                  {/* Savings Callout (if bulk tier gives savings) */}
-                  {savings.hasSavings && (
-                    <View style={styles.savingsCallout}>
-                      <Ionicons
-                        name="pricetag"
-                        size={15}
-                        color={colors.success}
-                      />
-                      <Text style={styles.savingsCalloutText}>
-                        You save <Text style={styles.savingsCalloutBold}>₹{savings.formattedAmount}</Text> on this purchase ({savings.percent}% off)!
-                      </Text>
-                    </View>
-                  )}
-                </View>
+                )}
               </View>
-            )}
-          </View>
+
+              {/* Price Request Callout Card */}
+              <View style={styles.rfqCard}>
+                <View style={styles.rfqHeaderRow}>
+                  <View style={styles.rfqIconBox}>
+                    <Ionicons
+                      name="chatbubbles-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <View style={styles.rfqHeaderTextWrapper}>
+                    <Text style={styles.rfqTitle}>Need a Custom Price?</Text>
+                    <Text style={styles.rfqSubtext}>
+                      Ask a seller for a price based on the quantity you want to buy. Negotiate custom quantities and order terms directly.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.rfqButton}
+                  onPress={handleRequestQuotation}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Request Custom Price"
+                >
+                  <Ionicons
+                    name="paper-plane-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.rfqButtonText}>Request Custom Price</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           {/* Product Overview / Key Information Card */}
           {keyDetails.length > 0 && (
@@ -1440,13 +2099,213 @@ export default function ProductDetailsScreen({
               </View>
             </View>
           )}
+          {/* Seller & Business Information Section */}
+          {sellerBusiness && (sellerBusiness.name || sellerBusiness.location || sellerBusiness.description) ? (
+            <View style={styles.sellerCard} testID="product-seller-info">
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="storefront-outline"
+                  size={18}
+                  color={colors.primary}
+                  style={styles.sectionHeaderIcon}
+                />
+                <Text style={styles.sectionTitle}>Seller Information</Text>
+              </View>
 
-          {/*
-            Layout ready for upcoming sections:
-            - Seller & Business Information
-          */}
+              <View style={styles.sellerContent}>
+                {sellerBusiness.name ? (
+                  <View style={styles.sellerNameRow}>
+                    <Text style={styles.sellerBusinessName}>
+                      {sellerBusiness.name}
+                    </Text>
+                    <View style={styles.verifiedBadge}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={12}
+                        color={colors.success}
+                      />
+                      <Text style={styles.verifiedText}>Verified</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {sellerBusiness.description ? (
+                  <Text style={styles.sellerDescription}>
+                    {sellerBusiness.description}
+                  </Text>
+                ) : null}
+
+                {sellerBusiness.location ? (
+                  <View style={styles.sellerLocationRow}>
+                    <Ionicons
+                      name="location-outline"
+                      size={14}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.sellerLocationText}>
+                      {sellerBusiness.location}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
+
+      {/* Sticky Bottom Action Bar */}
+      <View style={[styles.bottomBar, isOwner && styles.sellerBottomBar]}>
+        {isOwner ? (
+          <View style={styles.sellerBottomBarContainer}>
+            <TouchableOpacity
+              style={[
+                styles.sellerEditProductButton,
+                isDeleting && { opacity: 0.6 },
+              ]}
+              onPress={handleEditProduct}
+              disabled={isDeleting}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Edit Product Details"
+            >
+              <Ionicons
+                name="create-outline"
+                size={18}
+                color={colors.textInverse}
+                style={styles.sellerButtonIcon}
+              />
+              <Text
+                style={styles.sellerEditProductButtonText}
+                numberOfLines={1}
+              >
+                Edit Product
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.sellerDeleteProductButton,
+                isDeleting && styles.sellerDeleteProductButtonDisabled,
+              ]}
+              onPress={handleDeleteProduct}
+              disabled={isDeleting}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Delete Product"
+            >
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={colors.error}
+                style={styles.sellerButtonIcon}
+              />
+              <Text
+                style={styles.sellerDeleteProductButtonText}
+                numberOfLines={1}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Product'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : isSellerMode ? (
+          <View style={styles.sellerBottomDisabledRow}>
+            <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.sellerBottomDisabledText}>
+              Purchasing is disabled in Seller Mode
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.bottomBarPriceContainer}>
+              <Text style={styles.bottomBarPriceLabel}>
+                {isValidQuantity ? `Total (${quantity} ${unitPlural})` : 'Wholesale Price'}
+              </Text>
+              <View style={styles.bottomBarPriceRow}>
+                <Text style={styles.bottomBarCurrency}>₹</Text>
+                <Text style={styles.bottomBarAmount}>
+                  {isValidQuantity ? formattedEstimatedTotal : formattedApplicableUnitPrice}
+                </Text>
+                {!isValidQuantity && product?.unit && (
+                  <Text style={styles.bottomBarUnit}>/{product.unit}</Text>
+                )}
+              </View>
+              {activeTier && (
+                <View style={styles.bottomBarTierBadge}>
+                  <Ionicons name="sparkles" size={10} color={colors.surplus} />
+                  <Text style={styles.bottomBarTierText}>Wholesale Tier Applied</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.bottomBarActions}>
+              <TouchableOpacity
+                style={[
+                  styles.bottomBarQuoteBtn,
+                  isProductInactive && { opacity: 0.5 },
+                ]}
+                onPress={handleRequestQuotation}
+                disabled={isProductInactive}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Request Custom Price"
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={18}
+                  color={isProductInactive ? colors.textMuted : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.bottomBarQuoteBtnText,
+                    isProductInactive && { color: colors.textMuted },
+                  ]}
+                >
+                  Request Price
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.addToCartButton,
+                  (isProductInactive || isOutOfStock || isStockBelowMoq || !isValidQuantity) &&
+                    styles.addToCartButtonDisabled,
+                ]}
+                onPress={handleAddToCart}
+                disabled={isProductInactive || isOutOfStock || isStockBelowMoq || !isValidQuantity}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isProductInactive
+                    ? 'Product Unavailable'
+                    : itemInCart
+                    ? 'Update Wholesale Cart'
+                    : 'Add to Wholesale Cart'
+                }
+              >
+                <Ionicons
+                  name={
+                    isProductInactive
+                      ? 'alert-circle-outline'
+                      : itemInCart
+                      ? 'checkmark-circle-outline'
+                      : 'cart-outline'
+                  }
+                  size={18}
+                  color={colors.textInverse}
+                  style={styles.addToCartIcon}
+                />
+                <Text style={styles.addToCartButtonText}>
+                  {isProductInactive
+                    ? 'Unavailable'
+                    : itemInCart
+                    ? 'Update Cart'
+                    : 'Add to Cart'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -1501,11 +2360,421 @@ const styles = StyleSheet.create({
   headerRightSpacer: {
     width: 38,
   },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  headerActionButton: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.primary,
+    minWidth: 18,
+    height: 18,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
+  cartBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  headerEditButton: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bottomBar: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  bottomBarPriceContainer: {
+    flex: 1,
+  },
+  bottomBarPriceLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bottomBarPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  bottomBarCurrency: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    marginRight: 2,
+  },
+  bottomBarAmount: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  bottomBarUnit: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginLeft: 2,
+  },
+  bottomBarTierBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  bottomBarTierText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.surplus,
+  },
+  bottomBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  bottomBarQuoteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: 4,
+  },
+  bottomBarQuoteBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  sellerBottomBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+  },
+  sellerBottomBarContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  sellerEditProductButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  sellerEditProductButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
+  sellerDeleteProductButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#DC2626',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sellerDeleteProductButtonDisabled: {
+    opacity: 0.5,
+  },
+  sellerDeleteProductButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.error,
+  },
+  sellerButtonIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  sellerBottomDisabledRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+  },
+  sellerBottomDisabledText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  sellerListingCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sellerListingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  sellerListingIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  sellerListingTextWrapper: {
+    flex: 1,
+  },
+  sellerListingTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  sellerListingSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  inactiveProductAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  inactiveProductAlertText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.error,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  myProductBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  myProductBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  ownProductAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  ownProductAlertText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  rfqCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  rfqHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  rfqIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rfqHeaderTextWrapper: {
+    flex: 1,
+  },
+  rfqTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  rfqSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  rfqButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  rfqButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  addToCartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg + 2,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  addToCartButtonDisabled: {
+    backgroundColor: colors.textMuted,
+    opacity: 0.6,
+  },
+  addToCartIcon: {
+    marginRight: spacing.xs + 2,
+  },
+  addToCartButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textInverse,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xxxl * 1.5,
+    paddingBottom: spacing.xxxl * 3.5,
   },
   galleryContainer: {
     backgroundColor: colors.surface,
@@ -1683,19 +2952,52 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginBottom: spacing.xs,
   },
-  brandContainer: {
+  sellerHeaderBanner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceSubtle,
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.md,
     gap: spacing.xs,
   },
-  brandLabel: {
-    fontSize: 13,
+  sellerHeaderBannerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.xs,
+  },
+  sellerHeaderIcon: {
+    marginRight: spacing.xs,
+  },
+  sellerHeaderLabel: {
+    fontSize: 12,
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  brandValue: {
+  sellerHeaderName: {
+    flex: 1,
     fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  viewProfilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+    gap: 3,
+  },
+  viewProfilePillText: {
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primary,
   },
@@ -1749,6 +3051,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  moqBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    gap: 4,
+    backgroundColor: colors.surfaceSubtle,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+  },
+  moqBannerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  moqBannerBold: {
+    color: colors.textPrimary,
+    fontWeight: '700',
   },
   bulkPricingCard: {
     backgroundColor: colors.surface,
@@ -2516,5 +3838,134 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontSize: 14,
     fontWeight: '700',
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxxl * 2,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxxl * 2,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+    lineHeight: 20,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  retryButtonText: {
+    color: colors.textInverse,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  categoryBadgeImage: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    marginRight: 4,
+  },
+  sellerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  sellerContent: {
+    gap: spacing.sm,
+  },
+  sellerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  sellerBusinessName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.successLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  verifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  sellerDescription: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+  },
+  sellerLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  sellerLocationText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
 });
