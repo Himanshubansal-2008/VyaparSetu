@@ -273,7 +273,6 @@ const updateBusiness = async (id, updateData = {}, requesterId = null) => {
 module.exports = {
   getBusinesses,
   createBusiness,
-  getMyBusiness,
   getBusinessById,
   getBusinessByOwnerId,
   updateBusiness,

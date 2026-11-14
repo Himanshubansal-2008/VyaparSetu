@@ -1,22 +1,6 @@
 
 const API_BASE_URL = "http://localhost:5050/api";
 
-export const getProducts = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/products?limit=100`);
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch products");
-    }
-
-    const result = await response.json();
-
-    return result.data.products;
-  } catch (error) {
-    console.error("Product API Error:", error);
-    throw error;
-  }
-};
 export const getCategories = async () => {
   const response = await fetch("http://localhost:5050/api/categories");
   const result = await response.json();
@@ -34,43 +18,6 @@ export const getBusinesses = async () => {
 
   if (!response.ok || !result.success) {
     throw new Error(result.message || "Failed to fetch businesses");
-  }
-
-  return result.data;
-};
-
-export const createProduct = async (productData) => {
-  const response = await fetch("http://localhost:5050/api/products", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(productData),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || "Failed to create product");
-  }
-
-  return result.data;
-};
-
-
-export const updateProduct = async (productId, productData) => {
-  const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(productData),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || "Failed to update product");
   }
 
   return result.data;
@@ -94,25 +41,6 @@ export const updateProductStock = async (productId, stock) => {
   return result.data;
 };
 
-export const deactivateProduct = async (productId) => {
-  const response = await fetch(
-    `${API_BASE_URL}/products/${productId}/deactivate`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || "Failed to deactivate product");
-  }
-
-  return result.data;
-};
 import apiClient, { ApiError } from './apiClient.js';
 import { API_CONFIG } from '../config/api.js';
 
@@ -215,7 +143,7 @@ export const sanitizeProductParams = (params = {}) => {
  * @param {Object} [options] - Additional request options (headers, timeout, signal, baseUrl)
  * @returns {Promise<{ products: Array, pagination: Object, success: boolean, message: string, data: Object }>}
  */
-export const getProducts = async (params = {}, options = {}) => {
+const getProductsFromApi = async (params = {}, options = {}) => {
   const queryParams = sanitizeProductParams(params);
   const response = await apiClient.get(API_CONFIG.ENDPOINTS.PRODUCTS, {
     params: queryParams,
@@ -235,6 +163,18 @@ export const getProducts = async (params = {}, options = {}) => {
     message: response?.message || 'Products fetched successfully',
     data,
   };
+};
+
+export const getProducts = async (params, options = {}) => {
+  const response = await getProductsFromApi(params || {}, options);
+
+  // Inventory screens expect an array when no parameters are supplied.
+  if (params === undefined) {
+    return response.products;
+  }
+
+  // Existing screens expect products + pagination.
+  return response;
 };
 
 /**
@@ -462,6 +402,8 @@ export const updateProduct = async (id, updateData, options = {}) => {
     data,
   };
 };
+
+
 
 /**
  * Soft deactivates a product in PostgreSQL.
