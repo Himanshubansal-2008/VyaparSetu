@@ -9,6 +9,9 @@ import {
 } from 'react-native';
 
 import { getProducts, deactivateProduct } from '../services/productService';
+import { useAuth } from '../context/AuthContext';
+import { useMode } from '../context/ModeContext';
+import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -27,6 +30,8 @@ const getStockStatus = (stock) => {
 };
 
 export default function InventoryListScreen({ navigation }) {
+const { user } = useAuth();
+const { isSellerMode, activeBusinessProfile } = useMode();
 const [products, setProducts] = useState([]);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState('');
@@ -34,6 +39,16 @@ const [error, setError] = useState('');
 const [search, setSearch] = useState('');
 const [stockFilter, setStockFilter] = useState('All');
 const [categoryFilter, setCategoryFilter] = useState('all');
+const [scopeFilter, setScopeFilter] = useState('all');
+
+const currentSellerProfile = useMemo(() => {
+  return activeBusinessProfile || user?.business || null;
+}, [activeBusinessProfile, user]);
+
+const hasMyProducts = useMemo(() => {
+  if (!currentSellerProfile) return false;
+  return products.some((p) => isProductOwnedByCurrentSeller(p, currentSellerProfile));
+}, [products, currentSellerProfile]);
 
 const loadProducts = async () => {
   try {
@@ -117,9 +132,14 @@ const filteredProducts = useMemo(() => {
       categoryFilter === 'all' ||
       product.category?.id === categoryFilter;
 
-    return matchesSearch && matchesStock && matchesCategory;
+    const isOwn = isProductOwnedByCurrentSeller(product, currentSellerProfile);
+    const matchesScope =
+      scopeFilter === 'all' ||
+      (scopeFilter === 'my' && isOwn);
+
+    return matchesSearch && matchesStock && matchesCategory && matchesScope;
   });
-}, [products, search, stockFilter, categoryFilter]);
+}, [products, search, stockFilter, categoryFilter, scopeFilter, currentSellerProfile]);
 
 
   return (
@@ -180,6 +200,44 @@ const filteredProducts = useMemo(() => {
           onChangeText={setSearch}
         />
       </View>
+
+      {(hasMyProducts || isSellerMode) && (
+        <View style={styles.scopeRow}>
+          <TouchableOpacity
+            onPress={() => setScopeFilter('all')}
+            style={[
+              styles.scopeChip,
+              scopeFilter === 'all' && styles.activeScopeChip,
+            ]}
+          >
+            <Text
+              style={[
+                styles.scopeText,
+                scopeFilter === 'all' && styles.activeScopeText,
+              ]}
+            >
+              All Inventory
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setScopeFilter('my')}
+            style={[
+              styles.scopeChip,
+              scopeFilter === 'my' && styles.activeScopeChip,
+            ]}
+          >
+            <Text
+              style={[
+                styles.scopeText,
+                scopeFilter === 'my' && styles.activeScopeText,
+              ]}
+            >
+              ★ My Products Only
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Text style={styles.filterTitle}>Stock Status</Text>
 
@@ -294,6 +352,7 @@ const filteredProducts = useMemo(() => {
   filteredProducts.map((product) => {
     const stock = Number(product.stock) || 0;
     const status = getStockStatus(stock);
+    const isOwn = isProductOwnedByCurrentSeller(product, currentSellerProfile);
 
     return (
       <View key={product.id} style={styles.productCard}>
@@ -303,9 +362,16 @@ const filteredProducts = useMemo(() => {
             <Text style={styles.productCategory}>
               {product.category?.name || 'Uncategorized'}
             </Text>
-            <Text style={styles.sellerName}>
-              {product.business?.name || 'Unknown Seller'}
-            </Text>
+            <View style={styles.sellerRow}>
+              <Text style={styles.sellerName}>
+                {product.business?.name || 'Unknown Seller'}
+              </Text>
+              {isOwn && (
+                <View style={styles.myProductBadge}>
+                  <Text style={styles.myProductBadgeText}>My Product</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={[styles.statusBadge, { backgroundColor: status.background }]}>
@@ -655,5 +721,50 @@ notificationText: {
   color: '#166534',
   fontWeight: '600',
   fontSize: 14,
+},
+scopeRow: {
+  flexDirection: 'row',
+  gap: spacing.sm,
+  marginBottom: spacing.md,
+},
+scopeChip: {
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.xs + 2,
+  backgroundColor: colors.surface,
+  borderRadius: borderRadius.md,
+  borderWidth: 1,
+  borderColor: colors.border,
+},
+activeScopeChip: {
+  backgroundColor: colors.primary,
+  borderColor: colors.primary,
+},
+scopeText: {
+  fontSize: 13,
+  color: colors.textSecondary,
+  fontWeight: '600',
+},
+activeScopeText: {
+  color: colors.textInverse,
+},
+sellerRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: spacing.xs,
+  marginTop: spacing.xs,
+},
+myProductBadge: {
+  backgroundColor: '#EFF6FF',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 4,
+  borderWidth: 1,
+  borderColor: '#BFDBFE',
+},
+myProductBadgeText: {
+  color: '#1D4ED8',
+  fontSize: 10,
+  fontWeight: '700',
 },
 });

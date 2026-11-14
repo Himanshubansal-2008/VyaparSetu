@@ -101,6 +101,59 @@ export default function UpdateStockScreen({ navigation, route }) {
           placeholder="Enter new quantity"
         />
 
+        <View style={styles.quickAdjustRow}>
+          <TouchableOpacity
+            style={styles.adjustChip}
+            onPress={() => {
+              const current = Math.max(0, (Number(stock) || 0) - 5);
+              setStock(String(current));
+              setError('');
+            }}
+          >
+            <Text style={styles.adjustChipText}>-5</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.adjustChip}
+            onPress={() => {
+              const current = Math.max(0, (Number(stock) || 0) - 1);
+              setStock(String(current));
+              setError('');
+            }}
+          >
+            <Text style={styles.adjustChipText}>-1</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adjustChip, styles.adjustChipPositive]}
+            onPress={() => {
+              const current = (Number(stock) || 0) + 1;
+              setStock(String(current));
+              setError('');
+            }}
+          >
+            <Text style={[styles.adjustChipText, styles.adjustChipPositiveText]}>+1</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adjustChip, styles.adjustChipPositive]}
+            onPress={() => {
+              const current = (Number(stock) || 0) + 5;
+              setStock(String(current));
+              setError('');
+            }}
+          >
+            <Text style={[styles.adjustChipText, styles.adjustChipPositiveText]}>+5</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adjustChip, styles.adjustChipPositive]}
+            onPress={() => {
+              const current = (Number(stock) || 0) + 20;
+              setStock(String(current));
+              setError('');
+            }}
+          >
+            <Text style={[styles.adjustChipText, styles.adjustChipPositiveText]}>+20</Text>
+          </TouchableOpacity>
+        </View>
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TouchableOpacity
@@ -197,5 +250,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#16A34A',
     marginTop: 16,
+  },
+  quickAdjustRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  adjustChip: {
+    flex: 1,
+    paddingVertical: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  adjustChipText: {
+    color: '#475569',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  adjustChipPositive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  adjustChipPositiveText: {
+    color: '#2563EB',
   },
 });
