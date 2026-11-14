@@ -1,46 +1,4 @@
 
-const API_BASE_URL = "http://localhost:5050/api";
-
-export const getCategories = async () => {
-  const response = await fetch("http://localhost:5050/api/categories");
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || "Failed to fetch categories");
-  }
-
-  return result.data;
-};
-
-export const getBusinesses = async () => {
-  const response = await fetch("http://localhost:5050/api/businesses");
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || "Failed to fetch businesses");
-  }
-
-  return result.data;
-};
-
-export const updateProductStock = async (productId, stock) => {
-  const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ stock }),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || "Failed to update stock");
-  }
-
-  return result.data;
-};
-
 import apiClient, { ApiError } from './apiClient.js';
 import { API_CONFIG } from '../config/api.js';
 
@@ -49,6 +7,39 @@ export const UUID_REGEX =
 
 export const isUUID = (str) => {
   return typeof str === 'string' && UUID_REGEX.test(str.trim());
+};
+
+export const getCategories = async (options = {}) => {
+  const response = await apiClient.get(API_CONFIG.ENDPOINTS.CATEGORIES, options);
+  const data = response?.data || response;
+  return Array.isArray(data) ? data : (data?.categories || []);
+};
+
+export const getBusinesses = async (options = {}) => {
+  const response = await apiClient.get(API_CONFIG.ENDPOINTS.BUSINESSES, options);
+  const data = response?.data || response;
+  return Array.isArray(data) ? data : (data?.businesses || []);
+};
+
+export const updateProductStock = async (productId, stock, options = {}) => {
+  if (!productId || typeof productId !== 'string' || !isUUID(productId)) {
+    throw new ApiError('Valid product UUID is required for updating stock', 400);
+  }
+
+  const cleanId = productId.trim();
+  const parsedStock = parseInt(stock, 10);
+  if (isNaN(parsedStock) || parsedStock < 0) {
+    throw new ApiError('Stock must be a non-negative integer', 400);
+  }
+
+  const response = await apiClient.put(
+    `${API_CONFIG.ENDPOINTS.PRODUCTS}/${encodeURIComponent(cleanId)}`,
+    { stock: parsedStock },
+    options
+  );
+
+  const data = response?.data || response;
+  return data;
 };
 
 /**
@@ -166,10 +157,19 @@ const getProductsFromApi = async (params = {}, options = {}) => {
 };
 
 export const getProducts = async (params, options = {}) => {
-  const response = await getProductsFromApi(params || {}, options);
+  const isInventoryCall = params === undefined || params?.asArray === true;
+  const queryParams = params === undefined ? { limit: 100 } : { ...(params || {}) };
+  if (queryParams && typeof queryParams === 'object' && queryParams.asArray) {
+    delete queryParams.asArray;
+  }
+  if (isInventoryCall && queryParams.limit === undefined) {
+    queryParams.limit = 100;
+  }
 
-  // Inventory screens expect an array when no parameters are supplied.
-  if (params === undefined) {
+  const response = await getProductsFromApi(queryParams, options);
+
+  // Inventory screens expect an array when no parameters or asArray is supplied.
+  if (isInventoryCall) {
     return response.products;
   }
 

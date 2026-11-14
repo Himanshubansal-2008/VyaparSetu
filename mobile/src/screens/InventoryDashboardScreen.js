@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 
 import { getProducts } from '../services/productService';
+import { useAuth } from '../context/AuthContext';
+import { useMode } from '../context/ModeContext';
+import { isProductOwnedByCurrentSeller } from '../data/businessProfileData';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 
@@ -38,9 +41,21 @@ const getStockStatus = (stock) => {
 };
 
 export default function InventoryDashboardScreen({ navigation }) {
+  const { user } = useAuth();
+  const { isSellerMode, activeBusinessProfile } = useMode();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('all');
+
+  const currentSellerProfile = useMemo(() => {
+    return activeBusinessProfile || user?.business || null;
+  }, [activeBusinessProfile, user]);
+
+  const hasMyProducts = useMemo(() => {
+    if (!currentSellerProfile) return false;
+    return products.some((p) => isProductOwnedByCurrentSeller(p, currentSellerProfile));
+  }, [products, currentSellerProfile]);
 
   const loadProducts = async () => {
     try {
@@ -61,28 +76,35 @@ export default function InventoryDashboardScreen({ navigation }) {
     loadProducts();
   }, []);
 
-  const totalProducts = products.length;
+  const displayedProducts = useMemo(() => {
+    if (scopeFilter === 'my') {
+      return products.filter((p) => isProductOwnedByCurrentSeller(p, currentSellerProfile));
+    }
+    return products;
+  }, [products, scopeFilter, currentSellerProfile]);
 
-  const totalStock = products.reduce(
+  const totalProducts = displayedProducts.length;
+
+  const totalStock = displayedProducts.reduce(
     (total, product) => total + (Number(product.stock) || 0),
     0
   );
 
-  const lowStockProducts = products.filter(
+  const lowStockProducts = displayedProducts.filter(
     (product) =>
       Number(product.stock) > 0 &&
       Number(product.stock) <= 20
   );
 
-  const outOfStockProducts = products.filter(
+  const outOfStockProducts = displayedProducts.filter(
     (product) => Number(product.stock) === 0
   );
 
-  const surplusProducts = products.filter(
+  const surplusProducts = displayedProducts.filter(
     (product) => product.isSurplus
   );
 
-  const totalInventoryValue = products.reduce(
+  const totalInventoryValue = displayedProducts.reduce(
     (total, product) =>
       total +
       (Number(product.stock) || 0) *
@@ -91,47 +113,47 @@ export default function InventoryDashboardScreen({ navigation }) {
   );
 
   // Stock Distribution
-const inStockProducts = products.filter(
-  (product) => Number(product.stock) > 20
-);
+  const inStockProducts = displayedProducts.filter(
+    (product) => Number(product.stock) > 20
+  );
 
-const stockDistribution = [
-  {
-    label: 'In Stock',
-    count: inStockProducts.length,
-    color: colors.success,
-  },
-  {
-    label: 'Low Stock',
-    count: lowStockProducts.length,
-    color: colors.warning,
-  },
-  {
-    label: 'Out of Stock',
-    count: outOfStockProducts.length,
-    color: colors.error,
-  },
-];
+  const stockDistribution = [
+    {
+      label: 'In Stock',
+      count: inStockProducts.length,
+      color: colors.success,
+    },
+    {
+      label: 'Low Stock',
+      count: lowStockProducts.length,
+      color: colors.warning,
+    },
+    {
+      label: 'Out of Stock',
+      count: outOfStockProducts.length,
+      color: colors.error,
+    },
+  ];
 
-// Category-wise Inventory
-const categorySummary = Object.values(
-  products.reduce((summary, product) => {
-    const categoryName = product.category?.name || 'Uncategorized';
+  // Category-wise Inventory
+  const categorySummary = Object.values(
+    displayedProducts.reduce((summary, product) => {
+      const categoryName = product.category?.name || 'Uncategorized';
 
-    if (!summary[categoryName]) {
-      summary[categoryName] = {
-        name: categoryName,
-        productCount: 0,
-        totalStock: 0,
-      };
-    }
+      if (!summary[categoryName]) {
+        summary[categoryName] = {
+          name: categoryName,
+          productCount: 0,
+          totalStock: 0,
+        };
+      }
 
-    summary[categoryName].productCount += 1;
-    summary[categoryName].totalStock += Number(product.stock) || 0;
+      summary[categoryName].productCount += 1;
+      summary[categoryName].totalStock += Number(product.stock) || 0;
 
-    return summary;
-  }, {})
-);
+      return summary;
+    }, {})
+  );
 
   const summaryCards = [
     {
@@ -182,6 +204,44 @@ const categorySummary = Object.values(
         <Text style={styles.subtitle}>
           Monitor your products and stock levels
         </Text>
+
+        {(hasMyProducts || isSellerMode) && (
+          <View style={styles.scopeRow}>
+            <TouchableOpacity
+              onPress={() => setScopeFilter('all')}
+              style={[
+                styles.scopeChip,
+                scopeFilter === 'all' && styles.activeScopeChip,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.scopeText,
+                  scopeFilter === 'all' && styles.activeScopeText,
+                ]}
+              >
+                All Inventory
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setScopeFilter('my')}
+              style={[
+                styles.scopeChip,
+                scopeFilter === 'my' && styles.activeScopeChip,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.scopeText,
+                  scopeFilter === 'my' && styles.activeScopeText,
+                ]}
+              >
+                ★ My Inventory Only
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -317,18 +377,28 @@ const categorySummary = Object.values(
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Product Inventory
-            </Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>
+                Product Inventory
+              </Text>
+              <TouchableOpacity
+                onPress={() => navigation?.navigate('InventoryList')}
+              >
+                <Text style={styles.viewListLink}>View Full List →</Text>
+              </TouchableOpacity>
+            </View>
 
-            {products.map((product) => {
+            {displayedProducts.map((product) => {
               const stock = Number(product.stock) || 0;
               const status = getStockStatus(stock);
+              const isOwn = isProductOwnedByCurrentSeller(product, currentSellerProfile);
 
               return (
-                <View
+                <TouchableOpacity
                   key={product.id}
                   style={styles.productCard}
+                  onPress={() => navigation?.navigate('UpdateStock', { product })}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.productInfo}>
                     <Text style={styles.productName}>
@@ -338,6 +408,11 @@ const categorySummary = Object.values(
                       Available stock: {stock.toLocaleString('en-IN')}{' '}
                       {product.unit || 'units'}
                     </Text>
+                    {isOwn && (
+                      <View style={styles.myProductBadge}>
+                        <Text style={styles.myProductBadgeText}>My Product</Text>
+                      </View>
+                    )}
                   </View>
 
                   <View
@@ -355,7 +430,7 @@ const categorySummary = Object.values(
                       {status.label}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -555,5 +630,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  viewListLink: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  scopeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  scopeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  activeScopeChip: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  scopeText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  activeScopeText: {
+    color: colors.textInverse,
+  },
+  myProductBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  myProductBadgeText: {
+    color: '#1D4ED8',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

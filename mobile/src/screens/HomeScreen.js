@@ -836,6 +836,26 @@ export default function HomeScreen({
               </Text>
             </TouchableOpacity>
 
+            {/* 3.5 Inventory Management Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Inventory Management"
+              onPress={() => navigation?.navigate('InventoryList')}
+            >
+              <View style={[styles.actionIconBox, styles.catalogIconBox]}>
+                <Ionicons
+                  name="file-tray-stacked-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Inventory
+              </Text>
+            </TouchableOpacity>
+
             {/* 4. Customer Price Requests Card */}
             <TouchableOpacity
               style={styles.actionCard}
@@ -951,6 +971,16 @@ export default function HomeScreen({
             >
               <Ionicons name="business-outline" size={15} color={colors.primary} />
               <Text style={styles.sellerHubActionText}>Business Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sellerHubActionButton}
+              onPress={() => navigation?.navigate('InventoryList')}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Inventory"
+            >
+              <Ionicons name="cube-outline" size={15} color={colors.primary} />
+              <Text style={styles.sellerHubActionText}>Inventory</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.sellerHubActionButton, styles.sellerHubPrimaryAction]}
@@ -1541,6 +1571,26 @@ export default function HomeScreen({
                       </Text>
                       <Text style={styles.actionsGridDesc} numberOfLines={2}>
                         Orders placed by customers
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Seller Item 3.5: Inventory Management */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        navigation?.navigate('InventoryList');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.catalogIconBox]}>
+                        <Ionicons name="file-tray-stacked-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Inventory Management
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Track and update product stock
                       </Text>
                     </TouchableOpacity>
 
