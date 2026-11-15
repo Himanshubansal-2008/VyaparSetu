@@ -25,6 +25,7 @@ model User {
   cart     Cart?
   orders   Order[]     @relation("BuyerOrders")
   quotations Quotation[] @relation("BuyerQuotations")
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -263,3 +264,24 @@ model QuotationMessage {
 
   @@index([quotationId])
 }
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  type       String
+  entityId   String?
+  entityType String?
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+

@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const notificationService = require("./notification.service");
 const { AppError, UUID_REGEX } = require("./order.service");
 
 /**
@@ -186,6 +187,32 @@ const createQuotation = async (userId, payload) => {
         notes: payload.buyerNotes || `Submitted quotation request for ${requestedQuantity} units`,
       },
     });
+
+    // Notify seller about incoming quotation request
+    if (quote.sellerBusiness?.ownerId) {
+      try {
+        await notificationService.createNotification(
+          {
+            userId: quote.sellerBusiness.ownerId,
+            title: "New Quotation Request",
+            message: `New RFQ #${quote.quotationNumber} received for ${product ? product.name : 'product'} (${quote.requestedQuantity} units).`,
+            type: notificationService.NOTIFICATION_TYPES.QUOTATION_REQUEST,
+            entityId: quote.id,
+            entityType: "QUOTATION",
+            metadata: {
+              quotationId: quote.id,
+              quotationNumber: quote.quotationNumber,
+              buyerId: cleanUserId,
+              requestedQuantity: quote.requestedQuantity,
+              buyerTargetPrice: quote.buyerTargetPrice,
+            },
+          },
+          tx
+        );
+      } catch (notifErr) {
+        console.warn("[quotation.service] Failed creating quotation request notification:", notifErr.message);
+      }
+    }
 
     return quote;
   });
@@ -452,6 +479,46 @@ const respondToQuotation = async (quotationId, sellerUserId, sellerBusinessId, r
       },
     });
 
+    // Notify buyer about supplier's response, counter-offer, or rejection
+    if (quotation.buyerId) {
+      try {
+        let title = "Quotation Received";
+        let notifType = notificationService.NOTIFICATION_TYPES.QUOTATION_RESPONSE;
+        let msg = `Supplier quoted ₹${unitPrice}/unit for RFQ #${quotation.quotationNumber}.`;
+
+        if (isCounter) {
+          title = "Counter-Offer Received";
+          notifType = notificationService.NOTIFICATION_TYPES.QUOTATION_COUNTER;
+          msg = `Supplier countered on RFQ #${quotation.quotationNumber}: ₹${unitPrice}/unit for ${qty} units.`;
+        } else if (isReject) {
+          title = "Quotation Declined";
+          notifType = notificationService.NOTIFICATION_TYPES.QUOTATION_REJECTED;
+          msg = `Supplier declined RFQ #${quotation.quotationNumber}.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`;
+        }
+
+        await notificationService.createNotification(
+          {
+            userId: quotation.buyerId,
+            title,
+            message: msg,
+            type: notifType,
+            entityId: quotation.id,
+            entityType: "QUOTATION",
+            metadata: {
+              quotationId: quotation.id,
+              quotationNumber: quotation.quotationNumber,
+              unitPrice,
+              quantity: qty,
+              type,
+            },
+          },
+          tx
+        );
+      } catch (notifErr) {
+        console.warn("[quotation.service] Failed creating quotation response notification:", notifErr.message);
+      }
+    }
+
     return updatedQuote;
   });
 
@@ -524,6 +591,40 @@ const submitBuyerCounter = async (quotationId, buyerUserId, counterData) => {
       },
     });
 
+    // Notify seller about buyer's counter-offer
+    const sellerOwnerId =
+      quotation.sellerBusiness?.ownerId ||
+      (
+        await tx.business.findUnique({
+          where: { id: quotation.sellerBusinessId },
+          select: { ownerId: true },
+        })
+      )?.ownerId;
+
+    if (sellerOwnerId) {
+      try {
+        await notificationService.createNotification(
+          {
+            userId: sellerOwnerId,
+            title: "Buyer Counter-Offer",
+            message: `Buyer submitted a counter-offer for RFQ #${quotation.quotationNumber}: ₹${counterPrice}/unit for ${counterQty} units.`,
+            type: notificationService.NOTIFICATION_TYPES.QUOTATION_COUNTER,
+            entityId: quotation.id,
+            entityType: "QUOTATION",
+            metadata: {
+              quotationId: quotation.id,
+              quotationNumber: quotation.quotationNumber,
+              counterPrice,
+              counterQuantity: counterQty,
+            },
+          },
+          tx
+        );
+      } catch (notifErr) {
+        console.warn("[quotation.service] Failed creating buyer counter notification:", notifErr.message);
+      }
+    }
+
     return updatedQuote;
   });
 
@@ -583,6 +684,40 @@ const acceptQuotation = async (quotationId, buyerUserId) => {
       },
     });
 
+    // Notify seller about quotation acceptance
+    const sellerOwnerId =
+      quotation.sellerBusiness?.ownerId ||
+      (
+        await tx.business.findUnique({
+          where: { id: quotation.sellerBusinessId },
+          select: { ownerId: true },
+        })
+      )?.ownerId;
+
+    if (sellerOwnerId) {
+      try {
+        await notificationService.createNotification(
+          {
+            userId: sellerOwnerId,
+            title: "Quotation Accepted!",
+            message: `Buyer accepted terms for RFQ #${quotation.quotationNumber} (${agreedQty} units @ ₹${agreedPrice}/unit). Ready for order conversion.`,
+            type: notificationService.NOTIFICATION_TYPES.QUOTATION_ACCEPTED,
+            entityId: quotation.id,
+            entityType: "QUOTATION",
+            metadata: {
+              quotationId: quotation.id,
+              quotationNumber: quotation.quotationNumber,
+              agreedPrice,
+              agreedQty,
+            },
+          },
+          tx
+        );
+      } catch (notifErr) {
+        console.warn("[quotation.service] Failed creating quotation acceptance notification:", notifErr.message);
+      }
+    }
+
     return updatedQuote;
   });
 
@@ -634,6 +769,39 @@ const rejectQuotation = async (quotationId, buyerUserId, reason = "") => {
         notes: rejectionNotes,
       },
     });
+
+    // Notify seller about buyer rejection
+    const sellerOwnerId =
+      quotation.sellerBusiness?.ownerId ||
+      (
+        await tx.business.findUnique({
+          where: { id: quotation.sellerBusinessId },
+          select: { ownerId: true },
+        })
+      )?.ownerId;
+
+    if (sellerOwnerId) {
+      try {
+        await notificationService.createNotification(
+          {
+            userId: sellerOwnerId,
+            title: "Quotation Declined by Buyer",
+            message: `Buyer declined quotation #${quotation.quotationNumber}.${reason ? ` Reason: ${reason}` : ''}`,
+            type: notificationService.NOTIFICATION_TYPES.QUOTATION_REJECTED,
+            entityId: quotation.id,
+            entityType: "QUOTATION",
+            metadata: {
+              quotationId: quotation.id,
+              quotationNumber: quotation.quotationNumber,
+              reason: rejectionNotes,
+            },
+          },
+          tx
+        );
+      } catch (notifErr) {
+        console.warn("[quotation.service] Failed creating quotation rejection notification:", notifErr.message);
+      }
+    }
 
     return updatedQuote;
   });
