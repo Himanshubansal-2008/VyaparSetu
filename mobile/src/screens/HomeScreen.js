@@ -22,6 +22,7 @@ import FeaturedProducts from '../components/FeaturedProducts';
 import ProductCard from '../components/ProductCard';
 import EmptyState from '../components/EmptyState';
 import { useMode } from '../context/ModeContext';
+import { useNotification } from '../context/NotificationContext';
 import {
   products as defaultProducts,
   categories as defaultCategories,
@@ -271,39 +272,20 @@ export default function HomeScreen({
     useState(false);
   const [isNotificationsModalVisible, setIsNotificationsModalVisible] =
     useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-1',
-      title: 'Welcome to VyaparSetu Wholesale',
-      message:
-        'Connect directly with verified B2B suppliers, request custom quotations, and discover volume pricing.',
-      time: 'Just now',
-      read: false,
-      type: 'welcome',
-    },
-    {
-      id: 'notif-2',
-      title: 'Quotation Update',
-      message:
-        'A seller submitted a counteroffer on your quotation request for Industrial Safety Helmets.',
-      time: '2 hours ago',
-      read: false,
-      type: 'quote',
-    },
-    {
-      id: 'notif-3',
-      title: 'Order Dispatched',
-      message:
-        'Wholesale Order #VS-9821 has been shipped via Express Logistics and is in transit.',
-      time: 'Yesterday',
-      read: true,
-      type: 'order',
-    },
-  ]);
 
-  const unreadNotificationsCount = useMemo(() => {
-    return notifications.filter((item) => !item.read).length;
-  }, [notifications]);
+  let notifContext = null;
+  try {
+    notifContext = useNotification();
+  } catch (e) {
+    // Graceful fallback if rendered outside provider
+  }
+
+  const [localNotifications, setLocalNotifications] = useState([]);
+  const notifications = notifContext?.notifications && notifContext.notifications.length > 0
+    ? notifContext.notifications
+    : localNotifications;
+
+  const unreadNotificationsCount = notifContext?.unreadCount ?? 0;
 
   const handleOpenNotifications = useCallback(() => {
     if (onNotificationPress) {
@@ -314,16 +296,22 @@ export default function HomeScreen({
   }, [onNotificationPress]);
 
   const handleMarkAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+    if (notifContext?.markAllAsRead) {
+      notifContext.markAllAsRead();
+    }
+    setLocalNotifications((prev) => prev.map((item) => ({ ...item, isRead: true, read: true })));
   };
 
   const handleClearNotifications = () => {
-    setNotifications([]);
+    setLocalNotifications([]);
   };
 
   const handleToggleNotificationRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, read: !item.read } : item))
+    if (notifContext?.markAsRead) {
+      notifContext.markAsRead(id);
+    }
+    setLocalNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, isRead: true, read: true } : item))
     );
   };
 

@@ -126,9 +126,13 @@ export const NotificationProvider = ({ children }) => {
           if (res.pagination) {
             setPagination(res.pagination);
           }
-          if (typeof res.unreadCount === 'number') {
-            setUnreadCount(res.unreadCount);
-          }
+          const resolvedUnread =
+            typeof res.unreadCount === 'number'
+              ? res.unreadCount
+              : typeof res?.data?.unreadCount === 'number'
+              ? res.data.unreadCount
+              : res.notifications.filter((n) => !n.isRead).length;
+          setUnreadCount(resolvedUnread);
         }
       } catch (err) {
         console.warn('[NotificationContext] Failed loading notifications:', err?.message);

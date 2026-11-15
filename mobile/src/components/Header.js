@@ -39,7 +39,7 @@ export default function Header({
     // Fallback if rendered outside provider
   }
   const unreadNotifications =
-    propUnreadNotifications !== undefined
+    typeof propUnreadNotifications === 'number'
       ? propUnreadNotifications
       : (notifContext?.unreadCount ?? 0);
   const cartItemCount =
@@ -124,7 +124,7 @@ export default function Header({
             {unreadNotifications > 0 && (
               <View style={styles.notificationBadge}>
                 <Text style={styles.badgeText}>
-                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
                 </Text>
               </View>
             )}

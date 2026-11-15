@@ -26,8 +26,12 @@ export const fetchNotifications = async (params = {}, options = {}) => {
 export const fetchUnreadCount = async (options = {}) => {
   const endpoint = `${API_CONFIG.ENDPOINTS.NOTIFICATIONS || '/notifications'}/unread-count`;
   const response = await apiClient.get(endpoint, options);
-  const data = response?.data || response;
-  return typeof data?.unreadCount === 'number' ? data.unreadCount : 0;
+  if (typeof response === 'number') return response;
+  const data = response?.data !== undefined ? response.data : response;
+  if (typeof data === 'number') return data;
+  if (typeof data?.unreadCount === 'number') return data.unreadCount;
+  if (typeof response?.unreadCount === 'number') return response.unreadCount;
+  return 0;
 };
 
 /**
