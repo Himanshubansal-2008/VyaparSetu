@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const notificationService = require("./notification.service");
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -389,17 +390,45 @@ const createOrder = async (userId, orderPayload) => {
       },
     });
 
-    // 2. Decrement product stock for real products
+    // 2. Decrement product stock for real products and check low-stock alerts
     for (const item of validatedItems) {
       if (item.productId && UUID_REGEX.test(item.productId)) {
-        await tx.product.update({
+        const updatedProduct = await tx.product.update({
           where: { id: item.productId },
           data: {
             stock: {
               decrement: item.quantity,
             },
           },
+          include: { business: true },
         });
+
+        // Trigger LOW_STOCK notification if remaining stock drops <= 20 or <= MOQ
+        const remainingStock = updatedProduct.stock;
+        const moq = updatedProduct.minOrderQuantity || 1;
+        if ((remainingStock <= 20 || remainingStock <= moq) && updatedProduct.business?.ownerId) {
+          try {
+            await notificationService.createNotification(
+              {
+                userId: updatedProduct.business.ownerId,
+                title: `Low Stock Alert: ${updatedProduct.name}`,
+                message: `Inventory for "${updatedProduct.name}" is low (${remainingStock} ${updatedProduct.unit || 'unit'}s remaining). Please replenish stock.`,
+                type: notificationService.NOTIFICATION_TYPES.LOW_STOCK,
+                entityId: updatedProduct.id,
+                entityType: "PRODUCT",
+                metadata: {
+                  productId: updatedProduct.id,
+                  productName: updatedProduct.name,
+                  remainingStock,
+                  minOrderQuantity: moq,
+                },
+              },
+              tx
+            );
+          } catch (notifErr) {
+            console.warn("[order.service] Failed creating low stock alert:", notifErr.message);
+          }
+        }
       }
     }
 
@@ -435,6 +464,39 @@ const createOrder = async (userId, orderPayload) => {
         },
       },
     });
+
+    // 5. Notify seller(s) about the placed order
+    const sellerBizIds = [...new Set(validatedItems.map((i) => i.businessId).filter(Boolean))];
+    for (const bizId of sellerBizIds) {
+      const biz = await tx.business.findUnique({
+        where: { id: bizId },
+        select: { ownerId: true, name: true },
+      });
+      if (biz?.ownerId) {
+        try {
+          await notificationService.createNotification(
+            {
+              userId: biz.ownerId,
+              title: "New Order Received",
+              message: `You received a new order #${createdOrder.orderNumber} (${createdOrder.totalUnits} units, ₹${Number(createdOrder.totalAmount).toLocaleString('en-IN')}).`,
+              type: notificationService.NOTIFICATION_TYPES.ORDER_PLACED,
+              entityId: createdOrder.id,
+              entityType: "ORDER",
+              metadata: {
+                orderId: createdOrder.id,
+                orderNumber: createdOrder.orderNumber,
+                buyerId: userId.trim(),
+                totalAmount: Number(createdOrder.totalAmount),
+                businessId: bizId,
+              },
+            },
+            tx
+          );
+        } catch (notifErr) {
+          console.warn("[order.service] Failed creating order placed notification:", notifErr.message);
+        }
+      }
+    }
 
     return createdOrder;
   });
@@ -652,14 +714,15 @@ const updateOrderStatus = async (orderId, actorUserId, actorBusinessId, newStatu
     if (extraData.cancellationReason) updateData.cancellationReason = extraData.cancellationReason;
   }
 
-  // If rejected or cancelled, restore product stock
-  if (newStatus === "Rejected" || newStatus === "Cancelled") {
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: order.id },
-        data: updateData,
-      });
+  // Update order status, restore stock if cancelled/rejected, and dispatch notification in transaction
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: order.id },
+      data: updateData,
+    });
 
+    // If rejected or cancelled, restore product stock
+    if (newStatus === "Rejected" || newStatus === "Cancelled") {
       for (const item of order.items) {
         if (item.productId && UUID_REGEX.test(item.productId)) {
           await tx.product.update({
@@ -672,13 +735,127 @@ const updateOrderStatus = async (orderId, actorUserId, actorBusinessId, newStatu
           });
         }
       }
-    });
-  } else {
-    await prisma.order.update({
-      where: { id: order.id },
-      data: updateData,
-    });
-  }
+    }
+
+    // Trigger notification according to status transition
+    try {
+      if (newStatus === "Processing") {
+        // Seller accepted order -> notify buyer
+        if (order.buyerId) {
+          await notificationService.createNotification(
+            {
+              userId: order.buyerId,
+              title: "Order Accepted",
+              message: `Your order #${order.orderNumber} has been accepted and is being processed.`,
+              type: notificationService.NOTIFICATION_TYPES.ORDER_ACCEPTED,
+              entityId: order.id,
+              entityType: "ORDER",
+              metadata: { orderId: order.id, orderNumber: order.orderNumber, status: newStatus },
+            },
+            tx
+          );
+        }
+      } else if (newStatus === "Dispatched") {
+        // Order dispatched -> notify buyer
+        if (order.buyerId) {
+          const carrier = extraData.carrierName || order.carrierName;
+          const tracking = extraData.trackingNumber || order.trackingNumber;
+          await notificationService.createNotification(
+            {
+              userId: order.buyerId,
+              title: "Order Dispatched",
+              message: `Your order #${order.orderNumber} has been dispatched${carrier ? ` with ${carrier}` : ''}${tracking ? ` (Tracking: ${tracking})` : ''}.`,
+              type: notificationService.NOTIFICATION_TYPES.ORDER_DISPATCHED,
+              entityId: order.id,
+              entityType: "ORDER",
+              metadata: { orderId: order.id, orderNumber: order.orderNumber, carrierName: carrier, trackingNumber: tracking },
+            },
+            tx
+          );
+        }
+      } else if (newStatus === "Delivered") {
+        // Order delivered -> notify buyer
+        if (order.buyerId) {
+          await notificationService.createNotification(
+            {
+              userId: order.buyerId,
+              title: "Order Delivered",
+              message: `Your order #${order.orderNumber} has been delivered successfully.`,
+              type: notificationService.NOTIFICATION_TYPES.ORDER_DELIVERED,
+              entityId: order.id,
+              entityType: "ORDER",
+              metadata: { orderId: order.id, orderNumber: order.orderNumber },
+            },
+            tx
+          );
+        }
+      } else if (newStatus === "Rejected") {
+        // Order rejected by seller -> notify buyer
+        if (order.buyerId) {
+          const reason = extraData.rejectionReason || order.rejectionReason;
+          await notificationService.createNotification(
+            {
+              userId: order.buyerId,
+              title: "Order Rejected",
+              message: `Your order #${order.orderNumber} was rejected by supplier.${reason ? ` Reason: ${reason}` : ''}`,
+              type: notificationService.NOTIFICATION_TYPES.ORDER_REJECTED,
+              entityId: order.id,
+              entityType: "ORDER",
+              metadata: { orderId: order.id, orderNumber: order.orderNumber, rejectionReason: reason },
+            },
+            tx
+          );
+        }
+      } else if (newStatus === "Cancelled") {
+        // Order cancelled
+        const isCancelledByBuyer = actorUserId && order.buyerId === actorUserId.trim();
+        const reason = extraData.cancellationReason || order.cancellationReason;
+
+        if (isCancelledByBuyer) {
+          // Notify seller(s)
+          const sellerBizIds = [...new Set(order.items.map((i) => i.businessId).filter(Boolean))];
+          for (const bizId of sellerBizIds) {
+            const biz = await tx.business.findUnique({
+              where: { id: bizId },
+              select: { ownerId: true },
+            });
+            if (biz?.ownerId) {
+              await notificationService.createNotification(
+                {
+                  userId: biz.ownerId,
+                  title: "Order Cancelled",
+                  message: `Order #${order.orderNumber} was cancelled by buyer.${reason ? ` Reason: ${reason}` : ''}`,
+                  type: notificationService.NOTIFICATION_TYPES.ORDER_CANCELLED,
+                  entityId: order.id,
+                  entityType: "ORDER",
+                  metadata: { orderId: order.id, orderNumber: order.orderNumber, cancellationReason: reason },
+                },
+                tx
+              );
+            }
+          }
+        } else {
+          // Cancelled by seller -> notify buyer
+          if (order.buyerId) {
+            await notificationService.createNotification(
+              {
+                userId: order.buyerId,
+                title: "Order Cancelled",
+                message: `Your order #${order.orderNumber} was cancelled by supplier.${reason ? ` Reason: ${reason}` : ''}`,
+                type: notificationService.NOTIFICATION_TYPES.ORDER_CANCELLED,
+                entityId: order.id,
+                entityType: "ORDER",
+                metadata: { orderId: order.id, orderNumber: order.orderNumber, cancellationReason: reason },
+              },
+              tx
+            );
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.warn("[order.service] Failed creating order status notification:", notifErr.message);
+    }
+  });
 
   const updatedOrder = await prisma.order.findUnique({
     where: { id: order.id },
