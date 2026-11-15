@@ -24,22 +24,27 @@ export const normalizeBaseUrl = (url) => {
   return clean;
 };
 
+export const LIVE_API_URL = 'https://vyaparsetu-ypre.onrender.com/api';
+
 /**
  * Resolves the default base URL based on the runtime platform:
- * - Android Emulator: 10.0.2.2 maps to host machine localhost
- * - iOS Simulator / Web / Desktop: localhost maps to host machine
+ * - Standalone APK/IPA & production builds: live HTTPS backend on Render
+ * - Local dev emulator fallback if explicitly needed
  *
  * @returns {string}
  */
 export const getDefaultBaseUrl = () => {
-  const defaultPort = 5050;
-  if (Platform && Platform.OS === 'android') {
-    return `http://10.0.2.2:${defaultPort}/api`;
+  if (typeof __DEV__ !== 'undefined' && __DEV__ && !process.env.EXPO_PUBLIC_API_URL) {
+    const defaultPort = 5050;
+    if (Platform && Platform.OS === 'android') {
+      return `http://10.0.2.2:${defaultPort}/api`;
+    }
+    return `http://localhost:${defaultPort}/api`;
   }
-  return `http://localhost:${defaultPort}/api`;
+  return LIVE_API_URL;
 };
 
-const rawEnvUrl = process.env.EXPO_PUBLIC_API_URL;
+const rawEnvUrl = process.env.EXPO_PUBLIC_API_URL || LIVE_API_URL;
 
 /**
  * Resolves the active base URL, adapting for LAN/hostname access in browser environments
