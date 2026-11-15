@@ -29,7 +29,6 @@ import {
   getSessionBusinessProfile,
   subscribeBusinessProfile,
 } from '../data/businessProfileData';
-import { markQuotationAsOrdered } from '../data/quotations';
 import { getProductById, isProductActive } from '../data/products';
 import { useMode } from '../context/ModeContext';
 import orderService from '../services/orderService';
@@ -329,17 +328,6 @@ export default function CheckoutScreen({
 
       // 1. Save placed order locally
       const saved = await saveOrder(orderPayload);
-
-      // 1.1 Transition any originated quotations to ordered status
-      for (const item of cartItems) {
-        if (item.quotationId) {
-          try {
-            await markQuotationAsOrdered(item.quotationId, orderPayload.id);
-          } catch (quotationErr) {
-            console.warn('[Checkout] Failed marking quotation as ordered:', quotationErr);
-          }
-        }
-      }
 
       // 2. Save delivery address for future orders
       await saveDeliveryAddress(addressForm);

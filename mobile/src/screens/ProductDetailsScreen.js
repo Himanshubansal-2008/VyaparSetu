@@ -600,9 +600,6 @@ export default function ProductDetailsScreen({
   const keyDetails = useMemo(() => {
     const details = [];
 
-    if (product?.id) {
-      details.push({ label: 'Product ID', value: String(product.id) });
-    }
     if (categoryName) {
       details.push({ label: 'Category', value: categoryName });
     }
@@ -632,7 +629,6 @@ export default function ProductDetailsScreen({
 
     return details;
   }, [
-    product?.id,
     product?.unit,
     categoryName,
     rawMoqDisplay,
