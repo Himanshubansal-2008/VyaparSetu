@@ -12,6 +12,7 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -347,10 +348,12 @@ export default function SignupScreen({
           <View style={styles.headerContainer}>
             <View style={styles.brandingRow}>
               <View style={styles.logoBadge}>
-                <MaterialCommunityIcons
-                  name="handshake"
-                  size={28}
-                  color={colors.surface}
+                <Image
+                  source={require('../../assets/logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                  accessibilityRole="image"
+                  accessibilityLabel="VyaparSetu Logo"
                 />
               </View>
               <View style={styles.brandTitleRow}>
@@ -793,15 +796,16 @@ const styles = StyleSheet.create({
   logoBadge: {
     width: 44,
     height: 44,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#0A1628',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm + 2,
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 3 },
+        shadowColor: '#0A1628',
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 4,
       },
@@ -809,6 +813,10 @@ const styles = StyleSheet.create({
         elevation: 3,
       },
     }),
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   brandTitleRow: {
     flexDirection: 'row',
