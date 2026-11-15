@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { StyleSheet, View, BackHandler, Platform, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMode } from '../context/ModeContext';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
