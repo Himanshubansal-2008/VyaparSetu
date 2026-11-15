@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 14.0.0"
@@ -29,6 +30,15 @@
       },
       "android": {
         "buildType": "apk"
+      }
+    },
+    "preview-ios": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://vyaparsetu-ypre.onrender.com/api"
+      },
+      "ios": {
+        "simulator": false
       }
     },
     "production": {
