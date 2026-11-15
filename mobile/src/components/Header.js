@@ -12,6 +12,7 @@ import { spacing, borderRadius } from '../theme/spacing';
 import SearchBar from './SearchBar';
 import { useCart } from '../context/CartContext';
 import { useMode } from '../context/ModeContext';
+import { useNotification } from '../context/NotificationContext';
 
 export default function Header({
   searchQuery = '',
@@ -23,7 +24,7 @@ export default function Header({
   onSettingsPress,
   onLogoutPress,
   onOrdersPress,
-  unreadNotifications = 2,
+  unreadNotifications: propUnreadNotifications,
   cartItemCount: propCartItemCount,
   showBack = false,
   onBackPress,
@@ -31,6 +32,16 @@ export default function Header({
 }) {
   const cart = useCart();
   const { isSellerMode, activeBusinessProfile } = useMode();
+  let notifContext = null;
+  try {
+    notifContext = useNotification();
+  } catch (e) {
+    // Fallback if rendered outside provider
+  }
+  const unreadNotifications =
+    propUnreadNotifications !== undefined
+      ? propUnreadNotifications
+      : (notifContext?.unreadCount ?? 0);
   const cartItemCount =
     propCartItemCount !== undefined
       ? propCartItemCount
