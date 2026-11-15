@@ -92,6 +92,7 @@ export const API_CONFIG = {
     CART_ITEMS: '/cart/items',
     CART_MIGRATE: '/cart/migrate',
     CART_VALIDATE: '/cart/validate',
+    NOTIFICATIONS: '/notifications',
   },
 };
 

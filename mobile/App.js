@@ -5,6 +5,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
 import { ModeProvider } from './src/context/ModeContext';
 import { CartProvider } from './src/context/CartContext';
+import { NotificationProvider } from './src/context/NotificationContext';
 
 export default function App() {
   return (
@@ -13,7 +14,9 @@ export default function App() {
       <AuthProvider>
         <ModeProvider>
           <CartProvider>
-            <AppNavigator />
+            <NotificationProvider>
+              <AppNavigator />
+            </NotificationProvider>
           </CartProvider>
         </ModeProvider>
       </AuthProvider>
