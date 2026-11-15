@@ -91,8 +91,8 @@ export default function HomeScreen({
     setIsLoadingProducts(true);
     setProductsError(null);
     try {
-      // Home screen product grid loads curated products using limit parameter
-      const response = await getProducts({ limit: 12, page: 1 });
+      // Home screen product grid loads all available products using limit parameter
+      const response = await getProducts({ limit: 100, page: 1 });
       const items = Array.isArray(response?.products)
         ? response.products
         : Array.isArray(response?.data?.products)
@@ -269,6 +269,63 @@ export default function HomeScreen({
     useState(false);
   const [isAllActionsModalVisible, setIsAllActionsModalVisible] =
     useState(false);
+  const [isNotificationsModalVisible, setIsNotificationsModalVisible] =
+    useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: 'notif-1',
+      title: 'Welcome to VyaparSetu Wholesale',
+      message:
+        'Connect directly with verified B2B suppliers, request custom quotations, and discover volume pricing.',
+      time: 'Just now',
+      read: false,
+      type: 'welcome',
+    },
+    {
+      id: 'notif-2',
+      title: 'Quotation Update',
+      message:
+        'A seller submitted a counteroffer on your quotation request for Industrial Safety Helmets.',
+      time: '2 hours ago',
+      read: false,
+      type: 'quote',
+    },
+    {
+      id: 'notif-3',
+      title: 'Order Dispatched',
+      message:
+        'Wholesale Order #VS-9821 has been shipped via Express Logistics and is in transit.',
+      time: 'Yesterday',
+      read: true,
+      type: 'order',
+    },
+  ]);
+
+  const unreadNotificationsCount = useMemo(() => {
+    return notifications.filter((item) => !item.read).length;
+  }, [notifications]);
+
+  const handleOpenNotifications = useCallback(() => {
+    if (onNotificationPress) {
+      onNotificationPress();
+    } else {
+      setIsNotificationsModalVisible(true);
+    }
+  }, [onNotificationPress]);
+
+  const handleMarkAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+  };
+
+  const handleClearNotifications = () => {
+    setNotifications([]);
+  };
+
+  const handleToggleNotificationRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read: !item.read } : item))
+    );
+  };
 
   useEffect(() => {
     setSavedProfile(getSessionBusinessProfile());
@@ -364,6 +421,7 @@ export default function HomeScreen({
       categoryId:
         selectedCategory !== 'all' ? selectedCategory : undefined,
       searchQuery: searchQuery || '',
+      products: allProducts,
       ...(isSellerMode
         ? {
             isSellerOnly: true,
@@ -604,11 +662,48 @@ export default function HomeScreen({
             });
           }
         }}
-        onNotificationPress={onNotificationPress}
+        unreadNotifications={unreadNotificationsCount}
+        onNotificationPress={handleOpenNotifications}
         onCartPress={onCartPress}
         onOrdersPress={handleOrdersPress}
         onLogoutPress={onLogoutPress}
-      >
+      />
+
+      <FlatList
+        data={filteredProducts}
+        renderItem={({ item }) => {
+          const isOwnProduct = isProductOwnedByCurrentSeller(item, savedProfile);
+
+          return (
+            <ProductCard
+              product={item}
+              isOwnProduct={isOwnProduct}
+              onPress={handleProductPress}
+              onEditPress={
+                isOwnProduct
+                  ? (prod) => {
+                      if (onNavigateToEditProduct) {
+                        onNavigateToEditProduct(prod);
+                      } else if (navigation?.navigate) {
+                        navigation.navigate('EditProduct', {
+                          product: prod,
+                          productId: prod?.id,
+                          isEdit: true,
+                          business: savedProfile,
+                        });
+                      }
+                    }
+                  : undefined
+              }
+            />
+          );
+        }}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        contentContainerStyle={styles.gridContainer}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          <View style={styles.contentContainer}>
         {/* Buyer / Seller Mode Switcher */}
         <ModeSwitcher
           onRequireBusinessProfile={() => handleRequireBusinessProfile('seller_mode')}
@@ -937,7 +1032,6 @@ export default function HomeScreen({
             </TouchableOpacity>
           </ScrollView>
         )}
-      </Header>
 
       {/* Seller Hub Overview Banner (when in Seller Mode) */}
       {isSellerMode && (
@@ -1048,41 +1142,6 @@ export default function HomeScreen({
       )}
 
       {/* 4. Product Grid — filtered by search query */}
-      <FlatList
-        data={filteredProducts}
-        renderItem={({ item }) => {
-          const isOwnProduct = isProductOwnedByCurrentSeller(item, savedProfile);
-
-          return (
-            <ProductCard
-              product={item}
-              isOwnProduct={isOwnProduct}
-              onPress={handleProductPress}
-              onEditPress={
-                isOwnProduct
-                  ? (prod) => {
-                      if (onNavigateToEditProduct) {
-                        onNavigateToEditProduct(prod);
-                      } else if (navigation?.navigate) {
-                        navigation.navigate('EditProduct', {
-                          product: prod,
-                          productId: prod?.id,
-                          isEdit: true,
-                          business: savedProfile,
-                        });
-                      }
-                    }
-                  : undefined
-              }
-            />
-          );
-        }}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.gridContainer}
-        keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={
-          <View style={styles.contentContainer}>
             {hasSearch ? (
               <View style={styles.searchActiveCard}>
                 <View style={styles.searchResultHeader}>
@@ -1658,6 +1717,153 @@ export default function HomeScreen({
               </View>
             </View>
           </View>
+        </Modal>
+      )}
+
+      {/* Notifications Modal */}
+      {isNotificationsModalVisible && (
+        <Modal
+          visible={isNotificationsModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsNotificationsModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setIsNotificationsModalVisible(false)}
+          >
+            <View
+              style={styles.notificationsModalCard}
+              onStartShouldSetResponder={() => true}
+            >
+              <View style={styles.notificationsModalHeader}>
+                <View style={styles.notificationsHeaderTitleRow}>
+                  <View style={styles.notificationsIconBadge}>
+                    <Ionicons name="notifications" size={18} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.actionsModalTitle}>Notifications</Text>
+                      {unreadNotificationsCount > 0 && (
+                        <View style={styles.notificationsUnreadBadge}>
+                          <Text style={styles.notificationsUnreadBadgeText}>
+                            {unreadNotificationsCount} new
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.actionsModalSubtitle}>
+                      Updates on wholesale orders & quotations
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.actionsModalCloseBtn}
+                  onPress={() => setIsNotificationsModalVisible(false)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close Notifications"
+                >
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {notifications.length > 0 && (
+                <View style={styles.notificationsActionsRow}>
+                  {unreadNotificationsCount > 0 && (
+                    <TouchableOpacity
+                      style={styles.notificationsSmallBtn}
+                      onPress={handleMarkAllNotificationsAsRead}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="checkmark-done" size={14} color={colors.primary} />
+                      <Text style={styles.notificationsSmallBtnText}>Mark all read</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.notificationsSmallBtn, { marginLeft: 'auto' }]}
+                    onPress={handleClearNotifications}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash-outline" size={13} color={colors.textMuted} />
+                    <Text style={[styles.notificationsSmallBtnText, { color: colors.textMuted }]}>
+                      Clear all
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <ScrollView
+                style={styles.notificationsList}
+                showsVerticalScrollIndicator={false}
+              >
+                {notifications.length === 0 ? (
+                  <View style={styles.notificationsEmptyState}>
+                    <View style={styles.notificationsEmptyIconBox}>
+                      <Ionicons name="notifications-off-outline" size={28} color={colors.textMuted} />
+                    </View>
+                    <Text style={styles.notificationsEmptyTitle}>No notifications</Text>
+                    <Text style={styles.notificationsEmptySubtitle}>
+                      You're all caught up! New trade, order, and quote alerts will appear here.
+                    </Text>
+                  </View>
+                ) : (
+                  notifications.map((item) => {
+                    const iconName =
+                      item.type === 'order'
+                        ? 'cube-outline'
+                        : item.type === 'quote'
+                        ? 'document-text-outline'
+                        : 'sparkles-outline';
+                    const iconColor =
+                      item.type === 'order'
+                        ? colors.success || '#10B981'
+                        : item.type === 'quote'
+                        ? colors.primary
+                        : '#8B5CF6';
+
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[
+                          styles.notificationItemCard,
+                          !item.read && styles.notificationItemUnread,
+                        ]}
+                        activeOpacity={0.7}
+                        onPress={() => handleToggleNotificationRead(item.id)}
+                      >
+                        <View
+                          style={[
+                            styles.notificationItemIconBox,
+                            { backgroundColor: `${iconColor}18` },
+                          ]}
+                        >
+                          <Ionicons name={iconName} size={18} color={iconColor} />
+                        </View>
+                        <View style={styles.notificationItemContent}>
+                          <View style={styles.notificationItemHeaderRow}>
+                            <Text
+                              style={[
+                                styles.notificationItemTitle,
+                                !item.read && styles.notificationItemTitleUnread,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.title}
+                            </Text>
+                            <Text style={styles.notificationItemTime}>{item.time}</Text>
+                          </View>
+                          <Text style={styles.notificationItemMessage}>{item.message}</Text>
+                        </View>
+                        {!item.read && <View style={styles.notificationUnreadDot} />}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
         </Modal>
       )}
     </SafeAreaView>
@@ -2333,5 +2539,166 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontSize: 13,
     fontWeight: '700',
+  },
+  notificationsModalCard: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '80%',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  notificationsModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  notificationsHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  notificationsIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: `${colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationsUnreadBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  notificationsUnreadBadgeText: {
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  notificationsActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  notificationsSmallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: borderRadius.sm,
+  },
+  notificationsSmallBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  notificationsList: {
+    maxHeight: 380,
+  },
+  notificationsEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  notificationsEmptyIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  notificationsEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  notificationsEmptySubtitle: {
+    fontSize: 12.5,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  notificationItemCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.sm + 2,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    marginBottom: spacing.xs + 2,
+  },
+  notificationItemUnread: {
+    backgroundColor: `${colors.primary}08`,
+    borderColor: `${colors.primary}30`,
+  },
+  notificationItemIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    marginTop: 2,
+  },
+  notificationItemContent: {
+    flex: 1,
+  },
+  notificationItemHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 3,
+  },
+  notificationItemTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    flex: 1,
+    marginRight: spacing.xs,
+  },
+  notificationItemTitleUnread: {
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  notificationItemTime: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  notificationItemMessage: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  notificationUnreadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginLeft: spacing.xs,
+    alignSelf: 'center',
   },
 });

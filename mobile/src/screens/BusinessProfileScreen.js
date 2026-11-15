@@ -21,7 +21,9 @@ import {
   getBusinessByName,
   getSessionBusinessProfile,
   subscribeBusinessProfile,
+  isBusinessOwnedByCurrentUser,
 } from '../data/businessProfileData';
+import { useAuth } from '../context/AuthContext';
 import {
   products as defaultProducts,
   subscribeProducts,
@@ -46,6 +48,14 @@ export default function BusinessProfileScreen({
   onNavigateToSellerOrders,
   onNavigateToSellerQuotations,
 }) {
+  let authUser = null;
+  try {
+    const auth = useAuth();
+    authUser = auth?.user;
+  } catch (e) {
+    // Graceful fallback for non-auth environments
+  }
+
   const [sessionProfile, setSessionProfile] = useState(getSessionBusinessProfile);
   const [productList, setProductList] = useState(defaultProducts);
 
@@ -307,7 +317,18 @@ export default function BusinessProfileScreen({
     }
   };
 
+  const isOwner = useMemo(() => {
+    return isBusinessOwnedByCurrentUser(resolvedBusiness, sessionProfile, authUser);
+  }, [resolvedBusiness, sessionProfile, authUser]);
+
   const handleEditProfile = () => {
+    if (!isOwner) {
+      Alert.alert(
+        'Access Restricted',
+        'You do not have permission to edit another seller\'s business profile.'
+      );
+      return;
+    }
     if (navigation?.navigate && resolvedBusiness) {
       navigation.navigate('EditBusinessProfile', {
         business: resolvedBusiness,
@@ -317,6 +338,13 @@ export default function BusinessProfileScreen({
   };
 
   const handleNavigateToAddProduct = () => {
+    if (!isOwner) {
+      Alert.alert(
+        'Access Restricted',
+        'You do not have permission to add products to this business profile.'
+      );
+      return;
+    }
     if (onNavigateToAddProduct) {
       onNavigateToAddProduct(resolvedBusiness);
     } else if (navigation?.navigate) {
@@ -329,6 +357,13 @@ export default function BusinessProfileScreen({
   };
 
   const handleEditProduct = (product) => {
+    if (!isOwner) {
+      Alert.alert(
+        'Access Restricted',
+        'You do not have permission to edit products for this business.'
+      );
+      return;
+    }
     if (onNavigateToEditProduct) {
       onNavigateToEditProduct(product);
     } else if (navigation?.navigate) {
@@ -342,12 +377,14 @@ export default function BusinessProfileScreen({
   };
 
   const currentSellerOrders = useMemo(() => {
+    if (!isOwner) return [];
     const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
     if (!sId) return [];
     return getOrdersForSeller(sId, productList);
-  }, [resolvedBusiness, productList, ordersList]);
+  }, [isOwner, resolvedBusiness, productList, ordersList]);
 
   const pendingOrdersCount = useMemo(() => {
+    if (!isOwner) return 0;
     return currentSellerOrders.filter((o) => {
       const st = String(o.status || '').toLowerCase();
       return (
@@ -356,9 +393,16 @@ export default function BusinessProfileScreen({
         st === 'pending acceptance'
       );
     }).length;
-  }, [currentSellerOrders]);
+  }, [isOwner, currentSellerOrders]);
 
   const handleNavigateToSellerOrders = () => {
+    if (!isOwner) {
+      Alert.alert(
+        'Access Restricted',
+        'You do not have permission to access another seller\'s order management.'
+      );
+      return;
+    }
     const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
     if (onNavigateToSellerOrders) {
       onNavigateToSellerOrders({
@@ -376,18 +420,28 @@ export default function BusinessProfileScreen({
   };
 
   const currentSellerQuotations = useMemo(() => {
+    if (!isOwner) return [];
     const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
+    if (!sId) return [];
     return getQuotationsForSeller(sId, productList);
-  }, [resolvedBusiness, productList, quotationsList]);
+  }, [isOwner, resolvedBusiness, productList, quotationsList]);
 
   const pendingQuotationsCount = useMemo(() => {
+    if (!isOwner) return 0;
     return currentSellerQuotations.filter((q) => {
       const st = String(q.status || '').toLowerCase();
       return st === 'submitted' || st === 'pending' || st === 'counter-offer made';
     }).length;
-  }, [currentSellerQuotations]);
+  }, [isOwner, currentSellerQuotations]);
 
   const handleNavigateToSellerQuotations = () => {
+    if (!isOwner) {
+      Alert.alert(
+        'Access Restricted',
+        'You do not have permission to access another seller\'s price requests.'
+      );
+      return;
+    }
     const sId = resolvedBusiness?.id || resolvedBusiness?.sellerId;
     const params = {
       business: resolvedBusiness,
@@ -532,17 +586,23 @@ export default function BusinessProfileScreen({
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>My Business</Text>
-        <TouchableOpacity
-          style={styles.headerEditButton}
-          onPress={handleEditProfile}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Edit Profile"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="create-outline" size={20} color={colors.primary} />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {isOwner ? 'My Business' : (businessName || 'Business Profile')}
+        </Text>
+        {isOwner ? (
+          <TouchableOpacity
+            style={styles.headerEditButton}
+            onPress={handleEditProfile}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Edit Profile"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="create-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerRightSpacer} />
+        )}
       </View>
 
       {/* Main Content Area */}
@@ -612,79 +672,85 @@ export default function BusinessProfileScreen({
               </View>
             </View>
 
-            {/* Edit Profile Action Button */}
-            <TouchableOpacity
-              style={styles.editProfileButton}
-              onPress={handleEditProfile}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Edit Profile"
-            >
-              <Ionicons name="create-outline" size={15} color={colors.primary} />
-              <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
+            {/* Edit Profile Action Button - Only visible to business owner */}
+            {isOwner && (
+              <TouchableOpacity
+                style={styles.editProfileButton}
+                onPress={handleEditProfile}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Edit Profile"
+              >
+                <Ionicons name="create-outline" size={15} color={colors.primary} />
+                <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        {/* 3.1 Customer Orders Management Card */}
-        <TouchableOpacity
-          style={styles.sellerOrdersCard}
-          onPress={handleNavigateToSellerOrders}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Customer Orders"
-        >
-          <View style={styles.sellerOrdersIconBox}>
-            <Ionicons name="cube-outline" size={22} color={colors.primary} />
-          </View>
-          <View style={styles.sellerOrdersContent}>
-            <View style={styles.sellerOrdersTitleRow}>
-              <Text style={styles.sellerOrdersTitle}>Customer Orders</Text>
-              {pendingOrdersCount > 0 && (
-                <View style={styles.sellerOrdersBadge}>
-                  <Text style={styles.sellerOrdersBadgeText}>
-                    {pendingOrdersCount} NEW
-                  </Text>
-                </View>
-              )}
+        {/* 3.1 Customer Orders Management Card - Only visible to business owner */}
+        {isOwner && (
+          <TouchableOpacity
+            style={styles.sellerOrdersCard}
+            onPress={handleNavigateToSellerOrders}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Customer Orders"
+          >
+            <View style={styles.sellerOrdersIconBox}>
+              <Ionicons name="cube-outline" size={22} color={colors.primary} />
             </View>
-            <Text style={styles.sellerOrdersSubtitle}>
-              {currentSellerOrders.length}{' '}
-              {currentSellerOrders.length === 1 ? 'order' : 'orders'} received • Manage customer fulfillments
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-        </TouchableOpacity>
+            <View style={styles.sellerOrdersContent}>
+              <View style={styles.sellerOrdersTitleRow}>
+                <Text style={styles.sellerOrdersTitle}>Customer Orders</Text>
+                {pendingOrdersCount > 0 && (
+                  <View style={styles.sellerOrdersBadge}>
+                    <Text style={styles.sellerOrdersBadgeText}>
+                      {pendingOrdersCount} NEW
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.sellerOrdersSubtitle}>
+                {currentSellerOrders.length}{' '}
+                {currentSellerOrders.length === 1 ? 'order' : 'orders'} received • Manage customer fulfillments
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        )}
 
-        {/* 3.2 Customer Price Requests Management Card */}
-        <TouchableOpacity
-          style={styles.sellerOrdersCard}
-          onPress={handleNavigateToSellerQuotations}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Customer Price Requests"
-        >
-          <View style={[styles.sellerOrdersIconBox, { backgroundColor: '#EFF6FF' }]}>
-            <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
-          </View>
-          <View style={styles.sellerOrdersContent}>
-            <View style={styles.sellerOrdersTitleRow}>
-              <Text style={styles.sellerOrdersTitle}>Customer Price Requests</Text>
-              {pendingQuotationsCount > 0 && (
-                <View style={[styles.sellerOrdersBadge, { backgroundColor: colors.warning }]}>
-                  <Text style={styles.sellerOrdersBadgeText}>
-                    {pendingQuotationsCount} PENDING
-                  </Text>
-                </View>
-              )}
+        {/* 3.2 Customer Price Requests Management Card - Only visible to business owner */}
+        {isOwner && (
+          <TouchableOpacity
+            style={styles.sellerOrdersCard}
+            onPress={handleNavigateToSellerQuotations}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Customer Price Requests"
+          >
+            <View style={[styles.sellerOrdersIconBox, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
             </View>
-            <Text style={styles.sellerOrdersSubtitle}>
-              {currentSellerQuotations.length}{' '}
-              {currentSellerQuotations.length === 1 ? 'price request' : 'price requests'} received • Review and reply to buyer price requests
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-        </TouchableOpacity>
+            <View style={styles.sellerOrdersContent}>
+              <View style={styles.sellerOrdersTitleRow}>
+                <Text style={styles.sellerOrdersTitle}>Customer Price Requests</Text>
+                {pendingQuotationsCount > 0 && (
+                  <View style={[styles.sellerOrdersBadge, { backgroundColor: colors.warning }]}>
+                    <Text style={styles.sellerOrdersBadgeText}>
+                      {pendingQuotationsCount} PENDING
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.sellerOrdersSubtitle}>
+                {currentSellerQuotations.length}{' '}
+                {currentSellerQuotations.length === 1 ? 'price request' : 'price requests'} received • Review and reply to buyer price requests
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        )}
 
         {/* 4. About Business Section */}
         <View style={styles.card}>
@@ -897,19 +963,21 @@ export default function BusinessProfileScreen({
           )}
         </View>
 
-        {/* Edit Profile Action Button below business details and specialties */}
-        <View style={styles.editProfileContainer}>
-          <TouchableOpacity
-            style={styles.fullEditProfileButton}
-            onPress={handleEditProfile}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Edit Profile"
-          >
-            <Ionicons name="create-outline" size={18} color={colors.primary} />
-            <Text style={styles.fullEditProfileButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Edit Profile Action Button below business details and specialties - Only visible to business owner */}
+        {isOwner && (
+          <View style={styles.editProfileContainer}>
+            <TouchableOpacity
+              style={styles.fullEditProfileButton}
+              onPress={handleEditProfile}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Edit Profile"
+            >
+              <Ionicons name="create-outline" size={18} color={colors.primary} />
+              <Text style={styles.fullEditProfileButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* 9. Business Products Section */}
         <View style={[styles.card, businessProducts.length > 0 && styles.productsCard]}>
@@ -930,16 +998,18 @@ export default function BusinessProfileScreen({
                 </View>
               )}
             </View>
-            <TouchableOpacity
-              style={styles.addProductButton}
-              onPress={handleNavigateToAddProduct}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Add Product"
-            >
-              <Ionicons name="add" size={16} color={colors.textInverse} />
-              <Text style={styles.addProductButtonText}>Add Product</Text>
-            </TouchableOpacity>
+            {isOwner && (
+              <TouchableOpacity
+                style={styles.addProductButton}
+                onPress={handleNavigateToAddProduct}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Add Product"
+              >
+                <Ionicons name="add" size={16} color={colors.textInverse} />
+                <Text style={styles.addProductButtonText}>Add Product</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {businessProducts.length > 0 ? (
@@ -949,7 +1019,7 @@ export default function BusinessProfileScreen({
                   key={item.id}
                   product={item}
                   onPress={handleProductPress}
-                  onEditPress={handleEditProduct}
+                  onEditPress={isOwner ? handleEditProduct : undefined}
                   style={styles.productCardCol}
                 />
               ))}
@@ -965,16 +1035,18 @@ export default function BusinessProfileScreen({
               <Text style={styles.emptyProductsTitle}>
                 No products listed by this business yet.
               </Text>
-              <TouchableOpacity
-                style={[styles.addProductButton, styles.emptyAddProductButton]}
-                onPress={handleNavigateToAddProduct}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Add Product"
-              >
-                <Ionicons name="add" size={16} color={colors.textInverse} />
-                <Text style={styles.addProductButtonText}>Add Product</Text>
-              </TouchableOpacity>
+              {isOwner && (
+                <TouchableOpacity
+                  style={[styles.addProductButton, styles.emptyAddProductButton]}
+                  onPress={handleNavigateToAddProduct}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add Product"
+                >
+                  <Ionicons name="add" size={16} color={colors.textInverse} />
+                  <Text style={styles.addProductButtonText}>Add Product</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>

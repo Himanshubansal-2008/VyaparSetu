@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setClientBusinessId, getClientBusinessId } from '../services/apiClient';
+import { setClientBusinessId, getClientBusinessId } from '../services/apiClient.js';
 
 /**
  * Mock data for Business Profile Screen
@@ -317,6 +317,124 @@ export const isProductOwnedByCurrentSeller = (productOrItem, customProfile) => {
   // 3. Exact Business / Seller Name match if non-empty
   if (profileName && prodSellerName && profileName === prodSellerName) {
     return true;
+  }
+
+  return false;
+};
+
+/**
+ * Checks whether the current user has authorized seller management privileges
+ * (either role SELLER/BOTH/ADMIN, has a registered business, or has an active seller profile).
+ */
+export const canUserManageSellerFeatures = (customUser, customProfile) => {
+  const profile = customProfile !== undefined ? customProfile : getSessionBusinessProfile();
+  const clientBizId = getClientBusinessId();
+
+  if (customUser) {
+    const role = String(customUser.role || '').toUpperCase();
+    if (role === 'SELLER' || role === 'BOTH' || role === 'ADMIN') {
+      return true;
+    }
+    if (customUser.business && customUser.business.id) {
+      return true;
+    }
+  }
+
+  if (profile && (profile.id || profile.sellerId)) {
+    return true;
+  }
+
+  if (clientBizId) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Determines whether the authenticated user / session owns the target business profile.
+ * Buyers viewing other sellers' profiles will return false.
+ * Sellers viewing their own business profile will return true.
+ */
+export const isBusinessOwnedByCurrentUser = (
+  businessOrTarget,
+  customProfile,
+  customUser
+) => {
+  if (!businessOrTarget) return false;
+
+  const profile = customProfile !== undefined ? customProfile : getSessionBusinessProfile();
+  const clientBizId = String(getClientBusinessId() || '').trim().toLowerCase();
+  const user = customUser || null;
+  const userRole = String(user?.role || '').toUpperCase();
+  const userBizId = String(user?.business?.id || '').trim().toLowerCase();
+  const userId = String(user?.id || user?.userId || '').trim().toLowerCase();
+
+  // If user is explicitly a pure BUYER with no registered business, they own nothing
+  if (userRole === 'BUYER' && !userBizId && !profile && !clientBizId) {
+    return false;
+  }
+
+  const target = typeof businessOrTarget === 'object' ? businessOrTarget : null;
+  const targetId = String(
+    target?.id ||
+    target?.sellerId ||
+    target?.businessId ||
+    (typeof businessOrTarget === 'string' ? businessOrTarget : '')
+  ).trim().toLowerCase();
+
+  const targetOwnerId = String(
+    target?.ownerId ||
+    target?.userId ||
+    target?.owner?.id ||
+    ''
+  ).trim().toLowerCase();
+
+  const targetName = String(
+    target?.businessName ||
+    target?.sellerName ||
+    target?.name ||
+    ''
+  ).trim().toLowerCase();
+
+  // If no target ID or name is specified (e.g. user opening their own business profile with empty params)
+  if (!targetId && !targetName) {
+    return canUserManageSellerFeatures(user, profile);
+  }
+
+  // 1. Direct active client business ID match
+  if (clientBizId && targetId && clientBizId === targetId) {
+    return true;
+  }
+
+  // 2. Direct authenticated user's business ID match
+  if (userBizId && targetId && userBizId === targetId) {
+    return true;
+  }
+
+  // 3. User ID matches target business's owner ID
+  if (userId && targetOwnerId && userId === targetOwnerId) {
+    return true;
+  }
+
+  // 4. Matches session business profile
+  if (profile) {
+    const profId = String(profile.id || '').trim().toLowerCase();
+    const profSellerId = String(profile.sellerId || '').trim().toLowerCase();
+    const profLegacyId = String(profile.legacyId || '').trim().toLowerCase();
+    const profOwnerId = String(profile.ownerId || profile.userId || '').trim().toLowerCase();
+    const profName = String(profile.businessName || profile.sellerName || profile.name || '').trim().toLowerCase();
+
+    if (profId && targetId && profId === targetId) return true;
+    if (profSellerId && targetId && profSellerId === targetId) return true;
+    if (profLegacyId && targetId && profLegacyId === targetId) return true;
+    if (profOwnerId && targetOwnerId && profOwnerId === targetOwnerId) return true;
+    if (userId && profOwnerId && userId === profOwnerId && profId && profId === targetId) return true;
+
+    // For submitted / custom user profiles, match by business name if IDs weren't conflicting
+    if (profile.isSubmitted && profName && targetName && profName === targetName) {
+      return true;
+    }
   }
 
   return false;

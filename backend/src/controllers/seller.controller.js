@@ -79,22 +79,50 @@ const getSellerProducts = async (req, res) => {
 // GET /api/seller/orders - Retrieve incoming orders for active seller's business
 const getSellerOrders = async (req, res) => {
   try {
+    const userId = req.user?.id || req.headers["x-user-id"];
     const headerBizId = req.headers["x-business-id"];
     const queryBizId = req.query?.businessId;
     const userBizId = req.business?.id;
-    let businessId = userBizId || headerBizId || queryBizId;
 
-    if (!businessId) {
-      const userId = req.user?.id || req.headers["x-user-id"];
-      if (userId && UUID_REGEX.test(userId.trim())) {
-        const userBiz = await prisma.business.findUnique({
-          where: { ownerId: userId.trim() },
-          select: { id: true },
+    let businessId = null;
+
+    if (userId && UUID_REGEX.test(userId.trim())) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId.trim() },
+        select: {
+          id: true,
+          role: true,
+          business: { select: { id: true } },
+        },
+      });
+
+      // Buyers with no registered business are forbidden from accessing seller order management
+      if (!user || (!user.business && user.role === "BUYER")) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: Only registered business owners can access seller orders.",
         });
-        if (userBiz) {
-          businessId = userBiz.id;
+      }
+
+      if (user.business) {
+        businessId = user.business.id;
+        // If an explicit target business was requested that doesn't belong to this seller
+        const requestedTarget = queryBizId || headerBizId;
+        if (
+          requestedTarget &&
+          UUID_REGEX.test(requestedTarget.trim()) &&
+          requestedTarget.trim().toLowerCase() !== businessId.toLowerCase()
+        ) {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: You do not have permission to access another seller's orders.",
+          });
         }
       }
+    }
+
+    if (!businessId) {
+      businessId = userBizId || headerBizId || queryBizId;
     }
 
     if (!businessId || typeof businessId !== "string" || !UUID_REGEX.test(businessId.trim())) {

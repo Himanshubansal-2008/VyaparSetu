@@ -34,7 +34,11 @@ import {
   loadPersistedBusinessProfile,
   loadPersistedMode,
   getSessionBusinessProfile,
+  canUserManageSellerFeatures,
+  isBusinessOwnedByCurrentUser,
+  isProductOwnedByCurrentSeller,
 } from '../data/businessProfileData';
+import EmptyState from '../components/EmptyState';
 import { loadPersistedProducts } from '../data/products';
 import {
   loadPersistedOrders,
@@ -193,6 +197,73 @@ export default function AppNavigator({ initialRouteName = null }) {
       return;
     }
 
+    // Guard: Prevent buyers and unauthorized users from accessing seller-only screens
+    const SELLER_RESTRICTED_SCREENS = [
+      'SellerOrders',
+      'SellerOrderDetails',
+      'SellerQuotations',
+      'SellerQuotationDetails',
+      'AddProduct',
+      'EditProduct',
+      'InventoryDashboard',
+      'InventoryList',
+      'UpdateStock',
+      'EditBusinessProfile',
+    ];
+
+    if (SELLER_RESTRICTED_SCREENS.includes(name)) {
+      const authUser = authContext?.user;
+      const sessionProf = getSessionBusinessProfile();
+      const hasSellerPrivileges = canUserManageSellerFeatures(authUser, sessionProf);
+
+      if (!hasSellerPrivileges) {
+        Alert.alert(
+          'Access Restricted',
+          'Only registered sellers can access seller dashboards, inventory, and order management.'
+        );
+        return;
+      }
+
+      // If targeting a specific business profile to edit:
+      if (name === 'EditBusinessProfile' && params?.business) {
+        const isOwner = isBusinessOwnedByCurrentUser(params.business, sessionProf, authUser);
+        if (!isOwner) {
+          Alert.alert(
+            'Access Restricted',
+            'You do not have permission to edit another seller\'s business profile.'
+          );
+          return;
+        }
+      }
+
+      // If targeting a specific product to edit:
+      if (name === 'EditProduct' && params?.product) {
+        const isOwner = isProductOwnedByCurrentSeller(params.product, sessionProf);
+        if (!isOwner) {
+          Alert.alert(
+            'Access Restricted',
+            'You do not have permission to edit products belonging to another seller.'
+          );
+          return;
+        }
+      }
+
+      // If targeting seller orders or seller quotations of another business ID:
+      if (name === 'SellerOrders' || name === 'SellerQuotations') {
+        const targetBizId = params?.businessId || params?.sellerId || params?.business?.id;
+        if (targetBizId) {
+          const isOwner = isBusinessOwnedByCurrentUser(targetBizId, sessionProf, authUser);
+          if (!isOwner) {
+            Alert.alert(
+              'Access Restricted',
+              'You do not have permission to view or manage orders for another seller.'
+            );
+            return;
+          }
+        }
+      }
+    }
+
     setNavState((prevState) => {
       const { currentRoute: prevRoute, history: prevHistory } = prevState;
 
@@ -218,7 +289,7 @@ export default function AppNavigator({ initialRouteName = null }) {
         history: [...prevHistory, prevRoute],
       };
     });
-  }, [isAuthenticated, isSellerMode]);
+  }, [isAuthenticated, isSellerMode, authContext?.user]);
 
   const goBack = useCallback(() => {
     setNavState((prevState) => {
@@ -650,37 +721,81 @@ export default function AppNavigator({ initialRouteName = null }) {
     );
   }
 
+  const renderAccessRestricted = (message = 'You do not have permission to access this seller resource.') => (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+      }}
+    >
+      <EmptyState
+        icon="shield-alert-outline"
+        iconSize={54}
+        iconColor={colors.error || '#EF4444'}
+        title="Access Restricted"
+        description={message}
+        actionText="Go Back"
+        onActionPress={goBack}
+        actionIcon="arrow-back"
+      />
+    </SafeAreaView>
+  );
+
   return (
     <View style={styles.container}>
       {/* Home Screen is kept mounted to preserve scroll position and filters */}
       {/* Inventory Dashboard Screen */}
       {currentRoute.name === 'InventoryDashboard' && (
         <View style={styles.screen}>
-          <InventoryDashboardScreen navigation={navigation} />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ? (
+            renderAccessRestricted('Only registered sellers can access the inventory dashboard.')
+          ) : (
+            <InventoryDashboardScreen navigation={navigation} />
+          )}
         </View>
       )}
       
       {currentRoute.name === 'InventoryList' && (
         <View style={styles.screen}>
-          <InventoryListScreen navigation={navigation} />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ? (
+            renderAccessRestricted('Only registered sellers can access inventory management.')
+          ) : (
+            <InventoryListScreen navigation={navigation} />
+          )}
         </View>
       )}
 
       {currentRoute.name === 'EditProduct' && (
         <View style={styles.screen}>
-          <EditProductScreen
-            navigation={navigation}
-            route={currentRoute}
-          />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ||
+          (currentRoute.params?.product &&
+            !isProductOwnedByCurrentSeller(
+              currentRoute.params.product,
+              getSessionBusinessProfile()
+            )) ? (
+            renderAccessRestricted('You do not have permission to edit this product.')
+          ) : (
+            <EditProductScreen
+              navigation={navigation}
+              route={currentRoute}
+            />
+          )}
         </View>
       )}
 
       {currentRoute.name === 'UpdateStock' && (
         <View style={styles.screen}>
-          <UpdateStockScreen
-            navigation={navigation}
-            route={currentRoute}
-          />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ? (
+            renderAccessRestricted('Only registered sellers can update inventory stock.')
+          ) : (
+            <UpdateStockScreen
+              navigation={navigation}
+              route={currentRoute}
+            />
+          )}
         </View>
       )}
 
@@ -791,30 +906,44 @@ export default function AppNavigator({ initialRouteName = null }) {
       {(currentRoute.name === 'CreateBusinessProfile' ||
         currentRoute.name === 'EditBusinessProfile') && (
         <View style={styles.screen}>
-          <CreateBusinessProfileScreen
-            key={
-              currentRoute.params?.business?.id ||
-              getSessionBusinessProfile()?.id ||
-              'create'
-            }
-            navigation={navigation}
-            route={currentRoute}
-            onBackPress={goBack}
-          />
+          {currentRoute.name === 'EditBusinessProfile' &&
+          currentRoute.params?.business &&
+          !isBusinessOwnedByCurrentUser(
+            currentRoute.params.business,
+            getSessionBusinessProfile(),
+            authContext?.user
+          ) ? (
+            renderAccessRestricted('You do not have permission to edit another seller\'s business profile.')
+          ) : (
+            <CreateBusinessProfileScreen
+              key={
+                currentRoute.params?.business?.id ||
+                getSessionBusinessProfile()?.id ||
+                'create'
+              }
+              navigation={navigation}
+              route={currentRoute}
+              onBackPress={goBack}
+            />
+          )}
         </View>
       )}
 
       {/* Add Product Screen */}
-{currentRoute.name === 'AddProduct' && (
-  <View style={styles.screen}>
-    <AddProductScreen
-      key={currentRoute.name}
-      navigation={navigation}
-      route={currentRoute}
-      onBackPress={goBack}
-    />
-  </View>
-)}
+      {currentRoute.name === 'AddProduct' && (
+        <View style={styles.screen}>
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ? (
+            renderAccessRestricted('Only registered sellers can add new products.')
+          ) : (
+            <AddProductScreen
+              key={currentRoute.name}
+              navigation={navigation}
+              route={currentRoute}
+              onBackPress={goBack}
+            />
+          )}
+        </View>
+      )}
 
       {/* Wholesale Cart Screen */}
       {currentRoute.name === 'Cart' && (
@@ -900,38 +1029,52 @@ export default function AppNavigator({ initialRouteName = null }) {
       {/* Seller Orders Screen */}
       {currentRoute.name === 'SellerOrders' && (
         <View style={styles.screen}>
-          <SellerOrdersScreen
-            key={
-              currentRoute.params?.businessId ||
-              currentRoute.params?.sellerId ||
-              'seller_orders'
-            }
-            navigation={navigation}
-            route={currentRoute}
-            onBackPress={goBack}
-            onNavigateToSellerOrderDetails={handleNavigateToSellerOrderDetails}
-            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
-            onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
-          />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ||
+          (currentRoute.params?.businessId &&
+            !isBusinessOwnedByCurrentUser(
+              currentRoute.params.businessId,
+              getSessionBusinessProfile(),
+              authContext?.user
+            )) ? (
+            renderAccessRestricted('You do not have permission to view or manage another seller\'s orders.')
+          ) : (
+            <SellerOrdersScreen
+              key={
+                currentRoute.params?.businessId ||
+                currentRoute.params?.sellerId ||
+                'seller_orders'
+              }
+              navigation={navigation}
+              route={currentRoute}
+              onBackPress={goBack}
+              onNavigateToSellerOrderDetails={handleNavigateToSellerOrderDetails}
+              onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+              onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
+            />
+          )}
         </View>
       )}
 
       {/* Seller Order Details Screen */}
       {currentRoute.name === 'SellerOrderDetails' && (
         <View style={styles.screen}>
-          <SellerOrderDetailsScreen
-            key={
-              currentRoute.params?.orderId ||
-              currentRoute.params?.order?.id ||
-              'seller_order_details'
-            }
-            navigation={navigation}
-            route={currentRoute}
-            onBackPress={goBack}
-            onNavigateToSellerOrders={handleNavigateToSellerOrders}
-            onNavigateToProductDetails={handleNavigateToProductDetails}
-            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
-          />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ? (
+            renderAccessRestricted('You do not have permission to access seller order details.')
+          ) : (
+            <SellerOrderDetailsScreen
+              key={
+                currentRoute.params?.orderId ||
+                currentRoute.params?.order?.id ||
+                'seller_order_details'
+              }
+              navigation={navigation}
+              route={currentRoute}
+              onBackPress={goBack}
+              onNavigateToSellerOrders={handleNavigateToSellerOrders}
+              onNavigateToProductDetails={handleNavigateToProductDetails}
+              onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+            />
+          )}
         </View>
       )}
 
@@ -992,36 +1135,50 @@ export default function AppNavigator({ initialRouteName = null }) {
       {/* Seller Quotations Listing Screen */}
       {currentRoute.name === 'SellerQuotations' && (
         <View style={styles.screen}>
-          <SellerQuotationsScreen
-            key={
-              currentRoute.params?.businessId ||
-              currentRoute.params?.sellerId ||
-              'seller_quotes'
-            }
-            navigation={navigation}
-            route={currentRoute}
-            onBackPress={goBack}
-            onNavigateToSellerQuotationDetails={handleNavigateToSellerQuotationDetails}
-            onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
-          />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ||
+          (currentRoute.params?.businessId &&
+            !isBusinessOwnedByCurrentUser(
+              currentRoute.params.businessId,
+              getSessionBusinessProfile(),
+              authContext?.user
+            )) ? (
+            renderAccessRestricted('You do not have permission to view or manage another seller\'s price requests.')
+          ) : (
+            <SellerQuotationsScreen
+              key={
+                currentRoute.params?.businessId ||
+                currentRoute.params?.sellerId ||
+                'seller_quotes'
+              }
+              navigation={navigation}
+              route={currentRoute}
+              onBackPress={goBack}
+              onNavigateToSellerQuotationDetails={handleNavigateToSellerQuotationDetails}
+              onNavigateToBusinessProfile={handleNavigateToBusinessProfile}
+            />
+          )}
         </View>
       )}
 
       {/* Seller Quotation Details Screen */}
       {currentRoute.name === 'SellerQuotationDetails' && (
         <View style={styles.screen}>
-          <SellerQuotationDetailsScreen
-            key={
-              currentRoute.params?.quotationId ||
-              currentRoute.params?.quotation?.id ||
-              'seller_quote_details'
-            }
-            navigation={navigation}
-            route={currentRoute}
-            onBackPress={goBack}
-            onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
-            onNavigateToProductDetails={handleNavigateToProductDetails}
-          />
+          {!canUserManageSellerFeatures(authContext?.user, getSessionBusinessProfile()) ? (
+            renderAccessRestricted('You do not have permission to view seller price request details.')
+          ) : (
+            <SellerQuotationDetailsScreen
+              key={
+                currentRoute.params?.quotationId ||
+                currentRoute.params?.quotation?.id ||
+                'seller_quote_details'
+              }
+              navigation={navigation}
+              route={currentRoute}
+              onBackPress={goBack}
+              onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
+              onNavigateToProductDetails={handleNavigateToProductDetails}
+            />
+          )}
         </View>
       )}
 
