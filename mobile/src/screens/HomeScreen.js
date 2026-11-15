@@ -836,6 +836,26 @@ export default function HomeScreen({
               </Text>
             </TouchableOpacity>
 
+            {/* 3.5 Inventory Management Card */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Inventory Management"
+              onPress={() => navigation?.navigate('InventoryList')}
+            >
+              <View style={[styles.actionIconBox, styles.catalogIconBox]}>
+                <Ionicons
+                  name="file-tray-stacked-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.actionCardHeading} numberOfLines={1}>
+                Inventory
+              </Text>
+            </TouchableOpacity>
+
             {/* 4. Customer Price Requests Card */}
             <TouchableOpacity
               style={styles.actionCard}
@@ -953,6 +973,16 @@ export default function HomeScreen({
               <Text style={styles.sellerHubActionText}>Business Profile</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={styles.sellerHubActionButton}
+              onPress={() => navigation?.navigate('InventoryList')}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Inventory"
+            >
+              <Ionicons name="cube-outline" size={15} color={colors.primary} />
+              <Text style={styles.sellerHubActionText}>Inventory</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.sellerHubActionButton, styles.sellerHubPrimaryAction]}
               onPress={handleAddProductPress}
               activeOpacity={0.75}
@@ -975,6 +1005,35 @@ export default function HomeScreen({
         error={categoriesError}
         onRetry={fetchCategoriesList}
       />
+
+
+{/* 2.5 Inventory Management Entry */}
+<TouchableOpacity
+  style={styles.inventoryEntry}
+  onPress={() => navigation?.navigate('InventoryList')}
+  activeOpacity={0.8}
+  accessibilityRole="button"
+>
+  <View style={styles.inventoryIconContainer}>
+    <Ionicons name="cube-outline" size={24} color={colors.primary} />
+  </View>
+
+  <View style={styles.inventoryEntryContent}>
+    <Text style={styles.inventoryEntryTitle}>
+      Inventory Management
+    </Text>
+    <Text style={styles.inventoryEntrySubtitle}>
+      Manage stock, track low inventory and surplus products
+    </Text>
+  </View>
+
+  <Ionicons
+    name="chevron-forward"
+    size={20}
+    color={colors.primary}
+  />
+</TouchableOpacity>
+
 
       {/* 3. Featured Products — horizontal carousel */}
       {(!isSellerMode || featuredProducts.length > 0) && (
@@ -1515,6 +1574,26 @@ export default function HomeScreen({
                       </Text>
                     </TouchableOpacity>
 
+                    {/* Seller Item 3.5: Inventory Management */}
+                    <TouchableOpacity
+                      style={styles.actionsGridItem}
+                      onPress={() => {
+                        setIsAllActionsModalVisible(false);
+                        navigation?.navigate('InventoryList');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.actionModalIconBox, styles.catalogIconBox]}>
+                        <Ionicons name="file-tray-stacked-outline" size={22} color={colors.primary} />
+                      </View>
+                      <Text style={styles.actionsGridTitle} numberOfLines={1}>
+                        Inventory Management
+                      </Text>
+                      <Text style={styles.actionsGridDesc} numberOfLines={2}>
+                        Track and update product stock
+                      </Text>
+                    </TouchableOpacity>
+
                     {/* Seller Item 4: Customer Price Requests */}
                     <TouchableOpacity
                       style={styles.actionsGridItem}
@@ -1792,6 +1871,47 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+
+  inventoryEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  inventoryIconContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.infoLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+
+  inventoryEntryContent: {
+    flex: 1,
+  },
+
+  inventoryEntryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+
+  inventoryEntrySubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+
   quickActionsBar: {
     flexDirection: 'row',
     alignItems: 'center',

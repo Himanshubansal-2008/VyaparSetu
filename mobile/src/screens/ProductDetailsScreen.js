@@ -460,6 +460,15 @@ export default function ProductDetailsScreen({
     }
   };
 
+  const handleUpdateStock = () => {
+    if (navigation?.navigate) {
+      navigation.navigate('UpdateStock', {
+        product,
+        productId: product?.id,
+      });
+    }
+  };
+
   const handleDeleteProduct = () => {
     if (isDeleting) return;
     if (!product || !product.id) return;
@@ -2153,6 +2162,32 @@ export default function ProductDetailsScreen({
       <View style={[styles.bottomBar, isOwner && styles.sellerBottomBar]}>
         {isOwner ? (
           <View style={styles.sellerBottomBarContainer}>
+            <TouchableOpacity
+              style={[
+                styles.sellerEditProductButton,
+                { backgroundColor: '#0F766E', marginRight: spacing.xs },
+                isDeleting && { opacity: 0.6 },
+              ]}
+              onPress={handleUpdateStock}
+              disabled={isDeleting}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Update Product Stock"
+            >
+              <Ionicons
+                name="cube-outline"
+                size={18}
+                color={colors.textInverse}
+                style={styles.sellerButtonIcon}
+              />
+              <Text
+                style={styles.sellerEditProductButtonText}
+                numberOfLines={1}
+              >
+                Update Stock
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[
                 styles.sellerEditProductButton,

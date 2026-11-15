@@ -1,3 +1,4 @@
+
 import apiClient, { ApiError } from './apiClient.js';
 import { API_CONFIG } from '../config/api.js';
 
@@ -6,6 +7,39 @@ export const UUID_REGEX =
 
 export const isUUID = (str) => {
   return typeof str === 'string' && UUID_REGEX.test(str.trim());
+};
+
+export const getCategories = async (options = {}) => {
+  const response = await apiClient.get(API_CONFIG.ENDPOINTS.CATEGORIES, options);
+  const data = response?.data || response;
+  return Array.isArray(data) ? data : (data?.categories || []);
+};
+
+export const getBusinesses = async (options = {}) => {
+  const response = await apiClient.get(API_CONFIG.ENDPOINTS.BUSINESSES, options);
+  const data = response?.data || response;
+  return Array.isArray(data) ? data : (data?.businesses || []);
+};
+
+export const updateProductStock = async (productId, stock, options = {}) => {
+  if (!productId || typeof productId !== 'string' || !isUUID(productId)) {
+    throw new ApiError('Valid product UUID is required for updating stock', 400);
+  }
+
+  const cleanId = productId.trim();
+  const parsedStock = parseInt(stock, 10);
+  if (isNaN(parsedStock) || parsedStock < 0) {
+    throw new ApiError('Stock must be a non-negative integer', 400);
+  }
+
+  const response = await apiClient.put(
+    `${API_CONFIG.ENDPOINTS.PRODUCTS}/${encodeURIComponent(cleanId)}`,
+    { stock: parsedStock },
+    options
+  );
+
+  const data = response?.data || response;
+  return data;
 };
 
 /**
@@ -100,7 +134,7 @@ export const sanitizeProductParams = (params = {}) => {
  * @param {Object} [options] - Additional request options (headers, timeout, signal, baseUrl)
  * @returns {Promise<{ products: Array, pagination: Object, success: boolean, message: string, data: Object }>}
  */
-export const getProducts = async (params = {}, options = {}) => {
+const getProductsFromApi = async (params = {}, options = {}) => {
   const queryParams = sanitizeProductParams(params);
   const response = await apiClient.get(API_CONFIG.ENDPOINTS.PRODUCTS, {
     params: queryParams,
@@ -120,6 +154,27 @@ export const getProducts = async (params = {}, options = {}) => {
     message: response?.message || 'Products fetched successfully',
     data,
   };
+};
+
+export const getProducts = async (params, options = {}) => {
+  const isInventoryCall = params === undefined || params?.asArray === true;
+  const queryParams = params === undefined ? { limit: 100 } : { ...(params || {}) };
+  if (queryParams && typeof queryParams === 'object' && queryParams.asArray) {
+    delete queryParams.asArray;
+  }
+  if (isInventoryCall && queryParams.limit === undefined) {
+    queryParams.limit = 100;
+  }
+
+  const response = await getProductsFromApi(queryParams, options);
+
+  // Inventory screens expect an array when no parameters or asArray is supplied.
+  if (isInventoryCall) {
+    return response.products;
+  }
+
+  // Existing screens expect products + pagination.
+  return response;
 };
 
 /**
@@ -347,6 +402,8 @@ export const updateProduct = async (id, updateData, options = {}) => {
     data,
   };
 };
+
+
 
 /**
  * Soft deactivates a product in PostgreSQL.

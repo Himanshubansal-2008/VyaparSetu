@@ -1,7 +1,26 @@
 const businessService = require("../services/business.service");
 const { UUID_REGEX } = require("../middlewares/clientIdentity");
 
-// POST /api/businesses - Create a new business profile
+const getBusinesses = async (req, res) => {
+  try {
+    const businesses = await businessService.getBusinesses();
+
+    return res.status(200).json({
+      success: true,
+      message: "Businesses fetched successfully",
+      data: businesses,
+    });
+  } catch (error) {
+    console.error("Get businesses error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch businesses",
+    });
+  }
+};
+
+
 const createBusiness = async (req, res) => {
   try {
     const body = req.body || {};
@@ -57,7 +76,6 @@ const createBusiness = async (req, res) => {
   }
 };
 
-// GET /api/businesses/me - Retrieve current seller's business profile
 const getMyBusiness = async (req, res) => {
   try {
     const headerUserId = req.headers["x-user-id"];
@@ -180,6 +198,7 @@ const updateBusiness = async (req, res) => {
 };
 
 module.exports = {
+  getBusinesses,
   createBusiness,
   getMyBusiness,
   getBusinessById,
