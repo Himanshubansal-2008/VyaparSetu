@@ -21,6 +21,7 @@ import BuyerQuotationsScreen from '../screens/BuyerQuotationsScreen';
 import BuyerQuotationDetailsScreen from '../screens/BuyerQuotationDetailsScreen';
 import SellerQuotationsScreen from '../screens/SellerQuotationsScreen';
 import SellerQuotationDetailsScreen from '../screens/SellerQuotationDetailsScreen';
+import NotificationScreen from '../screens/NotificationScreen';
 import SignupScreen from '../screens/SignupScreen';
 import LoginScreen from '../screens/LoginScreen';
 import {
@@ -61,6 +62,7 @@ const VALID_ROUTES = [
   'BuyerQuotationDetails',
   'SellerQuotations',
   'SellerQuotationDetails',
+  'Notifications',
   'Signup',
   'Login',
 ];
@@ -596,6 +598,10 @@ export default function AppNavigator({ initialRouteName = null }) {
     navigate('Home');
   }, [navigate]);
 
+  const handleNavigateToNotifications = useCallback(() => {
+    navigate('Notifications');
+  }, [navigate]);
+
   const handleNavigateToSignup = useCallback(() => {
     const isSignupInHistory = history.some((r) => r.name === 'Signup');
     if (isSignupInHistory) {
@@ -648,6 +654,7 @@ export default function AppNavigator({ initialRouteName = null }) {
           onNavigateToBuyerQuotations={handleNavigateToBuyerQuotations}
           onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
           onNavigateToRequestQuotation={handleNavigateToRequestQuotation}
+          onNotificationPress={handleNavigateToNotifications}
           onNavigateToSignup={handleNavigateToSignup}
           onNavigateToLogin={handleNavigateToLogin}
           onLogoutPress={logout}
@@ -667,6 +674,7 @@ export default function AppNavigator({ initialRouteName = null }) {
             route={listingRoute}
             onBackPress={goBack}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNotificationPress={handleNavigateToNotifications}
             onCartPress={handleNavigateToCart}
           />
         </View>
@@ -965,6 +973,23 @@ export default function AppNavigator({ initialRouteName = null }) {
             onBackPress={goBack}
             onNavigateToSellerQuotations={handleNavigateToSellerQuotations}
             onNavigateToProductDetails={handleNavigateToProductDetails}
+          />
+        </View>
+      )}
+
+      {/* Notifications Screen */}
+      {currentRoute.name === 'Notifications' && (
+        <View style={styles.screen}>
+          <NotificationScreen
+            navigation={navigation}
+            route={currentRoute}
+            onBackPress={goBack}
+            onNavigateToOrderDetails={handleNavigateToOrderDetails}
+            onNavigateToSellerOrderDetails={handleNavigateToSellerOrderDetails}
+            onNavigateToBuyerQuotationDetails={handleNavigateToBuyerQuotationDetails}
+            onNavigateToSellerQuotationDetails={handleNavigateToSellerQuotationDetails}
+            onNavigateToProductDetails={handleNavigateToProductDetails}
+            onNavigateToEditProduct={handleNavigateToEditProduct}
           />
         </View>
       )}
