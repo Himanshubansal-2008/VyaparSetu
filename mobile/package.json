@@ -23,7 +23,7 @@
     "web": "expo start --web",
     "build:android": "eas build -p android --profile preview",
     "build:ios": "eas build -p ios --profile preview",
-    "build:all": "eas build --profile preview"
+    "build:all": "eas build -p all --profile preview"
   },
   "private": true
 }

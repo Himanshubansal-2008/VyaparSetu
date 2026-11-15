@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vyaparsetu.app"
+      "bundleIdentifier": "com.vyaparsetu.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.vyaparsetu.app",
@@ -29,6 +32,11 @@
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "48a3d058-dd03-4b36-b27d-b010b9fa40fb"
+      }
+    }
   }
 }
